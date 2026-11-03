@@ -8,6 +8,7 @@ permissions:
 jobs:
   check:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -44,6 +45,8 @@ jobs:
           python tools/call_reference.py --check
           python tools/array_reference.py
           python tools/array_reference.py --check
+          python tools/field_reference.py
+          python tools/field_reference.py --check
       - name: Format
         run: cargo fmt --check
       - name: Lint

@@ -13,15 +13,19 @@ use std::{
 // Zero and the exhausted terminal value are never issued, and IDs never wrap/reuse.
 static NEXT_REGISTRY: AtomicU64 = AtomicU64::new(1);
 fn allocate_identity(allocator: &AtomicU64) -> Result<u64, E> {
-    allocator
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
-            if value == 0 {
-                None
-            } else {
-                value.checked_add(1)
-            }
-        })
-        .map_err(|_| E::IdentityExhausted)
+    let mut current = allocator.load(Ordering::Relaxed);
+    loop {
+        let next = if current == 0 {
+            None
+        } else {
+            current.checked_add(1)
+        }
+        .ok_or(E::IdentityExhausted)?;
+        match allocator.compare_exchange_weak(current, next, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_) => return Ok(current),
+            Err(observed) => current = observed,
+        }
+    }
 }
 
 #[cfg(test)]

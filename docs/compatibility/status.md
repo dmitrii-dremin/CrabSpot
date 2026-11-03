@@ -22,9 +22,9 @@ completion of that goal.
 | Unknown attributes (4.7.1) | Implemented and tested | Payload preservation, including standard-looking names outside applicable version/location |
 | Resource bounds | Implemented and tested | Default 16 MiB class input, annotation depth 64, one million annotation/value nodes shared across the whole class; depth hard-capped at 64 even if caller requests more |
 | Inspection CLI | Implemented and tested | Escaped metadata, bounded reads, preview opt-in and nonzero argument/input failures; no bytecode execution |
-| Genuine Java 21 fixtures | Implemented and tested | 30 classes including array reference bodies; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
+| Genuine Java 21 fixtures | Implemented and tested | 34 classes including array bodies and raw-field oracle metadata; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
 | Parser fuzzing | Implemented and tested | 108,907,980 seeded cases over 300 seconds, zero failures, exact-source fingerprint; no coverage metrics or proof of panic freedom |
-| Linux/Windows hosted CI | Not tested remotely | Workflow configured; native Windows checks recorded separately |
+| Linux/Windows hosted CI | Partially tested; full run failed | Run 41715154759 on 2617637 passed checked-in tests and regeneration; Rust 1.99.1 strict lint rejected deprecated atomic calls; checked CAS correction implemented; fresh hosted validation pending |
 | Rust 1.85 minimum version | Not tested | Manifest declaration; actual local toolchain is Rust 1.98.1 |
 | Performance superiority over HotSpot | Not demonstrated | Long-term objective; no comparative performance benchmark results are claimed |
 | Bytecode decoder | Implemented and tested | All defined JVM instruction formats, version/operand constraints and static branch destinations; 10 focused tests and malformed-input corpus |
@@ -34,18 +34,19 @@ completion of that goal.
 | Hierarchy and logical field layouts | Implemented and tested | 21 added tests including genuine javac graphs and a 10,000-class chain; explicit resolver/delegation, kind/final/cycle checks, bounded parent-linked layouts and owner-qualified fields; full derivation/access/override checks remain deferred |
 | Shared runtime values and default static storage | Implemented and tested | All primitive/object/array defaults, bounded owner-qualified static locations and read-only root enumeration; ConstantValue and initializers remain unapplied; no lifecycle advancement or static writer |
 | Primitive-array heap service | Implemented and tested | All eight kinds, checked opaque identities, typed stores/loads, bounded fallible allocation, 151 JDK roundtrips; no reuse, reclamation or GC |
+| Ordinary-instance memory service | Implemented and tested | Atomic multi-plan admission, shared own-field shapes, six quotas, default allocation, owner-qualified numeric/null stores, final protection and borrowed children; 151 raw-putfield JDK cases; no construction/initialization or field-bytecode claim |
 | Full linkage, bytecode verifier and initialization | Not implemented | Subsequent increments; registration and layout planning are not full linkage |
-| Class loading, object/reference-array heap, GC, threads, Java libraries, JNI, Kotlin, Spring Boot, JIT | Not implemented | Subsequent milestones |
+| Class loading, reference-array heap, GC, threads, Java libraries, JNI, Kotlin, Spring Boot, JIT | Not implemented | Subsequent milestones |
 
 No executed test currently remains failing. This statement is limited to the
 recorded tests; it is not proof that no defect exists.
 
-Latest independent native Windows checks: 256 workspace tests and 169 optimized
+Latest independent native Windows checks: 289 workspace tests and 202 optimized
 runtime/interpreter tests pass, with strict Clippy and formatting clean. The
-execution oracle has 8,285 cases; the separate heap-service oracle has 151
-roundtrips. All 30 class fixtures and five reference output sets reproduce.
-The array bridge is approved in docs/architecture/m2-primitive-array-bridge-review.md;
-full M2 remains open.
+execution oracle has 8,285 cases; separate array and field memory-service oracles
+have 151 roundtrips each. All 34 class fixtures and six reference output sets
+reproduce. Instance service review is recorded in
+`docs/architecture/runtime-instance-storage-review.md`; full M2 remains open.
 
 ## Standard attribute coverage
 

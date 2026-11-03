@@ -37,6 +37,7 @@ python tools/numeric_reference.py --check
 python tools/floating_reference.py --check
 python tools/call_reference.py --check
 python tools/array_reference.py --check
+python tools/field_reference.py --check
 cargo test -p crabspot-interpreter --test numeric_reference
 cargo test -p crabspot-interpreter --test floating_reference --release
 ```
@@ -61,7 +62,7 @@ original payload bytes.
 There are five crates: `crabspot-classfile` for pure byte parsing,
 `crabspot-bytecode` for instruction decoding, `crabspot-interpreter` for the
 method-body execution kernel, `crabspot-runtime` for bounded definition registration,
-hierarchy/field-layout plans, shared values, static storage and primitive-array heap,
+hierarchy/field-layout plans, shared values, static storage and a managed heap,
 and `crabspot-launcher` for command-line inspection.
 The differential tests compare 616 integral, 7,263 floating-point, 126 static-call
 and 280 primitive-array OpenJDK 21 outcomes with Rust execution, including arithmetic exceptions, signed zero,
@@ -75,7 +76,12 @@ with bounded nonrecursive traversal and no synthesized missing classes.
 Static storage allocates typed zero/null defaults without applying constants or
 running initializers. A bounded noncollecting heap owns primitive arrays of all
 eight kinds through checked opaque references. Heap-service tests additionally
-match 151 OpenJDK store/load outcomes. The explicit-heap interpreter API supports
+match 151 OpenJDK array store/load outcomes. The opt-in instance service admits
+shared, owner-qualified layouts atomically and allocates typed default fields.
+It supports numeric/null writes with final-field protection and explicit quotas;
+151 raw-putfield JDK reference cases test its storage conversions. Constructors,
+class initialization, non-null reference assignment and field bytecodes remain
+unimplemented. The explicit-heap interpreter API supports
 179 opcode values; the original numeric-only APIs retain their 148-opcode scope.
 The implementation uses the
 [JVMS Java SE 21](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html)

@@ -588,6 +588,14 @@ mod tests {
         text.encode_utf16().collect()
     }
     fn definition(name: &str, flags: u16, super_name: Option<&str>, field: bool) -> Vec<u8> {
+        definition_fields(name, flags, super_name, usize::from(field))
+    }
+    fn definition_fields(
+        name: &str,
+        flags: u16,
+        super_name: Option<&str>,
+        field_count: usize,
+    ) -> Vec<u8> {
         fn utf8(text: &str) -> Vec<u8> {
             let mut result = vec![1];
             result.extend((text.len() as u16).to_be_bytes());
@@ -602,23 +610,22 @@ mod tests {
         } else {
             0
         };
-        let field_indices = if field {
+        let mut field_indices = Vec::new();
+        for field in 0..field_count {
             let index = pool.len() as u16 + 1;
-            pool.push(utf8("f"));
+            pool.push(utf8(&format!("f{field}")));
             pool.push(utf8("J"));
-            Some((index, index + 1))
-        } else {
-            None
-        };
+            field_indices.push((index, index + 1));
+        }
         let mut bytes = vec![0xca, 0xfe, 0xba, 0xbe, 0, 0, 0, 65];
         bytes.extend((pool.len() as u16 + 1).to_be_bytes());
         for entry in pool {
             bytes.extend(entry);
         }
-        for word in [flags, 2, superclass, 0, u16::from(field)] {
+        for word in [flags, 2, superclass, 0, field_count as u16] {
             bytes.extend(word.to_be_bytes());
         }
-        if let Some((name, descriptor)) = field_indices {
+        for (name, descriptor) in field_indices {
             for word in [1u16, name, descriptor, 0] {
                 bytes.extend(word.to_be_bytes());
             }
@@ -824,5 +831,142 @@ mod tests {
         assert_eq!(plan.declared_static_field_slot(field(base, 0)), None);
         plan.layouts.get_mut(&child).unwrap().superclass = Some(child);
         assert_eq!(plan.instance_field_slot(child, field(base, 0)), None);
+    }
+    #[test]
+    fn instance_admission_rejects_damaged_plans_atomically_and_allows_valid_retry() {
+        use crate::{HeapOptions, InstanceOptions, ManagedHeap};
+        let mut registry = DefinitionRegistry::new(RegistryOptions::default()).unwrap();
+        let loader = registry.create_loader().unwrap();
+        let object = registry
+            .define(
+                loader,
+                &units("java/lang/Object"),
+                &definition("java/lang/Object", 0x21, None, false),
+                ParseOptions::default(),
+            )
+            .unwrap();
+        let class = registry
+            .define(
+                loader,
+                &units("C"),
+                &definition_fields("C", 0x21, Some("java/lang/Object"), 2),
+                ParseOptions::default(),
+            )
+            .unwrap();
+        for damage in 0..11 {
+            let mut plan = build_hierarchy(
+                &registry,
+                class,
+                &mut SameLoaderResolver,
+                HierarchyOptions::default(),
+            )
+            .unwrap();
+            match damage {
+                0 => {
+                    plan.classes.retain(|c| *c != object);
+                    plan.layouts.remove(&object);
+                }
+                1 => {
+                    plan.layouts.get_mut(&class).unwrap().instance_fields[0]
+                        .owner
+                        .registry = 0;
+                }
+                2 => {
+                    plan.layouts.get_mut(&class).unwrap().class_id = object;
+                }
+                3 => {
+                    plan.layouts.get_mut(&class).unwrap().inherited_slots = 1;
+                }
+                4 => {
+                    plan.layouts.get_mut(&class).unwrap().slots = 0;
+                }
+                5 => {
+                    plan.layouts.get_mut(&class).unwrap().superclass = None;
+                }
+                6 => {
+                    plan.layouts
+                        .get_mut(&class)
+                        .unwrap()
+                        .static_fields
+                        .push(field(class, usize::MAX));
+                }
+                7 => {
+                    plan.classes.clear();
+                }
+                8 => {
+                    plan.classes[0].index = usize::MAX;
+                }
+                9 => {
+                    plan.layouts
+                        .get_mut(&class)
+                        .unwrap()
+                        .instance_fields
+                        .swap(0, 1);
+                }
+                _ => {
+                    plan.layouts.get_mut(&class).unwrap().instance_fields.pop();
+                }
+            }
+            let mut heap =
+                ManagedHeap::new_with_instances(HeapOptions::default(), InstanceOptions::default())
+                    .unwrap();
+            assert!(
+                heap.admit_instance_layouts(&registry, &[&plan]).is_err(),
+                "damage {damage}"
+            );
+            assert_eq!(heap.retained_layout_classes(), 0);
+            assert_eq!(heap.retained_layout_edges(), 0);
+            assert_eq!(heap.retained_layout_fields(), 0);
+            assert_eq!(heap.allocated_instances(), 0);
+            let valid = build_hierarchy(
+                &registry,
+                class,
+                &mut SameLoaderResolver,
+                HierarchyOptions::default(),
+            )
+            .unwrap();
+            heap.admit_instance_layouts(&registry, &[&valid]).unwrap();
+            let reference = heap.allocate_instance(class).unwrap();
+            assert_eq!(heap.instance_class(reference).unwrap(), class);
+        }
+    }
+    #[test]
+    fn forged_cyclic_admission_plan_does_not_pass_local_relationship_checks() {
+        use crate::{HeapOptions, InstanceError, InstanceOptions, ManagedHeap};
+        let mut registry = DefinitionRegistry::new(RegistryOptions::default()).unwrap();
+        let loader = registry.create_loader().unwrap();
+        let a = registry
+            .define(
+                loader,
+                &units("A"),
+                &definition("A", 0x21, Some("B"), false),
+                ParseOptions::default(),
+            )
+            .unwrap();
+        let b = registry
+            .define(
+                loader,
+                &units("B"),
+                &definition("B", 0x21, Some("A"), false),
+                ParseOptions::default(),
+            )
+            .unwrap();
+        let plan = HierarchyPlan {
+            root: a,
+            classes: vec![a, b],
+            layouts: HashMap::from([
+                (a, layout(a, Some(b), 0, 0, false)),
+                (b, layout(b, Some(a), 0, 0, false)),
+            ]),
+        };
+        let mut heap =
+            ManagedHeap::new_with_instances(HeapOptions::default(), InstanceOptions::default())
+                .unwrap();
+        assert_eq!(
+            heap.admit_instance_layouts(&registry, &[&plan])
+                .unwrap_err(),
+            InstanceError::InvalidMetadata("admitted dependency graph is cyclic")
+        );
+        assert_eq!(heap.retained_layout_classes(), 0);
     }
 }

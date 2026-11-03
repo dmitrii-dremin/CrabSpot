@@ -1,5 +1,14 @@
 # Numeric reference outcomes
 
+fields.tsv records 151 raw instance-field store/load cases across all eight
+primitive types, with provenance in fields.json. FieldStoreCases.java generates
+an original class in memory with direct numeric load/putfield/getfield/return
+instructions, without i2b/i2c/i2s or pre-store Boolean normalization. Only the
+development JDK runs that class. Rust memory-service tests compare these results
+using genuine InstanceFields metadata; they do not claim field-bytecode execution.
+Generate/check with tools/field_reference.py. Reference NaN results are normalized;
+separate Rust tests assert exact preservation of stored floating payload bits.
+
 arrays.tsv records 280 primitive-array cases, with provenance in arrays.json.
 The heap-service integration uses the 151 roundtrip cases across all eight kinds.
 The interpreter integration executes all 280 cases, including aliasing, loops,

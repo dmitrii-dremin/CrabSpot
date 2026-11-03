@@ -1,5 +1,6 @@
-//! A bounded, noncollecting arena of primitive arrays. Handles survive arena
+//! A bounded, noncollecting arena of primitive arrays and ordinary instances. Handles survive arena
 //! relocation; this service does not issue Java exception objects or array mirrors.
+use crate::instance::{InstanceOptions, InstancePayload, InstanceState};
 use crate::{HeapRef, Reference, Value, ValueKind};
 use std::{
     fmt,
@@ -7,17 +8,21 @@ use std::{
 };
 
 static NEXT_HEAP: AtomicU64 = AtomicU64::new(1);
-const LIVE_GENERATION: u64 = 1;
+pub(crate) const LIVE_GENERATION: u64 = 1;
 fn allocate_identity(allocator: &AtomicU64) -> Result<u64, HeapError> {
-    allocator
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
-            if value == 0 {
-                None
-            } else {
-                value.checked_add(1)
-            }
-        })
-        .map_err(|_| HeapError::IdentityExhausted)
+    let mut current = allocator.load(Ordering::Relaxed);
+    loop {
+        let next = if current == 0 {
+            None
+        } else {
+            current.checked_add(1)
+        }
+        .ok_or(HeapError::IdentityExhausted)?;
+        match allocator.compare_exchange_weak(current, next, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_) => return Ok(current),
+            Err(observed) => current = observed,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -73,9 +78,18 @@ pub enum HeapResource {
     TotalElements,
     PayloadBytes,
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum HeapEntryKind {
+    PrimitiveArray,
+    Instance,
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HeapError {
     NullReference,
+    WrongEntryKind {
+        expected: HeapEntryKind,
+        actual: HeapEntryKind,
+    },
     ForeignHeap,
     MissingEntry {
         index: usize,
@@ -109,7 +123,10 @@ pub enum HeapError {
 impl fmt::Display for HeapError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NullReference => f.write_str("null reference does not identify an array"),
+            Self::NullReference => f.write_str("null reference does not identify a heap entry"),
+            Self::WrongEntryKind { expected, actual } => {
+                write!(f, "expected {expected:?}, found {actual:?}")
+            }
             Self::ForeignHeap => f.write_str("reference belongs to another heap"),
             Self::MissingEntry { index } => write!(f, "heap entry {index} does not exist"),
             Self::StaleGeneration { expected, actual } => write!(
@@ -121,7 +138,7 @@ impl fmt::Display for HeapError {
                 write!(f, "array index {index} is outside length {length}")
             }
             Self::ValueKindMismatch { expected, actual } => {
-                write!(f, "array store requires {expected:?}, received {actual:?}")
+                write!(f, "store requires {expected:?}, received {actual:?}")
             }
             Self::ResourceLimit {
                 resource,
@@ -142,7 +159,7 @@ impl fmt::Display for HeapError {
 impl std::error::Error for HeapError {}
 
 #[derive(Debug)]
-enum Payload {
+pub(crate) enum Payload {
     Boolean(Vec<u8>),
     Byte(Vec<i8>),
     Char(Vec<u16>),
@@ -271,15 +288,43 @@ impl Payload {
     }
 }
 #[derive(Debug)]
-struct Entry {
-    generation: u64,
-    payload: Payload,
+pub(crate) enum EntryPayload {
+    Array(Payload),
+    Instance(InstancePayload),
 }
-fn reserve_entries(entries: &mut Vec<Entry>, additional: usize) -> Result<(), HeapError> {
+impl EntryPayload {
+    fn array(&self) -> Result<&Payload, HeapError> {
+        match self {
+            Self::Array(payload) => Ok(payload),
+            Self::Instance(_) => Err(HeapError::WrongEntryKind {
+                expected: HeapEntryKind::PrimitiveArray,
+                actual: HeapEntryKind::Instance,
+            }),
+        }
+    }
+    fn array_mut(&mut self) -> Result<&mut Payload, HeapError> {
+        match self {
+            Self::Array(payload) => Ok(payload),
+            Self::Instance(_) => Err(HeapError::WrongEntryKind {
+                expected: HeapEntryKind::PrimitiveArray,
+                actual: HeapEntryKind::Instance,
+            }),
+        }
+    }
+}
+#[derive(Debug)]
+pub(crate) struct Entry {
+    pub(crate) generation: u64,
+    pub(crate) payload: EntryPayload,
+}
+pub(crate) fn reserve_entries(
+    entries: &mut Vec<Entry>,
+    additional: usize,
+) -> Result<(), HeapError> {
     entries
         .try_reserve(additional)
         .map_err(|_| HeapError::AllocationFailure {
-            resource: "primitive-array arena",
+            resource: "managed heap arena",
         })
 }
 fn increased(
@@ -318,9 +363,11 @@ fn payload_size(length: usize, kind: PrimitiveArrayKind, limit: usize) -> Result
 /// A noncollecting arena. There is no entry free/reuse API and no caller root set.
 #[derive(Debug)]
 pub struct ManagedHeap {
-    identity: u64,
+    pub(crate) identity: u64,
     options: HeapOptions,
-    entries: Vec<Entry>,
+    pub(crate) entries: Vec<Entry>,
+    pub(crate) instances: Option<InstanceState>,
+    arrays: usize,
     elements: usize,
     bytes: usize,
 }
@@ -330,12 +377,22 @@ impl ManagedHeap {
             identity: allocate_identity(&NEXT_HEAP)?,
             options,
             entries: Vec::new(),
+            instances: None,
+            arrays: 0,
             elements: 0,
             bytes: 0,
         })
     }
+    pub fn new_with_instances(
+        options: HeapOptions,
+        instance_options: InstanceOptions,
+    ) -> Result<Self, HeapError> {
+        let mut heap = Self::new(options)?;
+        heap.instances = Some(InstanceState::new(instance_options));
+        Ok(heap)
+    }
     pub fn allocated_arrays(&self) -> usize {
-        self.entries.len()
+        self.arrays
     }
     pub fn total_elements(&self) -> usize {
         self.elements
@@ -350,8 +407,8 @@ impl ManagedHeap {
         length: i32,
     ) -> Result<Reference, HeapError> {
         let size = usize::try_from(length).map_err(|_| HeapError::NegativeLength { length })?;
-        increased(
-            self.entries.len(),
+        let arrays = increased(
+            self.arrays,
             1,
             self.options.max_arrays,
             HeapResource::Arrays,
@@ -380,15 +437,16 @@ impl ManagedHeap {
         let index = self.entries.len();
         self.entries.push(Entry {
             generation: LIVE_GENERATION,
-            payload,
+            payload: EntryPayload::Array(payload),
         });
+        self.arrays = arrays;
         self.elements = elements;
         self.bytes = bytes;
         // No fallible operation remains after entry publication; only the heap
         // issuer can construct this opaque non-null reference.
         Ok(Reference::issued(self.identity, index, LIVE_GENERATION))
     }
-    fn checked_handle(&self, handle: HeapRef) -> Result<usize, HeapError> {
+    pub(crate) fn checked_handle(&self, handle: HeapRef) -> Result<usize, HeapError> {
         let (heap, index, generation) = handle.components();
         if heap != self.identity {
             return Err(HeapError::ForeignHeap);
@@ -405,7 +463,7 @@ impl ManagedHeap {
         }
         Ok(index)
     }
-    fn entry(&self, reference: Reference) -> Result<&Entry, HeapError> {
+    pub(crate) fn entry(&self, reference: Reference) -> Result<&Entry, HeapError> {
         let handle = reference.heap_ref().ok_or(HeapError::NullReference)?;
         let index = self.checked_handle(handle)?;
         self.entries
@@ -413,13 +471,13 @@ impl ManagedHeap {
             .ok_or(HeapError::MissingEntry { index })
     }
     pub fn kind(&self, reference: Reference) -> Result<PrimitiveArrayKind, HeapError> {
-        Ok(self.entry(reference)?.payload.kind())
+        Ok(self.entry(reference)?.payload.array()?.kind())
     }
     pub fn length(&self, reference: Reference) -> Result<i32, HeapError> {
-        self.entry(reference)?.payload.length()
+        self.entry(reference)?.payload.array()?.length()
     }
     pub fn load(&self, reference: Reference, index: i32) -> Result<Value, HeapError> {
-        let payload = &self.entry(reference)?.payload;
+        let payload = self.entry(reference)?.payload.array()?;
         payload.load(payload.index(index)?)
     }
     pub fn store(
@@ -434,8 +492,9 @@ impl ManagedHeap {
             .entries
             .get_mut(entry_index)
             .ok_or(HeapError::MissingEntry { index: entry_index })?;
-        let index = entry.payload.index(index)?;
-        entry.payload.store(index, value)
+        let payload = entry.payload.array_mut()?;
+        let index = payload.index(index)?;
+        payload.store(index, value)
     }
     /// Validate identity/bounds/generation only. This neither marks nor retains
     /// an allocation and does not substitute for execution/static/native roots.
@@ -565,12 +624,34 @@ mod tests {
         assert_eq!(
             reserve_entries(&mut heap.entries, usize::MAX).unwrap_err(),
             HeapError::AllocationFailure {
-                resource: "primitive-array arena"
+                resource: "managed heap arena"
             }
         );
         assert_eq!(heap.allocated_arrays(), 1);
         assert_eq!(heap.total_elements(), 1);
         assert_eq!(heap.payload_bytes(), 8);
         assert_eq!(heap.load(reference, 0).unwrap(), Value::Long(123));
+    }
+    #[test]
+    fn checked_heap_identity_allocator_is_unique_under_contention() {
+        use std::{collections::HashSet, sync::Arc};
+        let allocator = Arc::new(AtomicU64::new(1));
+        let threads: Vec<_> = (0..8)
+            .map(|_| {
+                let allocator = allocator.clone();
+                std::thread::spawn(move || {
+                    (0..128)
+                        .map(|_| allocate_identity(&allocator).unwrap())
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        let tokens: HashSet<_> = threads
+            .into_iter()
+            .flat_map(|thread| thread.join().unwrap())
+            .collect();
+        assert_eq!(tokens.len(), 1024);
+        assert!(!tokens.contains(&0));
+        assert_eq!(allocator.load(Ordering::Relaxed), 1025);
     }
 }

@@ -1,6 +1,6 @@
 # CrabSpot architecture
 
-Status: M1, the M2 decoder/numeric, bounded static-call and primitive-array execution increments, and the runtime registry/hierarchy/shared-values/default-static-storage/primitive-array-heap increments are approved in separate review records. Ordinary-instance storage and field execution are the next design direction; full M2 and later milestones remain open.
+Status: M1, the M2 decoder/numeric, bounded static-call and primitive-array execution increments, and the runtime registry/hierarchy/shared-values/default-static-storage/primitive-array-heap/ordinary-instance-storage increments are approved in separate review records. A runtime-identity-aware instance field execution bridge is the next design direction and requires its concrete contract. Full M2 and later milestones remain open.
 
 `ARCHITECTURE.md` is the project charter. This document refines its initial layout without reducing its roadmap. CrabSpot is an independent Rust JVM project targeting Linux x86-64. The first deliverable reads class files; it does not execute Java programs or claim JVM compatibility. NanoSpec is not used in this project.
 
@@ -63,7 +63,7 @@ The dependency direction is launcher -> services -> execution/runtime -> parsed 
 
 ## Environment and reproducibility
 
-The initial host is Windows x86-64, with Rust stable 1.98.1 through the user's Cargo installation and Zulu OpenJDK 21.0.7. The intended deployment target remains Linux x86-64. Native Windows checks are useful evidence but cannot be reported as a Linux validation run. WSL discovery was denied by the host environment; Linux CI must supply Linux evidence when executed.
+The initial host is Windows x86-64, with Rust stable 1.98.1 through the user's Cargo installation and Zulu OpenJDK 21.0.7. The intended deployment target remains Linux x86-64. Native Windows checks cannot be reported as Linux validation. WSL discovery was denied by the host environment. A hosted run for `2617637` subsequently passed checked-in tests and JDK 21.0.13 fixture/reference regeneration on Linux and Windows, but failed strict Clippy on Rust 1.99.1's fetch_update deprecation. The reviewed CAS correction is included in the instance-storage increment; a complete fresh hosted run remains pending publication. Rust 1.85 execution remains unobserved.
 
 Reference JDK tooling is development-only: compile fixtures, inspect class metadata, and later produce differential reference results. Fixture generation records the JDK version, source inputs, compiler options, and generated artifact provenance. Ordinary Rust tests must be reproducible without quietly executing a Java application or downloading a JDK. Tests using checked-in binary fixtures should validate the expected major version; regeneration uses an explicit Java 21 toolchain.
 

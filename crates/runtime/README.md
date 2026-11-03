@@ -122,11 +122,63 @@ succeeds. Host reservation failures are structured errors; generous policy is no
 a promise that every permitted allocation can be satisfied. Payload accounting
 counts element contents, excluding allocator/arena overhead.
 
-The generic service loads/stores the actual array kind. A future execution bridge
-must additionally enforce each opcode's allowed kinds and map supported Java
-exception outcomes; it is not implemented here. `validate_root` checks a supplied
+The generic service loads/stores the actual array kind. The interpreter's explicit
+heap entry point enforces each supported primitive-array opcode's allowed kinds
+and maps its supported symbolic Java exception outcomes. `validate_root` checks a supplied
 handle without marking or retaining it. Allocated entries are not automatically
 roots. Primitive arrays contain no child references. The heap performs no tracing,
 collection, reclamation or safepoint synchronization, and has no substitute caller
-root set. Objects, reference arrays, array class mirrors/assignability and general
-Java startup remain outside this service.
+root set. Reference arrays, array class mirrors/assignability and general Java startup
+remain outside this service. Ordinary instances are an explicitly enabled memory
+service described below.
+
+
+## Ordinary-instance memory service
+
+`ManagedHeap::new_with_instances(HeapOptions, InstanceOptions)` enables ordinary
+instances in the same opaque-reference arena as primitive arrays. The original
+constructor leaves instance operations disabled. Array counters and all four
+array quotas continue to count only primitive arrays. Instance quotas separately
+bound retained class shapes, direct dependency edges, own instance fields, object
+entries, locations per object and aggregate object locations. Their defaults are
+1,024 / 8,192 / 65,536 / 4,096 / 65,536 / 1,048,576 respectively. These are logical
+resource limits, not a measurement or reservation of all host memory.
+
+`admit_instance_layouts(registry, &[&plan, ...])` validates the union of supplied
+plans against immutable definitions and retained relationships. The first
+successful nonempty admission binds one registry. Empty admission is an
+unconditional no-op when enabled. Shared ancestors are retained once; later
+admission must preserve exact superclass/interface identities and order, fields,
+flags and location counts. Metadata stores each class's own fields once, with
+parent links and inherited prefixes. Equal names or equal field counts never
+substitute for class identity. Interfaces retain Object dependencies without
+inheriting Object storage. Admission uses an iterative cycle check and scalar
+constant-pool keys for descriptor classification.
+
+Batches stage metadata and check conflicts and quotas before reserving destination
+capacity and publishing. Failure changes neither binding, logical counters nor
+live-object interpretation. Metadata, object payloads and arena growth use
+fallible reservations proportional to actual admitted resources. Generous limits
+do not cause eager allocation or guarantee that host allocation will succeed.
+
+`allocate_instance` accepts a retained concrete class and allocates inherited
+fields followed by own fields. Long/Double use one logical location each. Every
+field receives zero, positive floating zero or null; ConstantValue metadata and
+constructors/class initializers remain unapplied. Empty objects still receive
+distinct entries. Allocation and superclass walks do not recurse.
+
+`get_field` and `put_field` use owner-qualified FieldIds, preserving inherited
+field hiding. They check receiver identity/kind and field relationship before
+write finality and value validation. All final writes fail. Nonfinal stores
+require exact computational kinds; Z masks with one, B/S truncate and sign extend,
+C truncates and zero extends, and floating values preserve raw bits. Reference
+fields accept null only; every non-null store is explicitly unsupported without
+dereferencing its value. A failed write preserves the previous value. Field
+services perform no symbolic Fieldref resolution or Java access checks.
+
+`children` is a validated, borrowed iterator over non-null reference-field values;
+primitive arrays yield none. Public instance children currently remain empty
+because non-null field stores are unsupported. This iterator is neither caller
+roots nor a collector. No reclamation, reference arrays, assignability,
+constructor protocol, lifecycle proof, field bytecode or interpreter instance
+bridge is implemented by this memory service.

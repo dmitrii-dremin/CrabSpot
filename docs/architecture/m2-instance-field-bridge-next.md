@@ -1,0 +1,17 @@
+# Next field-execution bridge design
+
+Status: next design direction following `runtime-instance-storage-review.md`. This note is not a concrete implementation authorization. Resolve the API and semantic scope below before dispatch; no additional user permission is needed for that architectural work.
+
+The next coherent execution increment should evaluate ordinary instance method bodies against explicitly supplied heap instances, beginning with numeric/void parameters and results plus getfield/putfield. Use DefinitionRegistry and MethodId/ClassId identities rather than treating a standalone ClassFile as a complete resolution context. Supply the receiver and caller-owned heap explicitly. The method body receives its receiver in local zero; numeric arguments follow with their normal category widths.
+
+This remains a body kernel, not Java invocation. A supplied default-storage instance carries no proof that a constructor ran. Exclude `<init>`/`<clinit>`, native/abstract/synchronized bodies and handlers until their protocols exist. Decide whether existing primitive-array instructions and bounded same-class static calls are enabled in the same engine; preserve their tested APIs and resource policies rather than cloning the interpreter.
+
+Before field bytecodes land, specify symbolic Fieldref resolution in the declaring class's loader context, semantic name/descriptor matching, superclass/interface lookup, static-versus-instance rejection, receiver relationship, accessibility and finality. An inherited-name search that skips interface declarations or substitutes equal class names for ClassId is insufficient. Use an explicit resolver and admitted identities; do not fabricate missing classes. Either implement a clearly bounded lawful subset with explicit unsupported cases, or first add a reusable resolution service.
+
+Resolve the instruction's symbolic requirements before delegating storage access. The memory-service receiver-first validation order is not automatically the Java bytecode linking/access/exception order. The execution contract must decide which supported failures become symbolic Java outcomes and which remain unsupported or host errors. Constructors remain excluded, so no final-field write privilege is introduced.
+
+Define reference flow precisely. Internal receiver/reference locals already exist, but reference parameters/returns and non-null field stores remain unsupported today. Receiver compatibility requires a checked class relationship; field-reference values cannot gain assignment compatibility merely because they share ValueKind::Reference. Read-only null reference fields can be tested without pretending broader assignability is implemented.
+
+Use genuine compiled methods whose numeric results depend on reads/writes of supplied instance fields, plus an independent JDK execution oracle. Cover hiding/inheritance, raw subword stores, wrong receiver/entry/field kinds, final/access failures, null ordering, shared fuel/frame limits and persistent effects after errors. Preserve all existing 8,285 execution outcomes and both 151-case memory-service oracles. No hardcoded fixture offsets, skipped constructors/initializers presented as successful invocation, or fabricated Object behavior is permitted.
+
+Acceptance requires the concrete contract, isolated implementation/tests, full regression evidence and director review. Full M2 remains open after this memory-service increment; broader allocation/invocation, exceptions and synchronization still require implementation.

@@ -1,6 +1,6 @@
 # Next object-storage design work
 
-Status: continuation direction only. No concrete API or implementation is authorized by this note. Finish the primitive-array bridge review before dispatching more production work.
+Status: superseded by the authorized concrete contract in `runtime-instance-storage.md` on 2026-11-03. This file preserves the earlier design questions; use the concrete contract for implementation.
 
 The next proposed M2 dependency is actual ordinary-instance storage and owner-qualified fields, followed by a reviewed field-body execution bridge. The registry, hierarchy plan, shared values and managed-reference boundary already supply the necessary identities. This should add usable storage and execution services without labelling allocation as successful construction or initialization.
 
