@@ -1,5 +1,15 @@
 # Numeric reference outcomes
 
+virtual_calls.tsv records 494 virtual-call body-graph cases over 40
+receiver/method pairs, with provenance in virtual_calls.json and the fixture
+manifest. Receiver labels select child/leaf objects or four cross-package
+hierarchy levels. Cases cover runtime overrides, inherited/final/private methods,
+package-private non-overrides and transitive overrides, recursion, mixed widths,
+per-frame field owners, base-class static helpers and 34 symbolic exceptions.
+Generate/check with tools/virtual_reference.py. Explicit Rust persistence checks
+are source-derived assertions separate from the JDK result rows. Constructors
+and class initialization are not part of the evaluated Rust bodies.
+
 instances.tsv records 402 instance-body cases over 21 methods, with provenance in
 instances.json. It includes inherited body selection, hidden fields, mixed-width
 arguments, aliases, null references, arrays, static helpers and 49 exception

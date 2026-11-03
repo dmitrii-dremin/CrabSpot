@@ -8,10 +8,11 @@ use crabspot_classfile::{
     descriptor::{FieldType, parse_method_descriptor},
 };
 use crabspot_runtime::{
-    ClassId, FieldAccessError, FieldJavaError, FieldResolutionContext, HeapError, ManagedHeap,
-    MethodId, PrimitiveArrayKind, Reference,
+    ClassId, DefinitionRegistry, FieldAccessError, FieldJavaError, FieldResolutionContext,
+    HeapError, ManagedHeap, MethodAccessError, MethodId, MethodJavaError, PrimitiveArrayKind,
+    Reference,
 };
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExecutionOptions {
@@ -36,6 +37,8 @@ pub enum ExecutionOutcome {
     NoSuchFieldError,
     IllegalAccessError,
     IncompatibleClassChangeError,
+    NoSuchMethodError,
+    AbstractMethodError,
 }
 
 fn numeric_kind(field: &FieldType) -> Result<ValueKind, ExecutionError> {
@@ -142,17 +145,39 @@ impl PreparedMethod {
         usize::from(self.max_stack) + usize::from(self.max_locals)
     }
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+enum MethodKey {
+    Standalone(usize),
+    Registered(MethodId),
+}
+impl MethodKey {
+    fn index(self) -> usize {
+        match self {
+            Self::Standalone(index) => index,
+            Self::Registered(method) => method.index(),
+        }
+    }
+    fn owner(self) -> Option<ClassId> {
+        match self {
+            Self::Standalone(_) => None,
+            Self::Registered(method) => Some(method.owner()),
+        }
+    }
+}
 struct Frame {
-    method_index: usize,
+    method: MethodKey,
     locals: Locals,
     stack: Stack,
     pc: u32,
-    origin: Option<(usize, u32)>,
+    origin: Option<(MethodKey, u32)>,
     reserved_slots: usize,
 }
 enum Action {
     Continue,
-    Call { constant_index: u16 },
+    Call {
+        constant_index: u16,
+        virtual_call: bool,
+    },
     Return(Option<Value>),
     ArithmeticException,
     NullPointerException,
@@ -163,27 +188,98 @@ enum Action {
     IncompatibleClassChangeError,
 }
 
-fn identity(class: &ClassFile, index: usize) -> Option<MethodIdentity> {
-    let method = class.methods.get(index)?;
-    Some(MethodIdentity {
-        index,
-        name: class.constant_pool.utf8(method.name_index).ok()?.clone(),
-        descriptor: class
+#[derive(Clone, Copy)]
+struct Bodies<'a> {
+    standalone: &'a ClassFile,
+    registry: Option<&'a DefinitionRegistry>,
+}
+impl<'a> Bodies<'a> {
+    fn class(self, method: MethodKey) -> Result<&'a ClassFile, ExecutionError> {
+        match method {
+            MethodKey::Standalone(_) => Ok(self.standalone),
+            MethodKey::Registered(method) => self
+                .registry
+                .ok_or_else(|| {
+                    ExecutionError::new(
+                        None,
+                        E::InvalidMethod("registered method without registry"),
+                    )
+                })?
+                .class(method.owner())
+                .map_err(|error| {
+                    ExecutionError::new(
+                        None,
+                        E::MethodAccess(Box::new(MethodAccessError::Context(
+                            FieldAccessError::Registry(error),
+                        ))),
+                    )
+                }),
+        }
+    }
+    fn static_key(self, current: MethodKey, index: usize) -> Result<MethodKey, ExecutionError> {
+        let MethodKey::Registered(current) = current else {
+            return Ok(MethodKey::Standalone(index));
+        };
+        let class = self.class(MethodKey::Registered(current))?;
+        let member = class.methods.get(index).ok_or_else(|| {
+            ExecutionError::new(
+                None,
+                E::InvalidMethod("resolved static method index missing"),
+            )
+        })?;
+        let name = class.constant_pool.utf8(member.name_index).map_err(|_| {
+            ExecutionError::new(None, E::InvalidMethod("invalid static method name"))
+        })?;
+        let descriptor = class
             .constant_pool
-            .utf8(method.descriptor_index)
-            .ok()?
-            .clone(),
-    })
+            .utf8(member.descriptor_index)
+            .map_err(|_| ExecutionError::new(None, E::InvalidDescriptor))?;
+        let method = self
+            .registry
+            .ok_or_else(|| {
+                ExecutionError::new(
+                    None,
+                    E::InvalidMethod("registered static target without registry"),
+                )
+            })?
+            .find_declared_method(current.owner(), name.units(), descriptor.units())
+            .map_err(|error| {
+                ExecutionError::new(
+                    None,
+                    E::MethodAccess(Box::new(MethodAccessError::Context(
+                        FieldAccessError::Registry(error),
+                    ))),
+                )
+            })?
+            .ok_or_else(|| ExecutionError::new(None, E::MissingDeclaredMethod))?;
+        Ok(MethodKey::Registered(method))
+    }
+    fn identity(self, key: MethodKey) -> Option<MethodIdentity> {
+        let class = self.class(key).ok()?;
+        let method = class.methods.get(key.index())?;
+        Some(MethodIdentity {
+            owner: key.owner(),
+            index: key.index(),
+            name: class.constant_pool.utf8(method.name_index).ok()?.clone(),
+            descriptor: class
+                .constant_pool
+                .utf8(method.descriptor_index)
+                .ok()?
+                .clone(),
+        })
+    }
 }
 fn contextualize(
-    class: &ClassFile,
+    bodies: Bodies<'_>,
     mut error: ExecutionError,
-    method_index: usize,
-    origin: Option<(usize, u32)>,
+    method: MethodKey,
+    origin: Option<(MethodKey, u32)>,
 ) -> ExecutionError {
-    error.method = identity(class, method_index).map(Box::new);
-    error.call_site = origin.and_then(|(index, offset)| {
-        identity(class, index).map(|method| Box::new(CallSite { method, offset }))
+    error.method = bodies.identity(method).map(Box::new);
+    error.call_site = origin.and_then(|(method, offset)| {
+        bodies
+            .identity(method)
+            .map(|method| Box::new(CallSite { method, offset }))
     });
     error
 }
@@ -256,10 +352,10 @@ fn check_reservation(
     Ok(total)
 }
 fn make_frame(
-    method_index: usize,
+    method: MethodKey,
     prepared: &PreparedMethod,
     args: &[Value],
-    origin: Option<(usize, u32)>,
+    origin: Option<(MethodKey, u32)>,
     receiver: Option<Reference>,
 ) -> Result<Frame, ExecutionError> {
     let mut locals = Locals::new(prepared.max_locals);
@@ -273,7 +369,7 @@ fn make_frame(
         slot += argument.slots();
     }
     Ok(Frame {
-        method_index,
+        method,
         locals,
         stack: Stack::new(prepared.max_stack),
         pc: 0,
@@ -411,8 +507,9 @@ pub fn execute_static_method_body_with_heap(
     )
 }
 
-/// Evaluate an explicitly selected ordinary instance body. This performs no Java
-/// method resolution, virtual dispatch, constructor protocol or initialization.
+/// Evaluate an explicitly selected ordinary instance root without Java root
+/// invocation/dispatch or initialization. Its body may perform supported bounded
+/// virtual resolution/dispatch through the supplied runtime context.
 pub fn execute_instance_method_body(
     context: &mut FieldResolutionContext<'_>,
     method: MethodId,
@@ -442,7 +539,7 @@ pub fn execute_instance_method_body(
         limits,
         Services::Fields {
             context,
-            origin: method.owner(),
+            root: method,
             receiver,
         },
     )
@@ -453,11 +550,17 @@ enum Services<'a, 'registry> {
     Heap(&'a mut ManagedHeap),
     Fields {
         context: &'a mut FieldResolutionContext<'registry>,
-        origin: ClassId,
+        root: MethodId,
         receiver: Reference,
     },
 }
-impl Services<'_, '_> {
+impl<'registry> Services<'_, 'registry> {
+    fn registry(&self) -> Option<&'registry DefinitionRegistry> {
+        match self {
+            Self::Fields { context, .. } => Some(context.registry()),
+            _ => None,
+        }
+    }
     fn heap(&self) -> Option<&ManagedHeap> {
         match self {
             Self::None => None,
@@ -482,9 +585,17 @@ fn execute_with_services(
     limits: CallLimits,
     mut services: Services<'_, '_>,
 ) -> Result<ExecutionOutcome, ExecutionError> {
+    let bodies = Bodies {
+        standalone: class,
+        registry: services.registry(),
+    };
+    let root_key = match &services {
+        Services::Fields { root, .. } => MethodKey::Registered(*root),
+        _ => MethodKey::Standalone(method_index),
+    };
     if limits.max_frames == 0 {
         return Err(contextualize(
-            class,
+            bodies,
             ExecutionError::new(
                 None,
                 E::FrameLimit {
@@ -492,7 +603,7 @@ fn execute_with_services(
                     required: 1,
                 },
             ),
-            method_index,
+            root_key,
             None,
         ));
     }
@@ -508,30 +619,26 @@ fn execute_with_services(
         limits.max_prepared_code_bytes,
         receiver.is_some(),
     )
-    .map_err(|error| contextualize(class, error, method_index, None))?;
-    validate_args(&root, args).map_err(|error| contextualize(class, error, method_index, None))?;
+    .map_err(|error| contextualize(bodies, error, root_key, None))?;
+    validate_args(&root, args).map_err(|error| contextualize(bodies, error, root_key, None))?;
     let mut reserved = check_reservation(0, 0, &root, limits)
-        .map_err(|error| contextualize(class, error, method_index, None))?;
-    if let (
-        Some(receiver),
-        Services::Fields {
-            context, origin, ..
-        },
-    ) = (receiver, &mut services)
-    {
-        context.check_receiver(*origin, receiver).map_err(|error| {
-            contextualize(
-                class,
-                ExecutionError::new(None, E::FieldAccess(Box::new(error))),
-                method_index,
-                None,
-            )
-        })?;
+        .map_err(|error| contextualize(bodies, error, root_key, None))?;
+    if let (Some(receiver), Services::Fields { context, root, .. }) = (receiver, &mut services) {
+        context
+            .check_receiver(root.owner(), receiver)
+            .map_err(|error| {
+                contextualize(
+                    bodies,
+                    ExecutionError::new(None, E::FieldAccess(Box::new(error))),
+                    root_key,
+                    None,
+                )
+            })?;
     }
-    let root_frame = make_frame(method_index, &root, args, None, receiver)
-        .map_err(|error| contextualize(class, error, method_index, None))?;
-    let mut cache = BTreeMap::new();
-    cache.insert(method_index, root);
+    let root_frame = make_frame(root_key, &root, args, None, receiver)
+        .map_err(|error| contextualize(bodies, error, root_key, None))?;
+    let mut cache = HashMap::new();
+    cache.insert(root_key, root);
     let mut frames = vec![root_frame];
     let mut remaining = options.instruction_budget;
     loop {
@@ -541,12 +648,12 @@ fn execute_with_services(
                 E::InvalidMethod("empty engine frame stack"),
             ));
         };
-        let current = frame.method_index;
+        let current = frame.method;
         let pc = frame.pc;
         let origin = frame.origin;
         if remaining == 0 {
             return Err(contextualize(
-                class,
+                bodies,
                 ExecutionError::new(
                     Some(pc),
                     E::InstructionBudgetExhausted {
@@ -559,7 +666,7 @@ fn execute_with_services(
         }
         let prepared = cache.get(&current).ok_or_else(|| {
             contextualize(
-                class,
+                bodies,
                 ExecutionError::new(Some(pc), E::InvalidMethod("missing prepared method")),
                 current,
                 origin,
@@ -569,8 +676,11 @@ fn execute_with_services(
             ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
         })?;
         remaining -= 1;
-        let action = step(class, prepared, frame, &mut services)
-            .map_err(|error| contextualize(class, error, current, origin))?;
+        let current_class = bodies
+            .class(current)
+            .map_err(|error| contextualize(bodies, error, current, origin))?;
+        let action = step(current_class, prepared, frame, &mut services)
+            .map_err(|error| contextualize(bodies, error, current, origin))?;
         match action {
             Action::NoSuchFieldError => return Ok(ExecutionOutcome::NoSuchFieldError),
             Action::IllegalAccessError => return Ok(ExecutionOutcome::IllegalAccessError),
@@ -602,59 +712,126 @@ fn execute_with_services(
                     if let Some(value) = value {
                         let call_offset = completed.origin.map_or(caller.pc, |(_, offset)| offset);
                         caller.stack.push(value, call_offset).map_err(|error| {
-                            contextualize(class, error, caller.method_index, completed.origin)
+                            contextualize(bodies, error, caller.method, completed.origin)
                         })?;
                     }
                 } else {
                     return Ok(ExecutionOutcome::Returned(value));
                 }
             }
-            Action::Call { constant_index } => {
+            Action::Call {
+                constant_index,
+                virtual_call,
+            } => {
                 let call_site = Some((current, pc));
-                let target = resolve_call(class, constant_index, pc)
-                    .map_err(|error| contextualize(class, error, current, call_site))?;
-                if let std::collections::btree_map::Entry::Vacant(entry) = cache.entry(target) {
+                let (target, mut arguments, receiver) = if virtual_call {
+                    let origin = current.owner().ok_or_else(|| {
+                        ExecutionError::new(Some(pc), E::UnsupportedInstruction(0xb6))
+                    })?;
+                    let kinds = virtual_parameters(current_class, origin, constant_index).map_err(
+                        |error| {
+                            contextualize(
+                                bodies,
+                                ExecutionError::new(Some(pc), E::MethodAccess(Box::new(error))),
+                                current,
+                                call_site,
+                            )
+                        },
+                    )?;
+                    let caller = frames.last_mut().ok_or_else(|| {
+                        ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
+                    })?;
+                    let mut args = Vec::with_capacity(kinds.len());
+                    for kind in kinds.iter().rev() {
+                        args.push(
+                            caller.stack.pop(*kind, pc).map_err(|error| {
+                                contextualize(bodies, error, current, call_site)
+                            })?,
+                        );
+                    }
+                    args.reverse();
+                    let receiver = caller
+                        .stack
+                        .reference(pc)
+                        .map_err(|error| contextualize(bodies, error, current, call_site))?;
+                    let Services::Fields { context, .. } = &mut services else {
+                        return Err(ExecutionError::new(
+                            Some(pc),
+                            E::UnsupportedInstruction(0xb6),
+                        ));
+                    };
+                    let selected = match context.select_virtual(origin, constant_index, receiver) {
+                        Ok(method) => method,
+                        Err(error) => {
+                            return method_failure(error, pc)
+                                .map_err(|error| contextualize(bodies, error, current, call_site));
+                        }
+                    };
+                    (MethodKey::Registered(selected), Some(args), Some(receiver))
+                } else {
+                    let index = resolve_call(current_class, constant_index, pc)
+                        .map_err(|error| contextualize(bodies, error, current, call_site))?;
+                    let target = bodies
+                        .static_key(current, index)
+                        .map_err(|error| contextualize(bodies, error, current, call_site))?;
+                    (target, None, None)
+                };
+                let target_class = bodies
+                    .class(target)
+                    .map_err(|error| contextualize(bodies, error, target, call_site))?;
+                if let std::collections::hash_map::Entry::Vacant(entry) = cache.entry(target) {
                     let prepared = prepare_method(
-                        class,
-                        target,
+                        target_class,
+                        target.index(),
                         &mut used_code_bytes,
                         limits.max_prepared_code_bytes,
-                        false,
+                        virtual_call,
                     )
-                    .map_err(|error| contextualize(class, error, target, call_site))?;
+                    .map_err(|error| contextualize(bodies, error, target, call_site))?;
                     entry.insert(prepared);
                 }
                 let prepared = cache.get(&target).ok_or_else(|| {
                     ExecutionError::new(None, E::InvalidMethod("missing prepared call target"))
                 })?;
-                if prepared.instance {
+                if prepared.instance != virtual_call {
                     return Err(contextualize(
-                        class,
+                        bodies,
                         ExecutionError::new(
                             Some(pc),
-                            E::UnsupportedMethod("method must be static"),
+                            E::UnsupportedMethod(if virtual_call {
+                                "instance body must be non-static"
+                            } else {
+                                "method must be static"
+                            }),
                         ),
                         target,
                         call_site,
                     ));
                 }
                 let next_reserved = check_reservation(frames.len(), reserved, prepared, limits)
-                    .map_err(|error| contextualize(class, error, target, call_site))?;
-                let caller = frames.last_mut().ok_or_else(|| {
-                    ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
-                })?;
-                let mut args = Vec::with_capacity(prepared.parameters.len());
-                for kind in prepared.parameters.iter().rev() {
-                    args.push(
-                        caller
-                            .stack
-                            .pop(*kind, pc)
-                            .map_err(|error| contextualize(class, error, current, call_site))?,
-                    );
+                    .map_err(|error| contextualize(bodies, error, target, call_site))?;
+                if arguments.is_none() {
+                    let caller = frames.last_mut().ok_or_else(|| {
+                        ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
+                    })?;
+                    let mut args = Vec::with_capacity(prepared.parameters.len());
+                    for kind in prepared.parameters.iter().rev() {
+                        args.push(
+                            caller.stack.pop(*kind, pc).map_err(|error| {
+                                contextualize(bodies, error, current, call_site)
+                            })?,
+                        );
+                    }
+                    args.reverse();
+                    arguments = Some(args);
                 }
-                args.reverse();
-                let callee = make_frame(target, prepared, &args, call_site, None)
-                    .map_err(|error| contextualize(class, error, target, call_site))?;
+                let args = arguments
+                    .as_deref()
+                    .ok_or_else(|| ExecutionError::new(None, E::InvalidOperands))?;
+                validate_args(prepared, args)
+                    .map_err(|error| contextualize(bodies, error, target, call_site))?;
+                let callee = make_frame(target, prepared, args, call_site, receiver)
+                    .map_err(|error| contextualize(bodies, error, target, call_site))?;
                 frames.push(callee);
                 reserved = next_reserved;
             }
@@ -813,7 +990,7 @@ fn step(
             E::UnsupportedInstruction(opcode),
         ));
     }
-    if matches!(opcode, 0xb4 | 0xb5) && !matches!(services, Services::Fields { .. }) {
+    if matches!(opcode, 0xb4..=0xb6) && !matches!(services, Services::Fields { .. }) {
         return Err(ExecutionError::new(
             Some(pc),
             E::UnsupportedInstruction(opcode),
@@ -834,18 +1011,16 @@ fn step(
                 None
             };
             let receiver = stack.reference(pc)?;
-            let Services::Fields {
-                context, origin, ..
-            } = services
-            else {
+            let Services::Fields { context, .. } = services else {
                 return Err(operand_error(pc));
             };
+            let origin = frame.method.owner().ok_or_else(|| operand_error(pc))?;
             if let Some(value) = value {
-                if let Err(error) = context.write_field(*origin, *index, receiver, value) {
+                if let Err(error) = context.write_field(origin, *index, receiver, value) {
                     return field_failure(error, pc);
                 }
             } else {
-                let value = match context.read_field(*origin, *index, receiver) {
+                let value = match context.read_field(origin, *index, receiver) {
                     Ok(value) => value,
                     Err(error) => return field_failure(error, pc),
                 };
@@ -1357,13 +1532,14 @@ fn step(
             }
             return Ok(Action::Return(Some(stack.pop(kind, pc)?)));
         }
-        0xb8 => {
+        0xb6 | 0xb8 => {
             let Operands::Constant(index) = operands else {
                 return Err(operand_error(pc));
             };
             frame.pc = next;
             return Ok(Action::Call {
                 constant_index: *index,
+                virtual_call: opcode == 0xb6,
             });
         }
         0xb1 => {
@@ -1386,6 +1562,79 @@ fn step(
 fn is_heap_instruction(opcode: u8) -> bool {
     matches!(opcode,0x01|0x19|0x2a..=0x31|0x33..=0x35|0x3a|0x4b..=0x52|0x54..=0x56|0xa5|0xa6|0xbc|0xbe|0xc6|0xc7)
 }
+fn virtual_parameters(
+    class: &ClassFile,
+    origin: ClassId,
+    index: u16,
+) -> Result<Vec<ValueKind>, MethodAccessError> {
+    let invalid = || MethodAccessError::InvalidConstant { origin, index };
+    let Constant::Methodref {
+        class_index,
+        name_and_type_index,
+    } = class.constant_pool.get(index).map_err(|_| invalid())?
+    else {
+        return Err(invalid());
+    };
+    class
+        .constant_pool
+        .class_name(*class_index)
+        .map_err(|_| invalid())?;
+    let Constant::NameAndType {
+        name_index,
+        descriptor_index,
+    } = class
+        .constant_pool
+        .get(*name_and_type_index)
+        .map_err(|_| invalid())?
+    else {
+        return Err(invalid());
+    };
+    class
+        .constant_pool
+        .utf8(*name_index)
+        .map_err(|_| invalid())?;
+    let descriptor = class
+        .constant_pool
+        .utf8(*descriptor_index)
+        .map_err(|_| invalid())?;
+    let descriptor = parse_method_descriptor(descriptor.units()).map_err(|_| invalid())?;
+    if descriptor
+        .return_type
+        .as_ref()
+        .is_some_and(|field| numeric_kind(field).is_err())
+    {
+        return Err(MethodAccessError::UnsupportedDescriptor);
+    }
+    descriptor
+        .parameters
+        .iter()
+        .map(|field| numeric_kind(field).map_err(|_| MethodAccessError::UnsupportedDescriptor))
+        .collect()
+}
+fn method_failure(error: MethodAccessError, pc: u32) -> Result<ExecutionOutcome, ExecutionError> {
+    match error {
+        MethodAccessError::Java(MethodJavaError::NoSuchMethod) => {
+            Ok(ExecutionOutcome::NoSuchMethodError)
+        }
+        MethodAccessError::Java(MethodJavaError::AbstractMethod) => {
+            Ok(ExecutionOutcome::AbstractMethodError)
+        }
+        MethodAccessError::Java(MethodJavaError::IllegalAccess) => {
+            Ok(ExecutionOutcome::IllegalAccessError)
+        }
+        MethodAccessError::Java(MethodJavaError::IncompatibleClassChange) => {
+            Ok(ExecutionOutcome::IncompatibleClassChangeError)
+        }
+        MethodAccessError::Java(MethodJavaError::NullPointer) => {
+            Ok(ExecutionOutcome::NullPointerException)
+        }
+        error => Err(ExecutionError::new(
+            Some(pc),
+            E::MethodAccess(Box::new(error)),
+        )),
+    }
+}
+
 fn field_failure(error: FieldAccessError, pc: u32) -> Result<Action, ExecutionError> {
     match error {
         FieldAccessError::Java(FieldJavaError::NoSuchField) => Ok(Action::NoSuchFieldError),
@@ -1478,7 +1727,8 @@ mod resource_tests {
         ] {
             let class = crate::tests::synthetic(&code, "()I", 2, max_locals);
             let prepared = prepare_method(&class, 0, &mut 0, usize::MAX, false).unwrap();
-            let mut frame = make_frame(0, &prepared, &[], None, None).unwrap();
+            let mut frame =
+                make_frame(MethodKey::Standalone(0), &prepared, &[], None, None).unwrap();
             if code[0] == 0x2a {
                 frame.locals.store(0, Value::Reference(foreign), 0).unwrap();
             } else {
@@ -1553,6 +1803,41 @@ mod resource_tests {
         }
     }
     #[test]
+    fn method_failure_maps_only_top_level_java_variants_and_keeps_context_errors_host_side() {
+        for (error, outcome) in [
+            (
+                MethodJavaError::NoSuchMethod,
+                ExecutionOutcome::NoSuchMethodError,
+            ),
+            (
+                MethodJavaError::AbstractMethod,
+                ExecutionOutcome::AbstractMethodError,
+            ),
+            (
+                MethodJavaError::IllegalAccess,
+                ExecutionOutcome::IllegalAccessError,
+            ),
+            (
+                MethodJavaError::IncompatibleClassChange,
+                ExecutionOutcome::IncompatibleClassChangeError,
+            ),
+            (
+                MethodJavaError::NullPointer,
+                ExecutionOutcome::NullPointerException,
+            ),
+        ] {
+            assert_eq!(
+                method_failure(MethodAccessError::Java(error), 7).unwrap(),
+                outcome
+            );
+        }
+        let host = MethodAccessError::Context(FieldAccessError::Java(FieldJavaError::NullPointer));
+        let error = method_failure(host.clone(), 7).unwrap_err();
+        assert_eq!(error.offset, Some(7));
+        assert_eq!(error.kind, E::MethodAccess(Box::new(host)));
+        assert!(std::error::Error::source(&error).is_some());
+    }
+    #[test]
     fn field_failure_maps_only_explicit_java_errors_and_keeps_host_null_structured() {
         for (error, expected) in [
             (FieldJavaError::NoSuchField, 0),
@@ -1611,7 +1896,13 @@ mod resource_tests {
             let prepared = prepare_method(&class, 0, &mut 0, usize::MAX, true).unwrap();
             let mut prepared = prepared;
             prepared.max_locals = locals;
-            let error = match make_frame(0, &prepared, &args, None, Some(Reference::null())) {
+            let error = match make_frame(
+                MethodKey::Standalone(0),
+                &prepared,
+                &args,
+                None,
+                Some(Reference::null()),
+            ) {
                 Err(error) => error,
                 Ok(_) => panic!("invalid instance locals admitted"),
             };

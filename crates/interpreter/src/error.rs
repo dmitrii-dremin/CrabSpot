@@ -1,7 +1,9 @@
 use crate::ValueKind;
 use crabspot_bytecode::DecodeError;
 use crabspot_classfile::JavaString;
-use crabspot_runtime::{FieldAccessError, HeapError, PrimitiveArrayKind};
+use crabspot_runtime::{
+    ClassId, FieldAccessError, HeapError, MethodAccessError, PrimitiveArrayKind,
+};
 use std::fmt;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -14,6 +16,7 @@ pub struct ExecutionError {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MethodIdentity {
+    pub owner: Option<ClassId>,
     pub index: usize,
     pub name: JavaString,
     pub descriptor: JavaString,
@@ -99,6 +102,7 @@ pub enum ExecutionErrorKind {
     MissingDeclaredMethod,
     Heap(HeapError),
     FieldAccess(Box<FieldAccessError>),
+    MethodAccess(Box<MethodAccessError>),
     WrongArrayKind {
         opcode: u8,
         actual: PrimitiveArrayKind,
@@ -118,6 +122,9 @@ impl ExecutionError {
 impl fmt::Display for ExecutionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(method) = &self.method {
+            if let Some(owner) = method.owner {
+                write!(formatter, "owner {owner:?} ")?;
+            }
             write!(
                 formatter,
                 "method #{} {}{}: ",
@@ -127,6 +134,9 @@ impl fmt::Display for ExecutionError {
             )?;
         }
         if let Some(site) = &self.call_site {
+            if let Some(owner) = site.method.owner {
+                write!(formatter, "caller owner {owner:?} ")?;
+            }
             write!(
                 formatter,
                 "call site method #{} at bytecode offset {}: ",
@@ -137,6 +147,9 @@ impl fmt::Display for ExecutionError {
             write!(formatter, "bytecode offset {offset}: ")?;
         }
         match &self.kind {
+            ExecutionErrorKind::MethodAccess(error) => {
+                write!(formatter, "method service failed: {error}")
+            }
             ExecutionErrorKind::FieldAccess(error) => {
                 write!(formatter, "field service failed: {error}")
             }
@@ -252,6 +265,7 @@ impl std::error::Error for ExecutionError {
             ExecutionErrorKind::Decode(error) => Some(error),
             ExecutionErrorKind::Heap(error) => Some(error),
             ExecutionErrorKind::FieldAccess(error) => Some(error.as_ref()),
+            ExecutionErrorKind::MethodAccess(error) => Some(error.as_ref()),
             _ => None,
         }
     }

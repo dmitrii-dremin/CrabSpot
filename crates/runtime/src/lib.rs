@@ -11,6 +11,7 @@ mod handles;
 pub mod heap;
 mod hierarchy;
 pub mod instance;
+mod method;
 mod reference;
 mod registry;
 mod source;
@@ -36,3 +37,4 @@ pub use storage::{StaticStorage, StaticStorageOptions, StorageError};
 pub use values::{Value, ValueKind};
 
 pub use instance::{InstanceClassKind, InstanceError, InstanceOptions, InstanceResource};
+pub use method::{MethodAccessError, MethodJavaError};

@@ -1,6 +1,6 @@
 # CrabSpot architecture
 
-Status: M1, the M2 decoder/numeric, bounded static-call, primitive-array and instance-field execution increments, and the runtime registry/hierarchy/shared-values/default-static-storage/primitive-array-heap/ordinary-instance-storage increments are approved in separate review records. Runtime-identity-aware ordinary instance calls are the next design direction in `m2-instance-calls-next.md` and require a concrete contract. Full M2 and later milestones remain open.
+Status: M1, the M2 decoder/numeric, bounded static-call, primitive-array, instance-field and virtual-call execution increments, and the runtime registry/hierarchy/shared-values/default-static-storage/primitive-array-heap/ordinary-instance-storage increments are approved in separate review records. See `m2-virtual-calls-review.md` for the latest bounded approval. Full M2 and later milestones remain open.
 
 `ARCHITECTURE.md` is the project charter. This document refines its initial layout without reducing its roadmap. CrabSpot is an independent Rust JVM project targeting Linux x86-64. The first deliverable reads class files; it does not execute Java programs or claim JVM compatibility. NanoSpec is not used in this project.
 
@@ -64,6 +64,8 @@ The dependency direction is launcher -> services -> execution/runtime -> parsed 
 ## Environment and reproducibility
 
 The initial host is Windows x86-64, with Rust stable 1.98.1 through the user's Cargo installation and Zulu OpenJDK 21.0.7. The intended deployment target remains Linux x86-64. Native Windows checks cannot be reported as Linux validation. WSL discovery was denied by the host environment. A hosted run for `2617637` subsequently passed checked-in tests and JDK 21.0.13 fixture/reference regeneration on Linux and Windows, but failed strict Clippy on Rust 1.99.1's fetch_update deprecation. After the reviewed CAS correction, [run 41718502938](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41718502938) for implementation commit `a27593f` passed the complete workflow on Linux and Windows, including strict Clippy, optimized tests, regenerated fixtures/references and parser smoke. The coordinator inspected and recorded that hosted evidence. Rust 1.85 execution remains unobserved.
+
+The subsequent field-execution commit `d6ef169` also passed the complete Linux/Windows workflow in [run 41726268353](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41726268353), including all seven reference sets, debug/optimized tests, strict lint and parser smoke. The approved virtual-call increment has independent native debug/optimized evidence; its new hosted evidence is pending publication and must be recorded separately.
 
 Reference JDK tooling is development-only: compile fixtures, inspect class metadata, and later produce differential reference results. Fixture generation records the JDK version, source inputs, compiler options, and generated artifact provenance. Ordinary Rust tests must be reproducible without quietly executing a Java application or downloading a JDK. Tests using checked-in binary fixtures should validate the expected major version; regeneration uses an explicit Java 21 toolchain.
 

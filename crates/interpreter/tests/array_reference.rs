@@ -37,7 +37,9 @@ fn observed(outcome: ExecutionOutcome) -> String {
         }
         unexpected @ (ExecutionOutcome::NoSuchFieldError
         | ExecutionOutcome::IllegalAccessError
-        | ExecutionOutcome::IncompatibleClassChangeError) => {
+        | ExecutionOutcome::IncompatibleClassChangeError
+        | ExecutionOutcome::NoSuchMethodError
+        | ExecutionOutcome::AbstractMethodError) => {
             panic!("unexpected field outcome: {unexpected:?}")
         }
         ExecutionOutcome::ArithmeticException => "E:java/lang/ArithmeticException".to_owned(),

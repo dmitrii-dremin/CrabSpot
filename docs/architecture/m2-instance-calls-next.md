@@ -1,6 +1,6 @@
 # Next runtime-identity-aware call increment
 
-Status: design direction after approval of `m2-instance-field-bridge-review.md`. This note does not authorize implementation. Architectural refinement can continue without further user permission.
+Status: superseded by the authorized concrete contract `m2-virtual-calls.md` on 2026-11-03. This note is retained as design rationale.
 
 The next coherent executable step should let instance bodies call ordinary instance methods using managed receivers and registered method identities. Start with numeric/void explicit parameters and results, preserving the current host-supplied storage/body-kernel boundary. Constructor invocation remains separate: a default-storage handle is not proof of completed construction, and invoking `<init>` requires uninitialized-reference and constructor rules.
 

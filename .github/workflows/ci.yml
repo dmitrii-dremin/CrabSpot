@@ -49,6 +49,8 @@ jobs:
           python tools/field_reference.py --check
           python tools/instance_reference.py
           python tools/instance_reference.py --check
+          python tools/virtual_reference.py
+          python tools/virtual_reference.py --check
       - name: Format
         run: cargo fmt --check
       - name: Lint

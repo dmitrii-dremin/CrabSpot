@@ -220,3 +220,29 @@ ordinary instance identity without claiming method invocation access checks.
 Named modules, cross-loader reference loading constraints, cross-class private
 nest access, constructors, verification, class initialization and complete Java
 linking remain outside this profile. The runtime has no interpreter dependency.
+
+## Virtual class-method selection
+
+`FieldResolutionContext::select_virtual` resolves a checked Methodref and selects
+an ordinary class MethodId through the same admitted graph, loader/name bindings
+and cumulative work policy as field access. There is no dispatch cache or second
+resolver. The service returns native/synchronized declarations without claiming
+their executable support; a consumer must still prepare and validate Code.
+
+Resolution searches the symbolic class and its superclasses before the complete
+interface closure. Signature-polymorphic names in MethodHandle/VarHandle have
+their specified priority and remain explicitly unsupported. An eligible interface
+declaration is reported as a witness requiring future interface resolution;
+private/static interface declarations alone do not prevent class lookup.
+
+Access and staticness checks precede null. Private same-class calls retain their
+resolved declaration. Other calls select matching nonprivate instance overrides
+with package identity including the defining loader. Transitive public/protected
+bridges remain reachable through later package declarations. Defensive final
+checks include matching ancestors above the resolved method, while private final
+declarations do not participate. Abstract selection follows null checking.
+
+All scans, receiver ancestry and override-relation work consume the shared lookup
+budget before work. Temporary storage is bounded, iterative and fallibly reserved.
+The service does not implement interface invocation/default selection, constructors,
+native binding, class initialization, verification or general Java startup.

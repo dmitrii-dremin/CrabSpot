@@ -397,7 +397,7 @@ impl<'a> FieldResolutionContext<'a> {
     pub fn lookup_steps(&self) -> usize {
         self.steps
     }
-    fn unchanged(&self) -> Result<(), FieldAccessError> {
+    pub(crate) fn unchanged(&self) -> Result<(), FieldAccessError> {
         if self.heap.identity != self.heap_identity
             || self.heap.retained_layout_classes() != self.admitted_classes
         {
@@ -406,7 +406,7 @@ impl<'a> FieldResolutionContext<'a> {
             Ok(())
         }
     }
-    fn step(&mut self) -> Result<(), FieldAccessError> {
+    pub(crate) fn step(&mut self) -> Result<(), FieldAccessError> {
         step(&mut self.steps, self.options)
     }
     fn symbol(&self, origin: ClassId, index: u16) -> Result<Symbol<'a>, FieldAccessError> {
@@ -437,7 +437,7 @@ impl<'a> FieldResolutionContext<'a> {
             descriptor: pool.utf8(*descriptor_index).map_err(|_| invalid())?,
         })
     }
-    fn resolve_owner(
+    pub(crate) fn resolve_owner(
         &mut self,
         origin: ClassId,
         name: &'a JavaString,
@@ -493,7 +493,11 @@ impl<'a> FieldResolutionContext<'a> {
         )?;
         Ok(class)
     }
-    fn same_package(&self, first: ClassId, second: ClassId) -> Result<bool, FieldAccessError> {
+    pub(crate) fn same_package(
+        &self,
+        first: ClassId,
+        second: ClassId,
+    ) -> Result<bool, FieldAccessError> {
         if self.registry.defining_loader(first)? != self.registry.defining_loader(second)? {
             return Ok(false);
         }
@@ -517,7 +521,7 @@ impl<'a> FieldResolutionContext<'a> {
                 .map_err(RegistryError::Parse)?,
         ))
     }
-    fn subclass(
+    pub(crate) fn subclass(
         &mut self,
         mut class: ClassId,
         ancestor: ClassId,

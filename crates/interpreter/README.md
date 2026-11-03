@@ -16,7 +16,7 @@ instruction stream before evaluation. Unsupported instructions fail when reached
 
 The original numeric entry points handle 148 effective opcode values. The explicit
 heap entry point adds 31, for 179 total. The runtime-aware instance entry point
-adds `getfield` and `putfield`, for 181 total. `wide` is an encoding prefix for indexed
+adds `getfield`, `putfield` and `invokevirtual`, for 182 total. `wide` is an encoding prefix for indexed
 loads/stores and increment; heap mode adds two reference local forms to the nine
 numeric wide forms.
 
@@ -55,7 +55,8 @@ are transferred in descriptor order, category-two values consume two local slots
 and remaining caller operands survive. Return values are checked against caller
 stack capacity. A descendant's supported uncaught exception stops the entire
 body graph. Prepared methods are decoded once per evaluation and cached by their
-declared method index; the cache is not a runtime constant pool or class loader.
+a tagged standalone declaration index or a full registered MethodId; the cache
+is not a runtime constant pool or class loader.
 Symbolic owner matching uses semantic Java names, including constant-pool aliases,
 and target lookup matches both name and descriptor. Methodref owners must be
 classes; InterfaceMethodref owners must be interfaces with class-file version 52
@@ -123,7 +124,7 @@ enabled only inside the explicit heap or instance body graph; a reference argume
 for a numeric parameter produces a typed error in every entry point.
 
 Reference parameters/returns and reference arrays, static fields, runtime invocation,
-cross-class or instance calls, constructor execution,
+generalized cross-class static calls, special/interface calls, constructor execution,
 exception handlers, monitors and legacy subroutines remain unsupported. Numeric
 execution never delegates application bytecode to an installed JVM. The reference
 fixture integration compares results against separately generated OpenJDK records.
@@ -140,13 +141,14 @@ limits)` selects a registered ordinary non-static class body through a reusable
 of the declaring class or a subclass. Receiver local zero precedes the numeric
 arguments at their normal widths. Argument diagnostics keep their original
 argument indices. Private ordinary bodies may be selected explicitly; this is
-not method access checking, virtual dispatch or Java invocation.
+not root method access checking, virtual dispatch or Java invocation. Its body
+can perform the bounded virtual calls described below.
 
 Instance mode reuses the same decoder, prepared-method cache, explicit frame
 stack and instruction loop. Numeric static helpers still start their arguments
-at local zero and must be declared by the selected body’s class. Their field
-origin remains that declaring ClassId, including when the root receiver is a
-subclass. Cached instance preparation cannot make the root a valid invokestatic
+at local zero and must be declared by their current caller’s class. Every
+frame’s field origin is its declaring ClassId, including when the receiver is a
+subclass or an earlier frame belongs to another class. Cached instance preparation cannot make the root a valid invokestatic
 target. Root and callee limits/fuel have the same meaning as the earlier APIs.
 Interface roots, special initialization names, native/abstract/synchronized
 methods, handlers and reference descriptors remain excluded.
@@ -170,6 +172,50 @@ available caller provenance. These outcomes allocate no Java error objects.
 Each field instruction consumes one shared fuel unit. Completed field writes and
 array allocations persist after every return, symbolic failure or host error;
 failed writes preserve their previous values. This bridge does not implement
-`new`, constructors, getstatic/putstatic, virtual/special/interface invocation,
+`new`, constructors, getstatic/putstatic, special/interface invocation,
 class initialization, reference parameters/results, non-null field stores,
 exception dispatch, monitors, named modules, full verification or complete linkage.
+
+
+## Bounded virtual body calls
+
+Runtime-aware instance mode additionally enables `invokevirtual` for numeric/void
+ordinary class methods. The unchanged host API selects the root directly; nested
+virtual instructions use `FieldResolutionContext::select_virtual` to resolve and
+select a checked registered MethodId. Earlier static entry points still reject
+this opcode, including when supplied with a configured heap.
+
+Each registered frame and prepared-code cache entry has its complete MethodId.
+Equal local method indices in different classes remain different bodies and
+consume separate prepared-code allowance. Legacy standalone APIs keep their own
+tagged index identities and manufacture no runtime handles. Every frame uses its
+own declaring class's constant pool, return descriptor, field origin and static
+helper policy. Both invocation paths check static/instance mode on cache hits.
+
+Virtual arguments are extracted as typed values from the call-site descriptor.
+The receiver occupies target local zero; numeric arguments follow at their usual
+widths. Calls and callee instructions consume the same shared fuel. Frames share
+limits, context lookup budgets, heap effects and the existing iterative call loop;
+recursive and cross-class graphs do not recurse through the host stack. Numeric
+and void returns transfer to the actual caller while preserving other operands.
+
+Runtime selection supplies the bounded class-resolution/access/override policy,
+including private nonvirtual selection, package-aware transitive overriding and
+abstract-target failure. Interface/default resolution, signature-polymorphic
+execution and native binding remain explicit unsupported boundaries. Selected
+native/synchronized/handler bodies are rejected before execution. Resolution and
+staticness precede bytecode null; null precedes abstract-target selection.
+
+Explicit method Java failures map to symbolic `NoSuchMethodError`,
+`AbstractMethodError`, `IllegalAccessError`, `IncompatibleClassChangeError` and
+`NullPointerException`. All other method-service failures remain boxed
+`ExecutionErrorKind::MethodAccess` errors. Nested context errors are not remapped
+as Java outcomes. Diagnostics include optional registered owner identities for
+both method and call-site records; standalone owners are None. A call-site record
+identifies the originating invocation, including return-transfer failures, and
+need not identify an ancestor of the method reporting the error.
+
+Earlier completed writes and allocations survive every failure. This remains an
+explicit body-graph evaluation profile, without constructor execution, new,
+invokespecial/invokeinterface, reference arguments/results, generalized cross-class
+static calls, lifecycle proof, exception dispatch, complete linkage or JVM startup.

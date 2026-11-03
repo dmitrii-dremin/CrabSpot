@@ -24,7 +24,13 @@
     "Point.java": "37e3b52eb9e6ddd8f55e8ee4d4f3acfe7bfd09539a6e736b84e7ccc3917324d3",
     "Service.java": "c36ad81361e29bdd8b0d80389c5266bff419fbbe540a483fbaa22e0b113f3220",
     "ServiceProvider.java": "501445f5d3a905d017de21ff4883e5c10363117ecb2e833d19058451fffd5ffc",
-    "Shape.java": "5e73e97dafe8c7ac045cd0e5f8a514a1b88e8b0c01ca0b31ad4d50cc1f3fc563"
+    "Shape.java": "5e73e97dafe8c7ac045cd0e5f8a514a1b88e8b0c01ca0b31ad4d50cc1f3fc563",
+    "VirtualCallBase.java": "7dfc7adb43e3e22f4528b5929c17270e1305703703148c407c4344a63afdc77c",
+    "VirtualCallCases.java": "e29766dd18b5e9c996d65816b5f61ed0d655dd3339fd74afd698fdb214a7d01a",
+    "virtualp/PackageCallBase.java": "a7d789366504462378d50d5803c5857796c0e982ed5ea8e5b6365a6174982f4e",
+    "virtualp/PackageCallBridge.java": "cc4e202a03153d9ef579108f08b9ff2d400269f6de8ea7fc652ede0ef51f3766",
+    "virtualq/PackageCallLeaf.java": "4434a44696a7e6a4e0c0d513823cc3fe209bafae5e32cc0e12815d42f6b482df",
+    "virtualq/PackageCallMiddle.java": "8488038861e69a785514dda3f34e18384602a401d20bf1bf00c1817f69178527"
   },
   "files": {
     "fixtures/Annotated.class": "b6f7250d25ce010dc1819f825e50dcf79b0b0a68b16110b7ccd42f5769565009",
@@ -61,6 +67,13 @@
     "fixtures/Shape.class": "aae3ca506df0f6edc9bebf9baa7c100157459281915941bc47e6213ed7fc7f4e",
     "fixtures/Square.class": "769a7cb55dfa958173e720e02c820e61ac8bb52c4cc7f2ac77a1f614c08aa5d7",
     "fixtures/StorageDefaults.class": "4f44ae5bd84c56da8f03cb0a95c470709e997417681271fb2b819a58d0cdc404",
+    "fixtures/VirtualCallBase.class": "9ba797d419f12e9b7e5b8a370626fa867fe36c99feecf2bf9c2ab8e83b3fc42f",
+    "fixtures/VirtualCallCases.class": "d54fa48aee008a456d838cb74897909b6f80c6a2fc3c01ca6d6bbcfc26ef0082",
+    "fixtures/VirtualCallLeaf.class": "fc58685cac950da77bf3b3c7e4daba9ca5fa5d2383cf47630c50ed3838bab817",
+    "fixtures/virtualp/PackageCallBase.class": "bbee2655ac58e6ac995a559a9f58c64295a0edd4ce5e0a80522dcd4da52d978a",
+    "fixtures/virtualp/PackageCallBridge.class": "d622711859637e99f8b7a52ca528d0b74770217bf173d77892748a8c506f6637",
+    "fixtures/virtualq/PackageCallLeaf.class": "5e285e0a001b64bc0e4fd0b43d6ac056c647885900d63de3ae4222c05280e31b",
+    "fixtures/virtualq/PackageCallMiddle.class": "5afe32bbfb3a2ea18cf4728a13881ee3816006cc395b355e06636e2574ae71bd",
     "fixtures/VisibleType.class": "74fc7f45fe4b27bd8a22dc122d0002d4e804c442c8db5bed4392ff8a34ca2069",
     "module-info.class": "5c872bf8bcc9e88513b1fc203596546c0c6b61f5691fb72f4cc8bdc388df16da"
   }

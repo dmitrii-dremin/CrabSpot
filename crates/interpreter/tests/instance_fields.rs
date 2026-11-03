@@ -1098,7 +1098,7 @@ fn completed_field_and_array_effects_persist_across_every_symbolic_outcome_and_h
 }
 #[test]
 fn unsupported_instruction_families_stay_explicit_and_all_code_is_eagerly_decoded() {
-    for opcode in [0xb2, 0xb3, 0xb6, 0xb7, 0xbb, 0xbd, 0xb0, 0xbf, 0xc2, 0xc3] {
+    for opcode in [0xb2, 0xb3, 0xb7, 0xbb, 0xbd, 0xb0, 0xbf, 0xc2, 0xc3] {
         let mut class = ordinary();
         let index = class.class("p/T");
         let mut code = if matches!(opcode, 0xb2 | 0xb3 | 0xb6 | 0xb7 | 0xbb | 0xbd) {
@@ -1116,6 +1116,20 @@ fn unsupported_instruction_families_stay_explicit_and_all_code_is_eagerly_decode
             E::UnsupportedInstruction(opcode)
         );
     }
+    // invokevirtual is now enabled in runtime mode, so a Class constant operand
+    // reaches its structural Methodref guard instead of the old opcode gate.
+    let mut class = ordinary();
+    let index = class.class("p/T");
+    let mut code = vec![0x2a];
+    code.extend(op(0xb6, index));
+    code.push(0xb1);
+    class.method("m", "()V", 1, &code, 1, 1);
+    let mut fixture = Fixture::new(vec![class]);
+    let receiver = fixture.object("p/T");
+    let method = fixture.method("p/T", "m", "()V");
+    assert!(
+        matches!(fixture.run(method,receiver,&[]).unwrap_err().kind,E::MethodAccess(error) if matches!(*error,crabspot_runtime::MethodAccessError::InvalidConstant {..}))
+    );
     for code in [
         vec![0xb1, 0xff],
         vec![0xb1, 0xb4, 0, 0],

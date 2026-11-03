@@ -148,6 +148,8 @@ fn observed(outcome: ExecutionOutcome) -> String {
         }
         ExecutionOutcome::NoSuchFieldError => "E:java/lang/NoSuchFieldError".to_owned(),
         ExecutionOutcome::IllegalAccessError => "E:java/lang/IllegalAccessError".to_owned(),
+        ExecutionOutcome::NoSuchMethodError => "E:java/lang/NoSuchMethodError".to_owned(),
+        ExecutionOutcome::AbstractMethodError => "E:java/lang/AbstractMethodError".to_owned(),
         ExecutionOutcome::IncompatibleClassChangeError => {
             "E:java/lang/IncompatibleClassChangeError".to_owned()
         }
