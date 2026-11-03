@@ -1,0 +1,38 @@
+{
+  "compiler": "javac 21.0.7",
+  "release": 21,
+  "flags": [
+    "-encoding",
+    "UTF-8",
+    "-g",
+    "-parameters"
+  ],
+  "sources": {
+    "Annotated.java": "5dea2b81367a7e70a3ae7659408715044b19d78b5ac39c943da4ad7b91c9decb",
+    "Fixture.java": "7be3aab509376153e6276b22fbd70971a0a6464cb5072558030efa4c4a598200",
+    "module-info.java": "737d187a421d52167f3713c0a1565aa84538691ffe0e4f7e66722320df7035ca",
+    "Point.java": "37e3b52eb9e6ddd8f55e8ee4d4f3acfe7bfd09539a6e736b84e7ccc3917324d3",
+    "Service.java": "c36ad81361e29bdd8b0d80389c5266bff419fbbe540a483fbaa22e0b113f3220",
+    "ServiceProvider.java": "501445f5d3a905d017de21ff4883e5c10363117ecb2e833d19058451fffd5ffc",
+    "Shape.java": "5e73e97dafe8c7ac045cd0e5f8a514a1b88e8b0c01ca0b31ad4d50cc1f3fc563"
+  },
+  "files": {
+    "fixtures/Annotated.class": "b6f7250d25ce010dc1819f825e50dcf79b0b0a68b16110b7ccd42f5769565009",
+    "fixtures/Choice.class": "15bf6daf8f2fd022f59860fa4990810e80f62ea7f67b4ff3421275b082558fc4",
+    "fixtures/Circle.class": "13b5aa510b925cc610baf3013e8193fc435eb3de437eac7dcff3f550fb386563",
+    "fixtures/Fixture$Inner.class": "85d092283ee57a04c1388c12ee95fd437cf5205a1eb347cd16067b827c0d9a9a",
+    "fixtures/Fixture.class": "e7e45948f0ce5522dda40b720f130895319cd951771cc35e69cabd90b46581ba",
+    "fixtures/InvisibleDeclaration.class": "3d4f91e1e7a34ae7167e6e1ef5be71f1774a7bbbd9803a0849e50dcfdb96a483",
+    "fixtures/InvisibleType.class": "d3d17aeb1e88f863d1b8630b2ef516c675bcdc8085c5772d9d50d5a39975b76b",
+    "fixtures/Marker.class": "85f43a886b99f686c9e74809b855bc6f04ced010bff8bbf194d7483d7748d40b",
+    "fixtures/Nested.class": "6eed9f119472dde21c82d9f497a2bae6e2d7fd3f93cf0b6b714ef4e0bf5d2526",
+    "fixtures/Point.class": "79b1f9e25579165377ea73ba5a4252b8e5691121d9abbe4d266c453c5d6daf51",
+    "fixtures/RichAnnotation.class": "1398b14f54fd65446f8338e963ed0183d5544f3a1358719f58dfc6d3b8376f80",
+    "fixtures/Service.class": "93f9d88a2384584c5da052611cf61a62b0b1e31bb1c17a6d0b3ac223369783c6",
+    "fixtures/ServiceProvider.class": "1cf55455880cc4905610732ae3563173af82b619507b471f4d955200449b8847",
+    "fixtures/Shape.class": "aae3ca506df0f6edc9bebf9baa7c100157459281915941bc47e6213ed7fc7f4e",
+    "fixtures/Square.class": "769a7cb55dfa958173e720e02c820e61ac8bb52c4cc7f2ac77a1f614c08aa5d7",
+    "fixtures/VisibleType.class": "74fc7f45fe4b27bd8a22dc122d0002d4e804c442c8db5bed4392ff8a34ca2069",
+    "module-info.class": "5c872bf8bcc9e88513b1fc203596546c0c6b61f5691fb72f4cc8bdc388df16da"
+  }
+}

@@ -1,0 +1,11 @@
+[package]
+name = "crabspot-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+crabspot-classfile = { path = "../classfile" }
+
+[lints]
+workspace = true

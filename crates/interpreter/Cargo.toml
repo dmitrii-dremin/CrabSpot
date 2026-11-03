@@ -1,0 +1,13 @@
+[package]
+name = "crabspot-interpreter"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+crabspot-classfile = { path = "../classfile" }
+crabspot-bytecode = { path = "../bytecode" }
+crabspot-runtime = { path = "../runtime" }
+
+[lints]
+workspace = true

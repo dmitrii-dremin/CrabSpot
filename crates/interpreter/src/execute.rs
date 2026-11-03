@@ -1,0 +1,1409 @@
+use crate::{
+    CallSite, ExecutionError, ExecutionErrorKind as E, MethodIdentity, Value, ValueKind,
+    frame::{Locals, Stack},
+};
+use crabspot_bytecode::{DecodedCode, Operands, decode};
+use crabspot_classfile::{
+    AttributeBody, ClassFile, Constant,
+    descriptor::{FieldType, parse_method_descriptor},
+};
+use crabspot_runtime::{HeapError, ManagedHeap, PrimitiveArrayKind, Reference};
+use std::collections::BTreeMap;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ExecutionOptions {
+    pub instruction_budget: u64,
+}
+impl Default for ExecutionOptions {
+    fn default() -> Self {
+        Self {
+            instruction_budget: 1_000_000,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExecutionOutcome {
+    Returned(Option<Value>),
+    /// A symbolic uncaught Java exception; no exception object is fabricated.
+    ArithmeticException,
+    NullPointerException,
+    ArrayIndexOutOfBoundsException,
+    NegativeArraySizeException,
+}
+
+fn numeric_kind(field: &FieldType) -> Result<ValueKind, ExecutionError> {
+    match field {
+        FieldType::Long => Ok(ValueKind::Long),
+        FieldType::Float => Ok(ValueKind::Float),
+        FieldType::Double => Ok(ValueKind::Double),
+        FieldType::Byte
+        | FieldType::Char
+        | FieldType::Int
+        | FieldType::Short
+        | FieldType::Boolean => Ok(ValueKind::Int),
+        _ => Err(ExecutionError::new(None, E::UnsupportedDescriptor)),
+    }
+}
+fn operand_error(offset: u32) -> ExecutionError {
+    ExecutionError::new(Some(offset), E::InvalidOperands)
+}
+fn local(operands: &Operands, offset: u32) -> Result<usize, ExecutionError> {
+    if let Operands::Local(index) = operands {
+        Ok(usize::from(*index))
+    } else {
+        Err(operand_error(offset))
+    }
+}
+fn branch(decoded: &DecodedCode, offset: u32, displacement: i32) -> Result<u32, ExecutionError> {
+    let destination = i64::from(offset) + i64::from(displacement);
+    let target = u32::try_from(destination)
+        .ok()
+        .filter(|target| decoded.instruction_at(*target).is_some())
+        .ok_or_else(|| ExecutionError::new(Some(offset), E::InstructionPointerOutsideCode))?;
+    Ok(target)
+}
+fn constant(
+    class: &ClassFile,
+    index: u16,
+    wide: bool,
+    offset: u32,
+) -> Result<Value, ExecutionError> {
+    let invalid = || {
+        ExecutionError::new(
+            Some(offset),
+            E::InvalidConstant {
+                index,
+                expected: if wide {
+                    "a Long or Double constant for ldc2_w"
+                } else {
+                    "a category-one loadable constant for ldc/ldc_w"
+                },
+            },
+        )
+    };
+    match class.constant_pool.get(index).map_err(|_| invalid())? {
+        Constant::Integer(value) if !wide => Ok(Value::Int(*value)),
+        Constant::Long(value) if wide => Ok(Value::Long(*value)),
+        Constant::Double(bits) if wide => Ok(Value::Double(*bits)),
+        Constant::Float(bits) if !wide => Ok(Value::Float(*bits)),
+        Constant::Class { .. }
+        | Constant::String { .. }
+        | Constant::MethodHandle { .. }
+        | Constant::MethodType { .. }
+            if !wide =>
+        {
+            Err(ExecutionError::new(
+                Some(offset),
+                E::UnsupportedConstant { index },
+            ))
+        }
+        Constant::Dynamic { .. } => Err(ExecutionError::new(
+            Some(offset),
+            E::UnsupportedConstant { index },
+        )),
+        _ => Err(invalid()),
+    }
+}
+
+/// Explicit host policy for this per-evaluation body graph; not Java exceptions.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CallLimits {
+    pub max_frames: usize,
+    pub max_frame_slots: usize,
+    /// Sum of original Code byte lengths prepared once and retained for this evaluation.
+    pub max_prepared_code_bytes: usize,
+}
+impl Default for CallLimits {
+    fn default() -> Self {
+        Self {
+            max_frames: 256,
+            max_frame_slots: 1_000_000,
+            max_prepared_code_bytes: 1_048_576,
+        }
+    }
+}
+struct PreparedMethod {
+    parameters: Vec<ValueKind>,
+    return_type: Option<FieldType>,
+    decoded: DecodedCode,
+    max_stack: u16,
+    max_locals: u16,
+}
+impl PreparedMethod {
+    fn slots(&self) -> usize {
+        usize::from(self.max_stack) + usize::from(self.max_locals)
+    }
+}
+struct Frame {
+    method_index: usize,
+    locals: Locals,
+    stack: Stack,
+    pc: u32,
+    origin: Option<(usize, u32)>,
+    reserved_slots: usize,
+}
+enum Action {
+    Continue,
+    Call { constant_index: u16 },
+    Return(Option<Value>),
+    ArithmeticException,
+    NullPointerException,
+    ArrayIndexOutOfBoundsException,
+    NegativeArraySizeException,
+}
+
+fn identity(class: &ClassFile, index: usize) -> Option<MethodIdentity> {
+    let method = class.methods.get(index)?;
+    Some(MethodIdentity {
+        index,
+        name: class.constant_pool.utf8(method.name_index).ok()?.clone(),
+        descriptor: class
+            .constant_pool
+            .utf8(method.descriptor_index)
+            .ok()?
+            .clone(),
+    })
+}
+fn contextualize(
+    class: &ClassFile,
+    mut error: ExecutionError,
+    method_index: usize,
+    origin: Option<(usize, u32)>,
+) -> ExecutionError {
+    error.method = identity(class, method_index).map(Box::new);
+    error.call_site = origin.and_then(|(index, offset)| {
+        identity(class, index).map(|method| Box::new(CallSite { method, offset }))
+    });
+    error
+}
+fn validate_args(prepared: &PreparedMethod, args: &[Value]) -> Result<(), ExecutionError> {
+    if args.len() != prepared.parameters.len() {
+        return Err(ExecutionError::new(
+            None,
+            E::ArgumentCount {
+                expected: prepared.parameters.len(),
+                actual: args.len(),
+            },
+        ));
+    }
+    for (index, (value, expected)) in args.iter().zip(&prepared.parameters).enumerate() {
+        if value.kind() != *expected {
+            return Err(ExecutionError::new(
+                None,
+                E::ArgumentType {
+                    index,
+                    expected: *expected,
+                    actual: value.kind(),
+                },
+            ));
+        }
+    }
+    Ok(())
+}
+fn check_reservation(
+    frame_count: usize,
+    reserved: usize,
+    prepared: &PreparedMethod,
+    limits: CallLimits,
+) -> Result<usize, ExecutionError> {
+    let count = frame_count.checked_add(1).ok_or_else(|| {
+        ExecutionError::new(
+            None,
+            E::FrameLimit {
+                limit: limits.max_frames,
+                required: usize::MAX,
+            },
+        )
+    })?;
+    if count > limits.max_frames {
+        return Err(ExecutionError::new(
+            None,
+            E::FrameLimit {
+                limit: limits.max_frames,
+                required: count,
+            },
+        ));
+    }
+    let total = reserved.checked_add(prepared.slots()).ok_or_else(|| {
+        ExecutionError::new(
+            None,
+            E::FrameSlotLimit {
+                limit: limits.max_frame_slots,
+                required: usize::MAX,
+            },
+        )
+    })?;
+    if total > limits.max_frame_slots {
+        return Err(ExecutionError::new(
+            None,
+            E::FrameSlotLimit {
+                limit: limits.max_frame_slots,
+                required: total,
+            },
+        ));
+    }
+    Ok(total)
+}
+fn make_frame(
+    method_index: usize,
+    prepared: &PreparedMethod,
+    args: &[Value],
+    origin: Option<(usize, u32)>,
+) -> Result<Frame, ExecutionError> {
+    let mut locals = Locals::new(prepared.max_locals);
+    let mut slot = 0;
+    for argument in args {
+        locals.store(slot, *argument, 0)?;
+        slot += argument.slots();
+    }
+    Ok(Frame {
+        method_index,
+        locals,
+        stack: Stack::new(prepared.max_stack),
+        pc: 0,
+        origin,
+        reserved_slots: prepared.slots(),
+    })
+}
+fn resolve_call(class: &ClassFile, index: u16, offset: u32) -> Result<usize, ExecutionError> {
+    let invalid =
+        |reason| ExecutionError::new(Some(offset), E::InvalidCallReference { index, reason });
+    let pool = &class.constant_pool;
+    let (owner, nat, is_interface) = match pool
+        .get(index)
+        .map_err(|_| invalid("unusable constant-pool index"))?
+    {
+        Constant::Methodref {
+            class_index,
+            name_and_type_index,
+        } => (*class_index, *name_and_type_index, false),
+        Constant::InterfaceMethodref {
+            class_index,
+            name_and_type_index,
+        } => (*class_index, *name_and_type_index, true),
+        _ => return Err(invalid("expected Methodref or InterfaceMethodref")),
+    };
+    let owner = pool
+        .class_name(owner)
+        .map_err(|_| invalid("owner must be a Class constant with a Utf8 name"))?;
+    let this_name = class
+        .name()
+        .map_err(|_| invalid("invalid supplied class identity"))?;
+    if owner != this_name {
+        return Err(ExecutionError::new(
+            Some(offset),
+            E::UnsupportedCall(
+                "cross-class owner requires runtime class identity, resolution and initialization",
+            ),
+        ));
+    }
+    if is_interface && class.version.major < 52 {
+        return Err(invalid(
+            "InterfaceMethodref invokestatic requires class-file version 52 or later",
+        ));
+    }
+    if is_interface != (class.access_flags & 0x0200 != 0) {
+        return Err(invalid(
+            "reference tag does not match the supplied class/interface owner kind",
+        ));
+    }
+    let Constant::NameAndType {
+        name_index,
+        descriptor_index,
+    } = pool
+        .get(nat)
+        .map_err(|_| invalid("invalid name-and-type index"))?
+    else {
+        return Err(invalid("expected a NameAndType constant"));
+    };
+    let name = pool
+        .utf8(*name_index)
+        .map_err(|_| invalid("invalid method name index"))?;
+    let descriptor = pool
+        .utf8(*descriptor_index)
+        .map_err(|_| invalid("invalid method descriptor index"))?;
+    parse_method_descriptor(descriptor.units())
+        .map_err(|_| invalid("invalid method descriptor"))?;
+    if name.equals_ascii("<init>") || name.equals_ascii("<clinit>") {
+        return Err(ExecutionError::new(
+            Some(offset),
+            E::UnsupportedCall(
+                "initialization methods are excluded from ordinary static body calls",
+            ),
+        ));
+    }
+    let mut matches = class.methods.iter().enumerate().filter(|(_, method)| {
+        pool.utf8(method.name_index)
+            .is_ok_and(|candidate| candidate == name)
+            && pool
+                .utf8(method.descriptor_index)
+                .is_ok_and(|candidate| candidate == descriptor)
+    });
+    let Some((method_index, _)) = matches.next() else {
+        return Err(ExecutionError::new(Some(offset), E::MissingDeclaredMethod));
+    };
+    if matches.next().is_some() {
+        return Err(invalid("ambiguous duplicate declared method target"));
+    }
+    Ok(method_index)
+}
+
+/// Evaluate selected numeric method bodies. This is not Java invocation or class
+/// initialization; supported invokestatic edges stay inside this supplied class.
+pub fn execute_static_method_body(
+    class: &ClassFile,
+    method_index: usize,
+    args: &[Value],
+    options: ExecutionOptions,
+) -> Result<ExecutionOutcome, ExecutionError> {
+    execute_static_method_body_with_limits(
+        class,
+        method_index,
+        args,
+        options,
+        CallLimits::default(),
+    )
+}
+/// The same body-graph kernel with explicit active-frame, slot and prepared-Code policy.
+pub fn execute_static_method_body_with_limits(
+    class: &ClassFile,
+    method_index: usize,
+    args: &[Value],
+    options: ExecutionOptions,
+    limits: CallLimits,
+) -> Result<ExecutionOutcome, ExecutionError> {
+    execute_with_services(class, method_index, args, options, limits, None)
+}
+
+/// Evaluate a numeric/void body graph using the caller's persistent primitive-array
+/// heap. Successful earlier heap effects remain visible after every exit path.
+pub fn execute_static_method_body_with_heap(
+    class: &ClassFile,
+    method_index: usize,
+    arguments: &[Value],
+    options: ExecutionOptions,
+    limits: CallLimits,
+    heap: &mut ManagedHeap,
+) -> Result<ExecutionOutcome, ExecutionError> {
+    execute_with_services(class, method_index, arguments, options, limits, Some(heap))
+}
+
+fn execute_with_services(
+    class: &ClassFile,
+    method_index: usize,
+    args: &[Value],
+    options: ExecutionOptions,
+    limits: CallLimits,
+    mut heap: Option<&mut ManagedHeap>,
+) -> Result<ExecutionOutcome, ExecutionError> {
+    if limits.max_frames == 0 {
+        return Err(contextualize(
+            class,
+            ExecutionError::new(
+                None,
+                E::FrameLimit {
+                    limit: 0,
+                    required: 1,
+                },
+            ),
+            method_index,
+            None,
+        ));
+    }
+    let mut used_code_bytes = 0;
+    let root = prepare_method(
+        class,
+        method_index,
+        &mut used_code_bytes,
+        limits.max_prepared_code_bytes,
+    )
+    .map_err(|error| contextualize(class, error, method_index, None))?;
+    validate_args(&root, args).map_err(|error| contextualize(class, error, method_index, None))?;
+    let mut reserved = check_reservation(0, 0, &root, limits)
+        .map_err(|error| contextualize(class, error, method_index, None))?;
+    let root_frame = make_frame(method_index, &root, args, None)
+        .map_err(|error| contextualize(class, error, method_index, None))?;
+    let mut cache = BTreeMap::new();
+    cache.insert(method_index, root);
+    let mut frames = vec![root_frame];
+    let mut remaining = options.instruction_budget;
+    loop {
+        let Some(frame) = frames.last() else {
+            return Err(ExecutionError::new(
+                None,
+                E::InvalidMethod("empty engine frame stack"),
+            ));
+        };
+        let current = frame.method_index;
+        let pc = frame.pc;
+        let origin = frame.origin;
+        if remaining == 0 {
+            return Err(contextualize(
+                class,
+                ExecutionError::new(
+                    Some(pc),
+                    E::InstructionBudgetExhausted {
+                        limit: options.instruction_budget,
+                    },
+                ),
+                current,
+                origin,
+            ));
+        }
+        let prepared = cache.get(&current).ok_or_else(|| {
+            contextualize(
+                class,
+                ExecutionError::new(Some(pc), E::InvalidMethod("missing prepared method")),
+                current,
+                origin,
+            )
+        })?;
+        let frame = frames.last_mut().ok_or_else(|| {
+            ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
+        })?;
+        remaining -= 1;
+        let action = step(class, prepared, frame, heap.as_deref_mut())
+            .map_err(|error| contextualize(class, error, current, origin))?;
+        match action {
+            Action::Continue => {}
+            Action::ArithmeticException => return Ok(ExecutionOutcome::ArithmeticException),
+            Action::NullPointerException => return Ok(ExecutionOutcome::NullPointerException),
+            Action::ArrayIndexOutOfBoundsException => {
+                return Ok(ExecutionOutcome::ArrayIndexOutOfBoundsException);
+            }
+            Action::NegativeArraySizeException => {
+                return Ok(ExecutionOutcome::NegativeArraySizeException);
+            }
+            Action::Return(value) => {
+                let completed = frames.pop().ok_or_else(|| {
+                    ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
+                })?;
+                reserved = reserved
+                    .checked_sub(completed.reserved_slots)
+                    .ok_or_else(|| {
+                        ExecutionError::new(
+                            None,
+                            E::InvalidMethod("invalid frame reservation accounting"),
+                        )
+                    })?;
+                if let Some(caller) = frames.last_mut() {
+                    if let Some(value) = value {
+                        let call_offset = completed.origin.map_or(caller.pc, |(_, offset)| offset);
+                        caller.stack.push(value, call_offset).map_err(|error| {
+                            contextualize(class, error, caller.method_index, completed.origin)
+                        })?;
+                    }
+                } else {
+                    return Ok(ExecutionOutcome::Returned(value));
+                }
+            }
+            Action::Call { constant_index } => {
+                let call_site = Some((current, pc));
+                let target = resolve_call(class, constant_index, pc)
+                    .map_err(|error| contextualize(class, error, current, call_site))?;
+                if let std::collections::btree_map::Entry::Vacant(entry) = cache.entry(target) {
+                    let prepared = prepare_method(
+                        class,
+                        target,
+                        &mut used_code_bytes,
+                        limits.max_prepared_code_bytes,
+                    )
+                    .map_err(|error| contextualize(class, error, target, call_site))?;
+                    entry.insert(prepared);
+                }
+                let prepared = cache.get(&target).ok_or_else(|| {
+                    ExecutionError::new(None, E::InvalidMethod("missing prepared call target"))
+                })?;
+                let next_reserved = check_reservation(frames.len(), reserved, prepared, limits)
+                    .map_err(|error| contextualize(class, error, target, call_site))?;
+                let caller = frames.last_mut().ok_or_else(|| {
+                    ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
+                })?;
+                let mut args = Vec::with_capacity(prepared.parameters.len());
+                for kind in prepared.parameters.iter().rev() {
+                    args.push(
+                        caller
+                            .stack
+                            .pop(*kind, pc)
+                            .map_err(|error| contextualize(class, error, current, call_site))?,
+                    );
+                }
+                args.reverse();
+                let callee = make_frame(target, prepared, &args, call_site)
+                    .map_err(|error| contextualize(class, error, target, call_site))?;
+                frames.push(callee);
+                reserved = next_reserved;
+            }
+        }
+    }
+}
+
+fn prepare_method(
+    class: &ClassFile,
+    method_index: usize,
+    used_code_bytes: &mut usize,
+    code_limit: usize,
+) -> Result<PreparedMethod, ExecutionError> {
+    let method = class.methods.get(method_index).ok_or_else(|| {
+        ExecutionError::new(
+            None,
+            E::MethodIndexOutOfBounds {
+                index: method_index,
+                count: class.methods.len(),
+            },
+        )
+    })?;
+    let name = class.constant_pool.utf8(method.name_index).map_err(|_| {
+        ExecutionError::new(None, E::InvalidMethod("invalid method name reference"))
+    })?;
+    if name.equals_ascii("<init>") || name.equals_ascii("<clinit>") {
+        return Err(ExecutionError::new(
+            None,
+            E::UnsupportedMethod(
+                "special initialization methods are not ordinary static method bodies",
+            ),
+        ));
+    }
+    if method.access_flags & 0x0008 == 0 {
+        return Err(ExecutionError::new(
+            None,
+            E::UnsupportedMethod("method must be static"),
+        ));
+    }
+    if method.access_flags & 0x0100 != 0 {
+        return Err(ExecutionError::new(
+            None,
+            E::UnsupportedMethod("native methods require runtime services"),
+        ));
+    }
+    if method.access_flags & 0x0400 != 0 {
+        return Err(ExecutionError::new(
+            None,
+            E::UnsupportedMethod("abstract methods have no executable body"),
+        ));
+    }
+    if method.access_flags & 0x0020 != 0 {
+        return Err(ExecutionError::new(
+            None,
+            E::UnsupportedMethod("synchronized methods require monitor services"),
+        ));
+    }
+    let descriptor = class
+        .constant_pool
+        .utf8(method.descriptor_index)
+        .map_err(|_| ExecutionError::new(None, E::InvalidDescriptor))?;
+    let descriptor = parse_method_descriptor(descriptor.units())
+        .map_err(|_| ExecutionError::new(None, E::InvalidDescriptor))?;
+    let kinds: Vec<ValueKind> = descriptor
+        .parameters
+        .iter()
+        .map(numeric_kind)
+        .collect::<Result<_, _>>()?;
+    if let Some(field) = &descriptor.return_type {
+        numeric_kind(field)?;
+    }
+    let mut codes = method
+        .attributes
+        .iter()
+        .filter_map(|attribute| match &attribute.body {
+            AttributeBody::Code(code) => Some(code),
+            _ => None,
+        });
+    let code = codes
+        .next()
+        .ok_or_else(|| ExecutionError::new(None, E::InvalidMethod("missing Code attribute")))?;
+    if codes.next().is_some() {
+        return Err(ExecutionError::new(
+            None,
+            E::InvalidMethod("multiple Code attributes"),
+        ));
+    }
+    if !code.exception_table.is_empty() {
+        return Err(ExecutionError::new(
+            None,
+            E::UnsupportedMethod("exception handlers require exception dispatch"),
+        ));
+    }
+    let required = used_code_bytes
+        .checked_add(code.code.len())
+        .ok_or_else(|| {
+            ExecutionError::new(
+                None,
+                E::PreparedCodeLimit {
+                    limit: code_limit,
+                    required: usize::MAX,
+                },
+            )
+        })?;
+    if required > code_limit {
+        return Err(ExecutionError::new(
+            None,
+            E::PreparedCodeLimit {
+                limit: code_limit,
+                required,
+            },
+        ));
+    }
+    let decoded = decode(&code.code, class.version.major)
+        .map_err(|error| ExecutionError::new(Some(error.offset), E::Decode(error)))?;
+    *used_code_bytes = required;
+    Ok(PreparedMethod {
+        parameters: kinds,
+        return_type: descriptor.return_type,
+        decoded,
+        max_stack: code.max_stack,
+        max_locals: code.max_locals,
+    })
+}
+
+fn step(
+    class: &ClassFile,
+    prepared: &PreparedMethod,
+    frame: &mut Frame,
+    heap: Option<&mut ManagedHeap>,
+) -> Result<Action, ExecutionError> {
+    let pc = frame.pc;
+    let locals = &mut frame.locals;
+    let stack = &mut frame.stack;
+    let decoded = &prepared.decoded;
+    let descriptor = prepared;
+    let instruction = decoded
+        .instruction_at(pc)
+        .ok_or_else(|| ExecutionError::new(Some(pc), E::InstructionPointerOutsideCode))?;
+    let opcode = instruction.opcode;
+    if is_heap_instruction(opcode) && heap.is_none() {
+        return Err(ExecutionError::new(
+            Some(pc),
+            E::UnsupportedInstruction(opcode),
+        ));
+    }
+    let operands = &instruction.operands;
+    let mut next = pc
+        .checked_add(instruction.length)
+        .ok_or_else(|| ExecutionError::new(Some(pc), E::InstructionPointerOutsideCode))?;
+    match opcode {
+        0x01 => stack.push(Value::Reference(Reference::null()), pc)?,
+        0x00 => {}
+        0x02..=0x08 => stack.push(Value::Int(i32::from(opcode) - 3), pc)?,
+        0x09..=0x0a => stack.push(Value::Long(i64::from(opcode) - 9), pc)?,
+        0x0b..=0x0d => stack.push(Value::from_f32(f32::from(opcode - 0x0b)), pc)?,
+        0x0e..=0x0f => stack.push(Value::from_f64(f64::from(opcode - 0x0e)), pc)?,
+        0x10 => {
+            let Operands::Byte(value) = operands else {
+                return Err(operand_error(pc));
+            };
+            stack.push(Value::Int(i32::from(*value)), pc)?;
+        }
+        0x11 => {
+            let Operands::Short(value) = operands else {
+                return Err(operand_error(pc));
+            };
+            stack.push(Value::Int(i32::from(*value)), pc)?;
+        }
+        0x12..=0x14 => {
+            let Operands::Constant(index) = operands else {
+                return Err(operand_error(pc));
+            };
+            stack.push(constant(class, *index, opcode == 0x14, pc)?, pc)?;
+        }
+        0x15..=0x18 => {
+            let index = local(operands, pc)?;
+            let expected = match opcode {
+                0x15 => ValueKind::Int,
+                0x16 => ValueKind::Long,
+                0x17 => ValueKind::Float,
+                _ => ValueKind::Double,
+            };
+            stack.push(locals.load(index, expected, pc)?, pc)?;
+        }
+        0x19 => {
+            let value = locals.load(local(operands, pc)?, ValueKind::Reference, pc)?;
+            let Value::Reference(reference) = value else {
+                return Err(operand_error(pc));
+            };
+            validate_reference(heap.as_deref(), reference, pc)?;
+            stack.push(value, pc)?;
+        }
+        0x2a..=0x2d => {
+            let value = locals.load(usize::from(opcode - 0x2a), ValueKind::Reference, pc)?;
+            let Value::Reference(reference) = value else {
+                return Err(operand_error(pc));
+            };
+            validate_reference(heap.as_deref(), reference, pc)?;
+            stack.push(value, pc)?;
+        }
+        0x2e..=0x31 | 0x33..=0x35 => {
+            let index = stack.int(pc)?;
+            let reference = stack.reference(pc)?;
+            let heap = heap.ok_or_else(|| operand_error(pc))?;
+            let actual = match heap.kind(reference) {
+                Ok(kind) => kind,
+                Err(error) => return heap_failure(error, pc),
+            };
+            check_array_kind(opcode, actual, pc)?;
+            let value = match heap.load(reference, index) {
+                Ok(value) => value,
+                Err(error) => return heap_failure(error, pc),
+            };
+            stack.push(value, pc)?;
+        }
+        0x1a..=0x1d => stack.push(
+            locals.load(usize::from(opcode - 0x1a), ValueKind::Int, pc)?,
+            pc,
+        )?,
+        0x1e..=0x21 => stack.push(
+            locals.load(usize::from(opcode - 0x1e), ValueKind::Long, pc)?,
+            pc,
+        )?,
+        0x22..=0x25 => stack.push(
+            locals.load(usize::from(opcode - 0x22), ValueKind::Float, pc)?,
+            pc,
+        )?,
+        0x26..=0x29 => stack.push(
+            locals.load(usize::from(opcode - 0x26), ValueKind::Double, pc)?,
+            pc,
+        )?,
+        0x36..=0x39 => {
+            let index = local(operands, pc)?;
+            let expected = match opcode {
+                0x36 => ValueKind::Int,
+                0x37 => ValueKind::Long,
+                0x38 => ValueKind::Float,
+                _ => ValueKind::Double,
+            };
+            locals.store(index, stack.pop(expected, pc)?, pc)?;
+        }
+        0x3a => {
+            let reference = stack.reference(pc)?;
+            validate_reference(heap.as_deref(), reference, pc)?;
+            locals.store(local(operands, pc)?, Value::Reference(reference), pc)?;
+        }
+        0x4b..=0x4e => {
+            let reference = stack.reference(pc)?;
+            validate_reference(heap.as_deref(), reference, pc)?;
+            locals.store(usize::from(opcode - 0x4b), Value::Reference(reference), pc)?;
+        }
+        0x4f..=0x52 | 0x54..=0x56 => {
+            let value_kind = match opcode {
+                0x50 => ValueKind::Long,
+                0x51 => ValueKind::Float,
+                0x52 => ValueKind::Double,
+                _ => ValueKind::Int,
+            };
+            let value = stack.pop(value_kind, pc)?;
+            let index = stack.int(pc)?;
+            let reference = stack.reference(pc)?;
+            let heap = heap.ok_or_else(|| operand_error(pc))?;
+            let actual = match heap.kind(reference) {
+                Ok(kind) => kind,
+                Err(error) => return heap_failure(error, pc),
+            };
+            check_array_kind(opcode, actual, pc)?;
+            if let Err(error) = heap.store(reference, index, value) {
+                return heap_failure(error, pc);
+            }
+        }
+        0x3b..=0x3e => locals.store(
+            usize::from(opcode - 0x3b),
+            stack.pop(ValueKind::Int, pc)?,
+            pc,
+        )?,
+        0x3f..=0x42 => locals.store(
+            usize::from(opcode - 0x3f),
+            stack.pop(ValueKind::Long, pc)?,
+            pc,
+        )?,
+        0x43..=0x46 => locals.store(
+            usize::from(opcode - 0x43),
+            stack.pop(ValueKind::Float, pc)?,
+            pc,
+        )?,
+        0x47..=0x4a => locals.store(
+            usize::from(opcode - 0x47),
+            stack.pop(ValueKind::Double, pc)?,
+            pc,
+        )?,
+        0x57..=0x5f => stack.manipulate(opcode, pc)?,
+        0x60 | 0x64 | 0x68 | 0x6c | 0x70 | 0x7e | 0x80 | 0x82 => {
+            let right = stack.int(pc)?;
+            let left = stack.int(pc)?;
+            if matches!(opcode, 0x6c | 0x70) && right == 0 {
+                return Ok(Action::ArithmeticException);
+            }
+            let value = match opcode {
+                0x60 => left.wrapping_add(right),
+                0x64 => left.wrapping_sub(right),
+                0x68 => left.wrapping_mul(right),
+                0x6c => left.wrapping_div(right),
+                0x70 => left.wrapping_rem(right),
+                0x7e => left & right,
+                0x80 => left | right,
+                0x82 => left ^ right,
+                _ => return Err(operand_error(pc)),
+            };
+            stack.push(Value::Int(value), pc)?;
+        }
+        0x61 | 0x65 | 0x69 | 0x6d | 0x71 | 0x7f | 0x81 | 0x83 => {
+            let right = stack.long(pc)?;
+            let left = stack.long(pc)?;
+            if matches!(opcode, 0x6d | 0x71) && right == 0 {
+                return Ok(Action::ArithmeticException);
+            }
+            let value = match opcode {
+                0x61 => left.wrapping_add(right),
+                0x65 => left.wrapping_sub(right),
+                0x69 => left.wrapping_mul(right),
+                0x6d => left.wrapping_div(right),
+                0x71 => left.wrapping_rem(right),
+                0x7f => left & right,
+                0x81 => left | right,
+                0x83 => left ^ right,
+                _ => return Err(operand_error(pc)),
+            };
+            stack.push(Value::Long(value), pc)?;
+        }
+        0x62 | 0x66 | 0x6a | 0x6e | 0x72 => {
+            let right = stack.float(pc)?;
+            let left = stack.float(pc)?;
+            let value = match opcode {
+                0x62 => left + right,
+                0x66 => left - right,
+                0x6a => left * right,
+                0x6e => left / right,
+                _ => left % right,
+            };
+            // Round to binary32 at each bytecode; never fuse operations.
+            stack.push(Value::from_f32(value), pc)?;
+        }
+        0x63 | 0x67 | 0x6b | 0x6f | 0x73 => {
+            let right = stack.double(pc)?;
+            let left = stack.double(pc)?;
+            let value = match opcode {
+                0x63 => left + right,
+                0x67 => left - right,
+                0x6b => left * right,
+                0x6f => left / right,
+                _ => left % right,
+            };
+            stack.push(Value::from_f64(value), pc)?;
+        }
+        0x76 => {
+            let Value::Float(bits) = stack.pop(ValueKind::Float, pc)? else {
+                return Err(operand_error(pc));
+            };
+            stack.push(Value::Float(bits ^ 0x8000_0000), pc)?;
+        }
+        0x77 => {
+            let Value::Double(bits) = stack.pop(ValueKind::Double, pc)? else {
+                return Err(operand_error(pc));
+            };
+            stack.push(Value::Double(bits ^ 0x8000_0000_0000_0000), pc)?;
+        }
+        0x74 => {
+            let value = stack.int(pc)?;
+            stack.push(Value::Int(value.wrapping_neg()), pc)?;
+        }
+        0x75 => {
+            let value = stack.long(pc)?;
+            stack.push(Value::Long(value.wrapping_neg()), pc)?;
+        }
+        0x78 | 0x7a | 0x7c => {
+            let distance = stack.int(pc)? as u32 & 31;
+            let value = stack.int(pc)?;
+            let result = match opcode {
+                0x78 => value.wrapping_shl(distance),
+                0x7a => value.wrapping_shr(distance),
+                _ => ((value as u32) >> distance) as i32,
+            };
+            stack.push(Value::Int(result), pc)?;
+        }
+        0x79 | 0x7b | 0x7d => {
+            let distance = stack.int(pc)? as u32 & 63;
+            let value = stack.long(pc)?;
+            let result = match opcode {
+                0x79 => value.wrapping_shl(distance),
+                0x7b => value.wrapping_shr(distance),
+                _ => ((value as u64) >> distance) as i64,
+            };
+            stack.push(Value::Long(result), pc)?;
+        }
+        0x84 => {
+            let Operands::Iinc { index, increment } = operands else {
+                return Err(operand_error(pc));
+            };
+            let Value::Int(value) = locals.load(usize::from(*index), ValueKind::Int, pc)? else {
+                return Err(operand_error(pc));
+            };
+            locals.store(
+                usize::from(*index),
+                Value::Int(value.wrapping_add(i32::from(*increment))),
+                pc,
+            )?;
+        }
+        0x85 => {
+            let value = stack.int(pc)?;
+            stack.push(Value::Long(i64::from(value)), pc)?;
+        }
+        0x88 => {
+            let value = stack.long(pc)?;
+            stack.push(Value::Int(value as i32), pc)?;
+        }
+        0x86 => {
+            let value = stack.int(pc)?;
+            stack.push(Value::from_f32(value as f32), pc)?;
+        }
+        0x87 => {
+            let value = stack.int(pc)?;
+            stack.push(Value::from_f64(f64::from(value)), pc)?;
+        }
+        0x89 => {
+            let value = stack.long(pc)?;
+            stack.push(Value::from_f32(value as f32), pc)?;
+        }
+        0x8a => {
+            let value = stack.long(pc)?;
+            stack.push(Value::from_f64(value as f64), pc)?;
+        }
+        0x8b => {
+            let value = stack.float(pc)?;
+            stack.push(Value::Int(value as i32), pc)?;
+        }
+        0x8c => {
+            let value = stack.float(pc)?;
+            stack.push(Value::Long(value as i64), pc)?;
+        }
+        0x8d => {
+            let value = stack.float(pc)?;
+            stack.push(Value::from_f64(f64::from(value)), pc)?;
+        }
+        0x8e => {
+            let value = stack.double(pc)?;
+            stack.push(Value::Int(value as i32), pc)?;
+        }
+        0x8f => {
+            let value = stack.double(pc)?;
+            stack.push(Value::Long(value as i64), pc)?;
+        }
+        0x90 => {
+            let value = stack.double(pc)?;
+            stack.push(Value::from_f32(value as f32), pc)?;
+        }
+        0x91..=0x93 => {
+            let value = stack.int(pc)?;
+            let result = match opcode {
+                0x91 => i32::from(value as i8),
+                0x92 => i32::from(value as u16),
+                _ => i32::from(value as i16),
+            };
+            stack.push(Value::Int(result), pc)?;
+        }
+        0x94 => {
+            let right = stack.long(pc)?;
+            let left = stack.long(pc)?;
+            let value = match left.cmp(&right) {
+                std::cmp::Ordering::Less => -1,
+                std::cmp::Ordering::Equal => 0,
+                std::cmp::Ordering::Greater => 1,
+            };
+            stack.push(Value::Int(value), pc)?;
+        }
+        0x95 | 0x96 => {
+            let right = stack.float(pc)?;
+            let left = stack.float(pc)?;
+            stack.push(
+                Value::Int(floating_comparison(
+                    left.partial_cmp(&right),
+                    opcode == 0x95,
+                )),
+                pc,
+            )?;
+        }
+        0x97 | 0x98 => {
+            let right = stack.double(pc)?;
+            let left = stack.double(pc)?;
+            stack.push(
+                Value::Int(floating_comparison(
+                    left.partial_cmp(&right),
+                    opcode == 0x97,
+                )),
+                pc,
+            )?;
+        }
+        0x99..=0x9e => {
+            let value = stack.int(pc)?;
+            let taken = match opcode {
+                0x99 => value == 0,
+                0x9a => value != 0,
+                0x9b => value < 0,
+                0x9c => value >= 0,
+                0x9d => value > 0,
+                _ => value <= 0,
+            };
+            let Operands::Branch(displacement) = operands else {
+                return Err(operand_error(pc));
+            };
+            if taken {
+                next = branch(decoded, pc, *displacement)?;
+            }
+        }
+        0x9f..=0xa4 => {
+            let right = stack.int(pc)?;
+            let left = stack.int(pc)?;
+            let taken = match opcode {
+                0x9f => left == right,
+                0xa0 => left != right,
+                0xa1 => left < right,
+                0xa2 => left >= right,
+                0xa3 => left > right,
+                _ => left <= right,
+            };
+            let Operands::Branch(displacement) = operands else {
+                return Err(operand_error(pc));
+            };
+            if taken {
+                next = branch(decoded, pc, *displacement)?;
+            }
+        }
+        0xa7 | 0xc8 => {
+            let Operands::Branch(displacement) = operands else {
+                return Err(operand_error(pc));
+            };
+            next = branch(decoded, pc, *displacement)?;
+        }
+        0xa5 | 0xa6 => {
+            let right = stack.reference(pc)?;
+            let left = stack.reference(pc)?;
+            validate_reference(heap.as_deref(), right, pc)?;
+            validate_reference(heap.as_deref(), left, pc)?;
+            let Operands::Branch(displacement) = operands else {
+                return Err(operand_error(pc));
+            };
+            if (left == right) == (opcode == 0xa5) {
+                next = branch(decoded, pc, *displacement)?;
+            }
+        }
+        0xc6 | 0xc7 => {
+            let reference = stack.reference(pc)?;
+            validate_reference(heap.as_deref(), reference, pc)?;
+            let Operands::Branch(displacement) = operands else {
+                return Err(operand_error(pc));
+            };
+            if reference.is_null() == (opcode == 0xc6) {
+                next = branch(decoded, pc, *displacement)?;
+            }
+        }
+        0xbc => {
+            let Operands::NewArray(atype) = operands else {
+                return Err(operand_error(pc));
+            };
+            let kind = match atype {
+                4 => PrimitiveArrayKind::Boolean,
+                5 => PrimitiveArrayKind::Char,
+                6 => PrimitiveArrayKind::Float,
+                7 => PrimitiveArrayKind::Double,
+                8 => PrimitiveArrayKind::Byte,
+                9 => PrimitiveArrayKind::Short,
+                10 => PrimitiveArrayKind::Int,
+                11 => PrimitiveArrayKind::Long,
+                _ => return Err(operand_error(pc)),
+            };
+            let length = stack.int(pc)?;
+            let heap = heap.ok_or_else(|| operand_error(pc))?;
+            let reference = match heap.allocate_primitive_array(kind, length) {
+                Ok(reference) => reference,
+                Err(error) => return heap_failure(error, pc),
+            };
+            stack.push(Value::Reference(reference), pc)?;
+        }
+        0xbe => {
+            let reference = stack.reference(pc)?;
+            let heap = heap.ok_or_else(|| operand_error(pc))?;
+            let length = match heap.length(reference) {
+                Ok(length) => length,
+                Err(error) => return heap_failure(error, pc),
+            };
+            stack.push(Value::Int(length), pc)?;
+        }
+        0xaa => {
+            let key = stack.int(pc)?;
+            let Operands::TableSwitch {
+                default,
+                low,
+                offsets,
+            } = operands
+            else {
+                return Err(operand_error(pc));
+            };
+            let index = i64::from(key) - i64::from(*low);
+            let displacement = usize::try_from(index)
+                .ok()
+                .and_then(|index| offsets.get(index))
+                .unwrap_or(default);
+            next = branch(decoded, pc, *displacement)?;
+        }
+        0xab => {
+            let key = stack.int(pc)?;
+            let Operands::LookupSwitch { default, pairs } = operands else {
+                return Err(operand_error(pc));
+            };
+            let displacement = pairs
+                .binary_search_by_key(&key, |(key, _)| *key)
+                .ok()
+                .and_then(|index| pairs.get(index))
+                .map_or(*default, |(_, offset)| *offset);
+            next = branch(decoded, pc, displacement)?;
+        }
+        0xac => {
+            let Some(field) = &descriptor.return_type else {
+                return Err(ExecutionError::new(Some(pc), E::ReturnTypeMismatch));
+            };
+            if numeric_kind(field)? != ValueKind::Int {
+                return Err(ExecutionError::new(Some(pc), E::ReturnTypeMismatch));
+            }
+            let value = stack.int(pc)?;
+            let narrowed = match field {
+                FieldType::Byte => i32::from(value as i8),
+                FieldType::Char => i32::from(value as u16),
+                FieldType::Short => i32::from(value as i16),
+                FieldType::Boolean => value & 1,
+                _ => value,
+            };
+            return Ok(Action::Return(Some(Value::Int(narrowed))));
+        }
+        0xad => {
+            if descriptor.return_type != Some(FieldType::Long) {
+                return Err(ExecutionError::new(Some(pc), E::ReturnTypeMismatch));
+            }
+            return Ok(Action::Return(Some(Value::Long(stack.long(pc)?))));
+        }
+        0xae | 0xaf => {
+            let (field, kind) = if opcode == 0xae {
+                (FieldType::Float, ValueKind::Float)
+            } else {
+                (FieldType::Double, ValueKind::Double)
+            };
+            if descriptor.return_type != Some(field) {
+                return Err(ExecutionError::new(Some(pc), E::ReturnTypeMismatch));
+            }
+            return Ok(Action::Return(Some(stack.pop(kind, pc)?)));
+        }
+        0xb8 => {
+            let Operands::Constant(index) = operands else {
+                return Err(operand_error(pc));
+            };
+            frame.pc = next;
+            return Ok(Action::Call {
+                constant_index: *index,
+            });
+        }
+        0xb1 => {
+            if descriptor.return_type.is_some() {
+                return Err(ExecutionError::new(Some(pc), E::ReturnTypeMismatch));
+            }
+            return Ok(Action::Return(None));
+        }
+        _ => {
+            return Err(ExecutionError::new(
+                Some(pc),
+                E::UnsupportedInstruction(opcode),
+            ));
+        }
+    }
+    frame.pc = next;
+    Ok(Action::Continue)
+}
+
+fn is_heap_instruction(opcode: u8) -> bool {
+    matches!(opcode,0x01|0x19|0x2a..=0x31|0x33..=0x35|0x3a|0x4b..=0x52|0x54..=0x56|0xa5|0xa6|0xbc|0xbe|0xc6|0xc7)
+}
+fn heap_failure(error: HeapError, pc: u32) -> Result<Action, ExecutionError> {
+    match error {
+        HeapError::NullReference => Ok(Action::NullPointerException),
+        HeapError::IndexOutOfBounds { .. } => Ok(Action::ArrayIndexOutOfBoundsException),
+        HeapError::NegativeLength { .. } => Ok(Action::NegativeArraySizeException),
+        error => Err(ExecutionError::new(Some(pc), E::Heap(error))),
+    }
+}
+fn validate_reference(
+    heap: Option<&ManagedHeap>,
+    reference: Reference,
+    pc: u32,
+) -> Result<(), ExecutionError> {
+    if let Some(handle) = reference.heap_ref() {
+        let heap = heap.ok_or_else(|| operand_error(pc))?;
+        heap.validate_root(handle)
+            .map_err(|error| ExecutionError::new(Some(pc), E::Heap(error)))?;
+    }
+    Ok(())
+}
+fn check_array_kind(opcode: u8, actual: PrimitiveArrayKind, pc: u32) -> Result<(), ExecutionError> {
+    use PrimitiveArrayKind::*;
+    let valid = matches!(
+        (opcode, actual),
+        (0x2e | 0x4f, Int)
+            | (0x2f | 0x50, Long)
+            | (0x30 | 0x51, Float)
+            | (0x31 | 0x52, Double)
+            | (0x33 | 0x54, Byte | Boolean)
+            | (0x34 | 0x55, Char)
+            | (0x35 | 0x56, Short)
+    );
+    if valid {
+        Ok(())
+    } else {
+        Err(ExecutionError::new(
+            Some(pc),
+            E::WrongArrayKind { opcode, actual },
+        ))
+    }
+}
+
+fn floating_comparison(comparison: Option<std::cmp::Ordering>, nan_is_less: bool) -> i32 {
+    match comparison {
+        Some(std::cmp::Ordering::Less) => -1,
+        Some(std::cmp::Ordering::Equal) => 0,
+        Some(std::cmp::Ordering::Greater) => 1,
+        None => {
+            if nan_is_less {
+                -1
+            } else {
+                1
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod resource_tests {
+    use super::*;
+    #[test]
+    fn foreign_managed_references_remain_host_errors_at_dereference_local_and_branch_boundaries() {
+        let mut foreign_heap = ManagedHeap::new(crabspot_runtime::HeapOptions::default()).unwrap();
+        let foreign = foreign_heap
+            .allocate_primitive_array(PrimitiveArrayKind::Byte, 1)
+            .unwrap();
+        let mut heap = ManagedHeap::new(crabspot_runtime::HeapOptions::default()).unwrap();
+        for (code, max_locals) in [
+            (vec![0xbe, 0xac], 0),
+            (vec![0x2a, 0x57, 0x03, 0xac], 1),
+            (vec![0x4b, 0x03, 0xac], 1),
+            (vec![0xc6, 0, 5, 0x03, 0xac, 0x04, 0xac], 0),
+            (vec![0xa5, 0, 5, 0x03, 0xac, 0x04, 0xac], 0),
+            (vec![0x2e, 0xac], 0),
+        ] {
+            let class = crate::tests::synthetic(&code, "()I", 2, max_locals);
+            let prepared = prepare_method(&class, 0, &mut 0, usize::MAX).unwrap();
+            let mut frame = make_frame(0, &prepared, &[], None).unwrap();
+            if code[0] == 0x2a {
+                frame.locals.store(0, Value::Reference(foreign), 0).unwrap();
+            } else {
+                frame.stack.push(Value::Reference(foreign), 0).unwrap();
+            }
+            if code[0] == 0xa5 {
+                frame
+                    .stack
+                    .push(Value::Reference(Reference::null()), 0)
+                    .unwrap();
+            }
+            if code[0] == 0x2e {
+                frame.stack.push(Value::Int(0), 0).unwrap();
+            }
+            let error = match step(&class, &prepared, &mut frame, Some(&mut heap)) {
+                Err(error) => error,
+                Ok(_) => panic!("foreign reference accepted"),
+            };
+            assert_eq!(error.offset, Some(0));
+            assert_eq!(error.kind, E::Heap(HeapError::ForeignHeap));
+            assert_eq!(heap.allocated_arrays(), 0);
+        }
+        assert!(validate_reference(Some(&heap), Reference::null(), 7).is_ok());
+    }
+    #[test]
+    fn heap_failures_distinguish_java_array_outcomes_from_host_policy_and_identity_errors() {
+        assert!(matches!(
+            heap_failure(HeapError::NullReference, 7),
+            Ok(Action::NullPointerException)
+        ));
+        assert!(matches!(
+            heap_failure(
+                HeapError::IndexOutOfBounds {
+                    index: -1,
+                    length: 0
+                },
+                7
+            ),
+            Ok(Action::ArrayIndexOutOfBoundsException)
+        ));
+        assert!(matches!(
+            heap_failure(HeapError::NegativeLength { length: -1 }, 7),
+            Ok(Action::NegativeArraySizeException)
+        ));
+        for failure in [
+            HeapError::ForeignHeap,
+            HeapError::MissingEntry { index: usize::MAX },
+            HeapError::StaleGeneration {
+                expected: 1,
+                actual: 0,
+            },
+            HeapError::ResourceLimit {
+                resource: crabspot_runtime::HeapResource::PayloadBytes,
+                limit: 0,
+                required: 1,
+            },
+            HeapError::AllocationFailure {
+                resource: "test reservation",
+            },
+        ] {
+            let error = match heap_failure(failure.clone(), 7) {
+                Err(error) => error,
+                Ok(_) => panic!("host failure became a Java outcome"),
+            };
+            assert_eq!(error.offset, Some(7));
+            assert_eq!(error.kind, E::Heap(failure));
+        }
+    }
+    #[test]
+    fn resource_accounting_overflow_is_a_structured_error() {
+        let class = crate::tests::synthetic(&[0xb1], "()V", 1, 0);
+        let mut used = usize::MAX;
+        let error = match prepare_method(&class, 0, &mut used, usize::MAX) {
+            Err(error) => error,
+            Ok(_) => panic!("overflow accepted"),
+        };
+        assert_eq!(
+            error.kind,
+            E::PreparedCodeLimit {
+                limit: usize::MAX,
+                required: usize::MAX
+            }
+        );
+        assert_eq!(used, usize::MAX);
+        let mut used = 0;
+        let prepared = prepare_method(&class, 0, &mut used, 1).unwrap();
+        assert_eq!(used, 1);
+        let limits = CallLimits {
+            max_frames: usize::MAX,
+            max_frame_slots: usize::MAX,
+            max_prepared_code_bytes: usize::MAX,
+        };
+        assert_eq!(
+            check_reservation(usize::MAX, 0, &prepared, limits)
+                .unwrap_err()
+                .kind,
+            E::FrameLimit {
+                limit: usize::MAX,
+                required: usize::MAX
+            }
+        );
+        assert_eq!(
+            check_reservation(0, usize::MAX, &prepared, limits)
+                .unwrap_err()
+                .kind,
+            E::FrameSlotLimit {
+                limit: usize::MAX,
+                required: usize::MAX
+            }
+        );
+    }
+}

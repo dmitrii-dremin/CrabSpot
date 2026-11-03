@@ -1,0 +1,25 @@
+   Compiling crabspot-classfile v0.1.0 (C:\Programming\CrabSpot\crates\classfile)
+    Finished `release` profile [optimized] target(s) in 1.71s
+     Running `target\coordinator\release\examples\fuzz_parser.exe tests/fixtures/classes --seconds 300 --seed 4851011501752864596 --failures target/coordinator/fuzz-failures`
+seed=4851011501752864596 initial_corpus=17 max_input=65536 max_annotation_depth=64 max_annotation_values=1000000
+progress cases=5087272 accepted=82239 elapsed_seconds=15.0
+progress cases=10361611 accepted=179509 elapsed_seconds=30.0
+progress cases=15773717 accepted=301241 elapsed_seconds=45.0
+progress cases=21465729 accepted=435612 elapsed_seconds=60.0
+progress cases=26568116 accepted=557994 elapsed_seconds=75.0
+progress cases=31739297 accepted=683540 elapsed_seconds=90.0
+progress cases=37193678 accepted=817149 elapsed_seconds=105.0
+progress cases=42734051 accepted=951725 elapsed_seconds=120.0
+progress cases=48300297 accepted=1086900 elapsed_seconds=135.0
+progress cases=53546111 accepted=1226694 elapsed_seconds=150.0
+progress cases=58439235 accepted=1366555 elapsed_seconds=165.0
+progress cases=64027053 accepted=1525195 elapsed_seconds=180.0
+progress cases=69661954 accepted=1689593 elapsed_seconds=195.0
+progress cases=75417304 accepted=1870345 elapsed_seconds=210.0
+progress cases=81116503 accepted=2052623 elapsed_seconds=225.0
+progress cases=86815157 accepted=2245762 elapsed_seconds=240.0
+progress cases=92462205 accepted=2445667 elapsed_seconds=255.0
+progress cases=98047423 accepted=2649445 elapsed_seconds=270.0
+progress cases=103451149 accepted=2846349 elapsed_seconds=285.0
+progress cases=108907980 accepted=3043848 elapsed_seconds=300.0
+result seed=4851011501752864596 cases=108907980 accepted=3043848 rejected=105864132 deterministic_rechecks=106356 corpus=256 elapsed_seconds=300.000 failures=0

@@ -1,0 +1,80 @@
+# CrabSpot architecture
+
+Status: M1, the M2 decoder/numeric, bounded static-call and primitive-array execution increments, and the runtime registry/hierarchy/shared-values/default-static-storage/primitive-array-heap increments are approved in separate review records. Ordinary-instance storage and field execution are the next design direction; full M2 and later milestones remain open.
+
+`ARCHITECTURE.md` is the project charter. This document refines its initial layout without reducing its roadmap. CrabSpot is an independent Rust JVM project targeting Linux x86-64. The first deliverable reads class files; it does not execute Java programs or claim JVM compatibility. NanoSpec is not used in this project.
+
+## Initial workspace
+
+Only create crates containing implemented behavior:
+
+| Crate | Responsibility | Dependencies allowed initially |
+| --- | --- | --- |
+| `classfile` | Parse class-file bytes into an inspection representation; expose structured errors and resource limits | Rust standard library; infrastructure dependencies require justification |
+| `launcher` | Read an explicitly selected file, invoke the parser, print metadata and errors | `classfile`, standard library |
+
+The implemented M2 foundation additionally contains `bytecode` (independent bounded instruction decoding) and `interpreter` (a selected static method-body execution kernel using `classfile` and `bytecode`). Its scope and evidence are recorded in `m2-foundation-review.md`. The initial parser/launcher description below remains their contract; the launcher still does not start Java applications.
+
+The parser owns `reader`, `error`, `model`, `constant_pool`, `descriptor`, `attribute`, and parser orchestration modules. These are logical boundaries and may be combined while small. A module does not need a separate crate. The CLI executable is `crabspot`; its initial action is `crabspot inspect <path>`. Successful inspection must never be described as verification or execution. The CLI returns a nonzero status on malformed, unsupported, resource-limited, or unreadable input and handles bad arguments without a panic.
+
+The library accepts bytes and options and returns a parsed model or a structured error. It must not open files, spawn processes, resolve classes, initialize globals, or call a reference JVM. The model may own its data initially. Constant-pool indices remain symbolic and use checked lookups. Runtime structures will be separate types.
+
+## Parser contract
+
+The parser is safe Rust. A bounded reader tracks absolute offsets, uses checked arithmetic and slice access, and creates bounded subreaders for attribute payloads. Every recognized payload must consume exactly its declared length; the outer file must be consumed exactly. Allocations must be tied to actual available input and configured limits rather than unchecked declared lengths. Nested records and annotation values need an explicit depth bound. Resource exhaustion limits are implementation policy and must have a distinct error category from malformed format.
+
+Errors include byte offset, a useful structural context, and a stable category. Categories distinguish truncated input, invalid magic/version/tag/encoding/reference/descriptor/structure, unsupported features, configured limits, and trailing data. Diagnostic wording may evolve; callers should not have to parse prose. Error paths must not use `unwrap`, `expect`, unchecked indexing, or integer arithmetic that can panic.
+
+The parser representation preserves all constant-pool alternatives, wide-entry holes, float/double bits, and Java string code units. A Java string is not assumed to be a Rust UTF-8 string. Display conversion must not corrupt the semantic representation. Unknown attributes are length-delimited extension data and are preserved. A known standard attribute retained only as opaque bytes is explicitly tracked as partial support and cannot count as a completed M1 feature.
+
+Descriptors receive a separate reusable parser and typed field/method representation. It enforces complete consumption and applicable dimension and parameter-slot limits. A receiver slot is included where the enclosing method context requires it. Descriptor parsing is not class resolution.
+
+Version support is a declared parser policy: major versions 45 through 65; historical minor values are accepted for majors through 55. For 56 onward, only minor 0 or 65535 is structurally recognized. Older-release preview files are rejected as unsupported. Java 21 preview files require an explicit option and do not imply execution support. Constant kinds respect their introduction versions. Attribute recognition depends on both version and location: a standard-looking name outside its defined context or before introduction is preserved as opaque extension data. It does not trigger recognized-attribute payload or multiplicity checks. Separately specified constraints on recognized attributes still apply.
+
+Within supported constructs, validation covers file-local format rules, typed constant-pool references, names and descriptors, context-sensitive attribute recognition and multiplicities, and local metadata ranges. Method flags require version-aware interpretation, with explicit constructor and class-initializer handling. Validation does not claim to establish control-flow correctness, instruction boundary validity, type safety, linkage, module resolution, or executable semantics. These belong to later bytecode, verifier, loader, and runtime stages. Deferred checks must be documented, not silently credited as implemented.
+
+Metadata checks assigned to later consumers remain there. For example, the parser decodes MethodParameters entries without requiring their count to match the descriptor; future reflection services perform that matching. Generic signature strings are preserved for their later consumer. Neither policy makes opaque standard annotation or module bodies count as decoded support.
+
+The normative format reference is [JVMS SE 21 chapter 4](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html), particularly sections 4.1–4.8. The validation boundary follows the distinction from [code constraints](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html#jvms-4.9) and [verification](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html#jvms-4.10). This is a project contract, not a claim that parser acceptance equals conformance.
+
+## Growth boundaries
+
+Crates are introduced when their first coherent implementation exists. The decoder and execution kernel now have that implementation; the remaining runtime services are future work:
+
+- `bytecode`: bounded instruction decoding and instruction offsets, independent of execution. Code bytes remain available in the class-file model until this layer is introduced.
+- `verifier`: instruction and type-state checks with explicit inputs, diagnostics, and checked output states. A parsed class is never implicitly a verified class.
+- `classloader` and `runtime`: defining-loader-plus-name class identity, runtime constant pools, resolution, and explicit loaded/linked/initializing/initialized/erroneous lifecycle transitions. Initialization synchronization is a runtime concern.
+- `interpreter`: JVM values with explicit category-one/category-two semantics, frame/local/operand-stack rules, and Java exception outcomes distinct from host/parser errors. It depends on runtime services, not a future JIT backend.
+- `heap`, `gc`, and `threading`: managed reference handles, roots, thread state, and safepoint cooperation. Raw host addresses must not become stable application references. Root ownership and safepoint obligations must be part of runtime API design before allocation or threading lands.
+- `native`: separate VM-native service contracts from the JNI ABI and external library loader. Unsupported native methods fail explicitly.
+- `jit`: future execution backend using runtime reference/root/safepoint contracts; backend choice needs an ADR.
+
+The dependency direction is launcher -> services -> execution/runtime -> parsed metadata and decoder. `classfile` does not depend back on runtime, interpreter, GC, or launcher. No general-purpose dependency may outsource JVM implementation, and no implementation may delegate application execution to another JVM.
+
+## Environment and reproducibility
+
+The initial host is Windows x86-64, with Rust stable 1.98.1 through the user's Cargo installation and Zulu OpenJDK 21.0.7. The intended deployment target remains Linux x86-64. Native Windows checks are useful evidence but cannot be reported as a Linux validation run. WSL discovery was denied by the host environment; Linux CI must supply Linux evidence when executed.
+
+Reference JDK tooling is development-only: compile fixtures, inspect class metadata, and later produce differential reference results. Fixture generation records the JDK version, source inputs, compiler options, and generated artifact provenance. Ordinary Rust tests must be reproducible without quietly executing a Java application or downloading a JDK. Tests using checked-in binary fixtures should validate the expected major version; regeneration uses an explicit Java 21 toolchain.
+
+## Acceptance gates
+
+### M0
+
+M0 requires a buildable workspace, this reviewed architecture, initial ADRs, CI, reproducible formatter/lint/test commands, JDK fixture tooling, compatibility status, and an evidence-based milestone report. Execute `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --workspace`. The CI must perform these checks on the Linux target environment. Report CI configuration separately from a remotely observed passing CI run.
+
+### Parser foundation
+
+The first coherent increment includes reader and structured errors, headers and versions, the complete constant-pool encoding surface, member envelopes, descriptors, bounded attributes, CLI inspection, genuine Java 21 examples, and malformed-input tests. It may expose documented partial attribute support. It is useful executable progress, not full M1 acceptance.
+
+### M1
+
+M1 requires all of the following before technical-director approval:
+
+1. All standard Java SE 21 class-file structures have implemented decoding and file-local validation. This includes Code/exception tables, all stack-map frame and verification-type forms, BootstrapMethods and dynamic-constant relationships, annotations and type annotations, module metadata, records and their nested attributes, nests, permitted subclasses, and debug/legacy standard attributes. A compatibility matrix maps each structure and validation rule to tests or an explicit unresolved gap.
+2. Positive fixtures are independently compiled with JDK 21 and exercise ordinary classes/interfaces, branches and exceptions, lambdas/string concatenation, annotations/type annotations, records, sealed types, nests, and modules. Synthetic fixtures cover valid encodings that javac does not naturally emit, including dynamic constants and stack-map alternatives.
+3. Negative and boundary tests cover truncations, lengths, counts, invalid tags, unusable constant slots, reference kinds, names/descriptors, version boundaries, malformed modified UTF-8, attribute context/multiplicity, nested structures, and configured resource limits. Each discovered bug receives a regression test.
+4. Executed property/fuzz testing exercises the public parser on arbitrary and mutated structured bytes with explicit resource limits. Record command, seed/corpus, duration or iterations, result, and regression artifacts. A fuzz target that has never run is not passing fuzz evidence. No finite campaign proves the absence of all panics.
+5. Formatter, strict Clippy, and workspace tests pass. Reports contain actual counts, commands, known gaps and platform coverage. The technical director reviews the implementation against this contract and records approval or a precise rejection before M2 begins.
+
+Parser fuzzing and inspection must never execute the input's bytecode. Full verifier semantics, runtime class loading, initialization, and Java compatibility remain outside M1 and must not be inferred from a successful inspection.

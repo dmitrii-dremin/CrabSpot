@@ -1,0 +1,131 @@
+# Method-body interpreter
+
+`execute_static_method_body` evaluates a selected ordinary static method body
+with computational `Int`, `Long`, `Float` and `Double` arguments. It returns a normal
+result or a symbolic uncaught `ArithmeticException`. An explicit heap entry point
+also evaluates primitive arrays with supported symbolic array exceptions. This kernel does not perform Java
+invocation, class loading, class initialization, verification or exception-object
+allocation.
+
+The selected method must have exactly one Code attribute, a numeric/void
+descriptor, and no native, abstract or synchronized declaration or exception
+handlers. Initialization methods are excluded. The decoder validates the entire
+instruction stream before evaluation. Unsupported instructions fail when reached.
+
+## Executed instruction coverage
+
+The original numeric entry points handle 148 effective opcode values. The explicit
+heap entry point adds 31, for 179 total. `wide` is an encoding prefix for indexed
+loads/stores and increment; heap mode adds two reference local forms to the nine
+numeric wide forms.
+
+| Group | Supported instructions |
+| --- | --- |
+| Constants | `nop`, `iconst_m1` through `iconst_5`, `lconst_0/1`, `fconst_0/1/2`, `dconst_0/1`, `bipush`, `sipush`, int/float `ldc/ldc_w`, long/double `ldc2_w` |
+| Locals | Int/long/float/double loads and stores, their `_0` through `_3` forms, `iinc`; all nine indexed operations also support `wide` |
+| Stack | `pop`, `pop2`, `dup`, `dup_x1`, `dup_x2`, `dup2`, `dup2_x1`, `dup2_x2`, `swap`; all 16 legal category forms have direct tests |
+| Arithmetic | All four numeric types: add, subtract, multiply, divide, remainder, negate; integer/long and/or/xor |
+| Shifts | `ishl`, `ishr`, `iushr`, `lshl`, `lshr`, `lushr` with masked int distances |
+| Conversions/comparison | All 12 conversions between int/long/float/double; `i2b`, `i2c`, `i2s`; `lcmp`, `fcmpl/g`, `dcmpl/g` |
+| Control flow | Six unary int conditionals, six int comparison conditionals, `goto`, `goto_w`, `tableswitch`, `lookupswitch` |
+| Bounded body calls | `invokestatic` only for ordinary static numeric methods declared by the supplied class/interface; no inherited or cross-class lookup or runtime initialization |
+| Returns | `ireturn`, `lreturn`, `freturn`, `dreturn`, `return`; int returns narrow declared byte/short/char/boolean results |
+
+Only `execute_static_method_body_with_heap` additionally enables:
+
+| Group | Added heap-mode instructions |
+| --- | --- |
+| Reference data | `aconst_null`, `aload`, `astore`, their `_0` through `_3` forms, and both indexed `wide` forms |
+| Identity/null branches | `if_acmpeq`, `if_acmpne`, `ifnull`, `ifnonnull` |
+| Primitive arrays | `newarray`, `arraylength`, `iaload/laload/faload/daload/baload/caload/saload`, and their seven corresponding stores |
+
+Locals distinguish empty, value and category-two continuation slots. A write to
+either half of a long or double invalidates its previous pair. Operand-stack capacity counts
+JVM slots. Invalid bounds, value types, categories, returns and selection conditions
+produce structured errors with bytecode offsets where applicable.
+
+The instruction budget is shared by every frame and counts each executed
+instruction, including calls and returns. A
+zero budget prevents execution of the next instruction. Exhaustion is a host
+resource-policy error, separate from Java arithmetic exceptions.
+
+Calls use an explicit frame vector with no recursive Rust evaluation. Arguments
+are transferred in descriptor order, category-two values consume two local slots,
+and remaining caller operands survive. Return values are checked against caller
+stack capacity. A descendant's supported uncaught exception stops the entire
+body graph. Prepared methods are decoded once per evaluation and cached by their
+declared method index; the cache is not a runtime constant pool or class loader.
+Symbolic owner matching uses semantic Java names, including constant-pool aliases,
+and target lookup matches both name and descriptor. Methodref owners must be
+classes; InterfaceMethodref owners must be interfaces with class-file version 52
+or later. Missing declarations are explicit errors and never trigger inherited
+lookup.
+
+`execute_static_method_body_with_limits` adds `CallLimits`. The original entry
+point delegates with defaults: 256 active frames, 1,000,000 aggregate frame slots,
+and 1,048,576 prepared Code bytes. The root frame counts. Every active frame
+reserves its full `max_locals + max_stack` capacity before allocation and releases
+that reservation on return. Prepared Code bytes are charged once before decoding
+and remain charged after return. These checked policies count specific resources;
+they are not a general heap-allocation quota. Diagnostics include selected method
+identity and an available caller location. Their boxed optional payloads allocate
+only when an error is reported, not on every frame transition.
+
+Float/Double values contain raw IEEE binary32/binary64 bits. Their Rust equality
+compares representations: signed zeros differ, and identical NaN payloads compare
+equal as data. Java comparison bytecodes use numeric ordering and prescribed NaN
+results instead. Constructors/accessors convert explicitly to/from host f32/f64.
+Constants, locals, stack operations and returns preserve payload bits.
+
+Arithmetic materializes each instruction's declared width before the next
+instruction. There is no fused multiply-add substitution. Floating division by
+zero yields floating results, and remainder uses truncating-quotient semantics.
+Float-to-integer casts truncate and saturate, with NaN becoming zero; long-to-float
+conversion rounds directly without an intermediate double. Arithmetic NaN payload
+and sign are not a Java portability guarantee; differential tests classify these
+NaNs while comparing all other results by exact representation. Execution assumes
+ordinary host rounding and subnormal modes and does not modify process FP controls.
+
+## Explicit primitive-array heap
+
+`execute_static_method_body_with_heap` takes the class, method index, numeric
+arguments, instruction options, call limits and a caller-owned `ManagedHeap`.
+Every frame shares that heap. The old entry points create no hidden heap and
+continue rejecting all added heap-mode instructions. Parameters and returns remain
+numeric/void, including callees; array/reference descriptors and `areturn` stay
+unsupported.
+
+The bridge checks each load/store opcode's allowed primitive kind before element
+access. Byte and Boolean share `baload/bastore`; other kinds retain their distinct
+opcodes. Narrow conversion and floating-bit storage use the runtime heap service.
+Reference locals preserve category-two overlap invalidation, and identity branches
+compare opaque reference identity rather than contents or host addresses.
+
+Null dereference, signed array-index failure and negative allocation length produce
+symbolic uncaught `NullPointerException`, `ArrayIndexOutOfBoundsException` and
+`NegativeArraySizeException`. Null precedes bounds, and negative length precedes
+allocation quotas. These outcomes contain no fabricated Java exception object.
+Malformed values, invalid identities, wrong opcode/kind combinations and heap
+policy/reservation failures remain structured host errors with method/call-site
+context. Heap exhaustion is not reported as a Java OutOfMemoryError.
+
+Each instruction consumes shared fuel once. Heap quotas independently bound byte
+allocation. Completed allocations and stores persist after returns, exceptions,
+budget exhaustion and host errors; evaluation is not a heap transaction. Unreachable
+arrays remain in this noncollecting heap, and repeated evaluations can exhaust its
+cumulative quotas. Callers may explicitly provide a fresh heap for isolation.
+
+## Current boundary
+
+`Value` and `ValueKind` are owned by runtime and reexported here. Reference data is
+enabled only inside the explicit-heap body graph; a reference argument supplied
+for a numeric parameter produces a typed error in every entry point.
+
+Reference parameters/returns and reference arrays, fields, runtime invocation,
+cross-class or instance calls, object instances,
+exception handlers, monitors and legacy subroutines remain unsupported. Numeric
+execution never delegates application bytecode to an installed JVM. The reference
+fixture integration compares results against separately generated OpenJDK records.
+Dynamic constants remain explicitly unsupported, including their resolution and
+full opcode/category classification. This numeric method-body kernel is an M2
+increment, not a complete M2 interpreter.

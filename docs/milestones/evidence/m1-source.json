@@ -1,0 +1,70 @@
+[
+  {
+    "path": ".\\Cargo.lock",
+    "sha256": "14473F9D1150928F61D9A3EC98B3F0929E417A0E38C4CF509B1478A6DF00442B"
+  },
+  {
+    "path": ".\\Cargo.toml",
+    "sha256": "2B9B2B3226AC5DE4600DADF2F1FA8BD728697537B6F5BDE2D8E6E9BEAC7A5163"
+  },
+  {
+    "path": ".\\crates\\classfile\\Cargo.toml",
+    "sha256": "8F4E5B05E307220CD2F5202A0E0C4F842E6A056DEC80C6C06A5D9B531E1D8F50"
+  },
+  {
+    "path": ".\\crates\\classfile\\examples\\fuzz_parser.rs",
+    "sha256": "12A2D86E18540C82ED588442A1FE9692AE1866F8FDE94B1065959FCBDA91E2EE"
+  },
+  {
+    "path": ".\\crates\\classfile\\src\\annotation_tests.rs",
+    "sha256": "E3A6644086B21264FC46D9DAAA68870B6A6FEEF853156143A80BC6D1292D19C4"
+  },
+  {
+    "path": ".\\crates\\classfile\\src\\annotation.rs",
+    "sha256": "AA95366CB26532F0B356D7CE194DAD0CA1173DAF7C5A95C92DC45EF918DE8952"
+  },
+  {
+    "path": ".\\crates\\classfile\\src\\attribute.rs",
+    "sha256": "907458EA2BE83F762F4AFCACBF259CB49172F735DC6801DE90AD3E725531E733"
+  },
+  {
+    "path": ".\\crates\\classfile\\src\\constant_pool.rs",
+    "sha256": "337FF5590DBE43AC39377AF6CE7F65CEDB402558593A3430CFD1DD16A7018CAF"
+  },
+  {
+    "path": ".\\crates\\classfile\\src\\descriptor.rs",
+    "sha256": "346DE62E311A7729714C441F7E61B62CBB2F3DD809CAFFB181F7A488DC9C8111"
+  },
+  {
+    "path": ".\\crates\\classfile\\src\\error.rs",
+    "sha256": "E1C0B278E1E390F788F472036CA09FFA4FFB679528776D3FFA80DD602D780240"
+  },
+  {
+    "path": ".\\crates\\classfile\\src\\lib.rs",
+    "sha256": "9090D5CA9E3642EA99A1D4E14ED58CC87E35DAC16BA2A75299B0BA7667CBDC09"
+  },
+  {
+    "path": ".\\crates\\classfile\\src\\model.rs",
+    "sha256": "5CA7FB32E468C1E5AD39E074BDC1EEDE633E87776446694DBB0C82D07DE43B82"
+  },
+  {
+    "path": ".\\crates\\classfile\\src\\module.rs",
+    "sha256": "20E5154A9496163C2740685E734098C5DA2F9850BB21871652686FBED3BE0058"
+  },
+  {
+    "path": ".\\crates\\classfile\\src\\parser.rs",
+    "sha256": "0C9950204CEF21D0D6F8C156204D54371F7F86E04766F32BEF2D5E31063BC02F"
+  },
+  {
+    "path": ".\\crates\\classfile\\src\\reader.rs",
+    "sha256": "A7B5B30E2FEBBE4DB3DDF92DC672AEF2C5354280EE3317FCBF781B4045A7C09C"
+  },
+  {
+    "path": ".\\crates\\classfile\\src\\tests.rs",
+    "sha256": "AE79C2D7B251010BFDC4463E989CAA148BD3F098DA3B88794CB64EBB31A6DDA8"
+  },
+  {
+    "path": ".\\tests\\fixtures\\classes\\manifest.json",
+    "sha256": "ED44732352336F96D164E395DF1A10A99C04F9E8FA15DE373B7D8DB04C317E64"
+  }
+]

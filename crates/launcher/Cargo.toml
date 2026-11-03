@@ -1,0 +1,15 @@
+[package]
+name = "crabspot-launcher"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "crabspot"
+path = "src/main.rs"
+
+[dependencies]
+crabspot-classfile = { path = "../classfile" }
+
+[lints]
+workspace = true
