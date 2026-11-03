@@ -39,7 +39,7 @@ The coordinator independently checked the final integrated frozen source using n
 
 The new oracle comprises 494 JDK 21 outcomes across 40 receiver/method pairs. Genuine fixtures cover overridden, inherited, final and private invokevirtual targets; base-selected bodies on child/leaf receivers; recursion; hidden fields; mixed-width values; arrays; static helpers and failures. Four cross-package types distinguish a same-signature non-override from a later public bridge and its transitive descendant override. All preceding 36 fixture hashes remain unchanged. Hidden-field persistence assertions are additional source-derived checks, not separately recorded JDK state outputs.
 
-The director's approval combines source review with the coordinator's independent execution evidence and does not claim another director test run. The accepted field-execution baseline passed complete hosted Linux/Windows validation. Hosted validation of this new increment remains pending publication and must be recorded separately.
+The director's approval combines source review with the coordinator's independent execution evidence and does not claim another director test run. The accepted field-execution baseline passed complete hosted Linux/Windows validation. After publication, the coordinator inspected complete [run 41730095972](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41730095972) for implementation commit d6558d8: Linux and Windows both passed with Rust 1.99.1 and Temurin JDK 21.0.13, including all eight regenerated reference sets, checked-in/regenerated fixture tests, strict lint, optimized tests and parser smoke. This hosted evidence is recorded separately after source approval.
 
 ## Remaining boundary
 

@@ -86,7 +86,13 @@ runtime/interpreter tests. Its implementation commit d6ef169 passed the complete
 Linux/Windows [run 41726268353](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41726268353).
 The subsequent documentation commit 29c5caa also passed
 [run 41726644013](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41726644013).
-Fresh hosted evidence for virtual calls is pending publication.
+Virtual calls are published as d6558d8. The complete [run 41730095972](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41730095972)
+passed on Linux and Windows with Rust 1.99.1 and Temurin JDK 21.0.13: checked-in
+and regenerated fixture tests, all eight reference sets, formatting, strict
+Clippy, optimized runtime/interpreter tests and parser smoke. Each hosted parser
+smoke completed 10,000 cases with zero failures; the regenerated corpus yielded
+136 accepted, 9,864 rejected, 10 rechecks and corpus 179. This is evidence for the
+implementation commit, recorded separately from this documentation update.
 
 The local toolchains are Rust/Cargo 1.98.1 and Zulu OpenJDK 21.0.7. Ordinary Rust
 tests consume checked-in fixtures/results; production execution never invokes
