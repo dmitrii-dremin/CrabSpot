@@ -99,8 +99,9 @@ implemented in this increment. Fresh [run 41718502938](https://github.com/dmitri
 for implementation commit a27593f passed the complete workflow on both Linux and
 Windows: checked-in and regenerated fixture tests, all six reference sets,
 formatting, strict Clippy, optimized runtime/interpreter tests and parser smoke.
-The previous storage implementation and its reviewed goals are pushed to
-origin/main. Hosted validation of the new field bridge is pending publication.
+The field bridge is published as d6ef169. Its complete [run 41726268353](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41726268353)
+passed on Linux and Windows, including all seven reference sets, debug/optimized
+tests, strict lint and parser smoke. The working implementation is on origin/main.
 The declared Rust 1.85 minimum remains untested.
 
 ## Reviews and decisions

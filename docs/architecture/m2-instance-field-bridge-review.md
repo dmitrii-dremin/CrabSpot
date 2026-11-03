@@ -46,3 +46,12 @@ The director's approval combines source review with the coordinator's independen
 This is an explicit unnamed-module method-body kernel with caller-supplied ordinary-instance storage. It does not establish constructor completion, class initialization, verification or general Java invocation. Reference parameters/results, non-null reference stores, named modules, nest resolution, cross-loader reference constraints, virtual/special/interface calls, exception dispatch, monitors and GC remain unimplemented in this profile. No complete-conformance or performance-superiority claim is made.
 
 The next design direction is recorded in `m2-instance-calls-next.md`; it requires a concrete reviewed contract before implementation.
+
+## Post-publication CI evidence
+
+The coordinator inspected [run 41726268353](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41726268353) for
+implementation commit `d6ef1694acc6d9bf3f02b4ffd0c0989739f6aa83`. The complete
+workflow passed on Linux and Windows, including checked-in and regenerated
+fixtures, all seven reference sets, formatting, strict Clippy, debug/optimized
+tests and parser fuzz smoke. This supersedes the pending hosted status above for
+this implementation commit.

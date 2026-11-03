@@ -24,7 +24,7 @@ completion of that goal.
 | Inspection CLI | Implemented and tested | Escaped metadata, bounded reads, preview opt-in and nonzero argument/input failures; no bytecode execution |
 | Genuine Java 21 fixtures | Implemented and tested | 36 classes including array/instance bodies and raw-field oracle metadata; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
 | Parser fuzzing | Implemented and tested | 108,907,980 seeded cases over 300 seconds, zero failures, exact-source fingerprint; no coverage metrics or proof of panic freedom |
-| Linux/Windows hosted CI | Passed for a27593f | [Run 41718502938](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41718502938) completed all checks on both platforms, including strict lint, regenerated fixtures/oracles, optimized tests and fuzz smoke; earlier atomic deprecation failure corrected; fresh field-bridge CI pending publication |
+| Linux/Windows hosted CI | Passed for d6ef169 | [Run 41726268353](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41726268353) completed all checks on both platforms, including strict lint, regenerated fixtures/oracles, optimized tests and fuzz smoke |
 | Rust 1.85 minimum version | Not tested | Manifest declaration; actual local toolchain is Rust 1.98.1 |
 | Performance superiority over HotSpot | Not demonstrated | Long-term objective; no comparative performance benchmark results are claimed |
 | Bytecode decoder | Implemented and tested | All defined JVM instruction formats, version/operand constraints and static branch destinations; 10 focused tests and malformed-input corpus |
