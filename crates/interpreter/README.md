@@ -15,7 +15,8 @@ instruction stream before evaluation. Unsupported instructions fail when reached
 ## Executed instruction coverage
 
 The original numeric entry points handle 148 effective opcode values. The explicit
-heap entry point adds 31, for 179 total. `wide` is an encoding prefix for indexed
+heap entry point adds 31, for 179 total. The runtime-aware instance entry point
+adds `getfield` and `putfield`, for 181 total. `wide` is an encoding prefix for indexed
 loads/stores and increment; heap mode adds two reference local forms to the nine
 numeric wide forms.
 
@@ -31,7 +32,7 @@ numeric wide forms.
 | Bounded body calls | `invokestatic` only for ordinary static numeric methods declared by the supplied class/interface; no inherited or cross-class lookup or runtime initialization |
 | Returns | `ireturn`, `lreturn`, `freturn`, `dreturn`, `return`; int returns narrow declared byte/short/char/boolean results |
 
-Only `execute_static_method_body_with_heap` additionally enables:
+`execute_static_method_body_with_heap` and `execute_instance_method_body` additionally enable:
 
 | Group | Added heap-mode instructions |
 | --- | --- |
@@ -118,14 +119,57 @@ cumulative quotas. Callers may explicitly provide a fresh heap for isolation.
 ## Current boundary
 
 `Value` and `ValueKind` are owned by runtime and reexported here. Reference data is
-enabled only inside the explicit-heap body graph; a reference argument supplied
+enabled only inside the explicit heap or instance body graph; a reference argument supplied
 for a numeric parameter produces a typed error in every entry point.
 
-Reference parameters/returns and reference arrays, fields, runtime invocation,
-cross-class or instance calls, object instances,
+Reference parameters/returns and reference arrays, static fields, runtime invocation,
+cross-class or instance calls, constructor execution,
 exception handlers, monitors and legacy subroutines remain unsupported. Numeric
 execution never delegates application bytecode to an installed JVM. The reference
 fixture integration compares results against separately generated OpenJDK records.
 Dynamic constants remain explicitly unsupported, including their resolution and
 full opcode/category classification. This numeric method-body kernel is an M2
 increment, not a complete M2 interpreter.
+
+
+## Explicit instance bodies and fields
+
+`execute_instance_method_body(context, MethodId, receiver, arguments, options,
+limits)` selects a registered ordinary non-static class body through a reusable
+`FieldResolutionContext`. The host supplies a checked non-null ordinary instance
+of the declaring class or a subclass. Receiver local zero precedes the numeric
+arguments at their normal widths. Argument diagnostics keep their original
+argument indices. Private ordinary bodies may be selected explicitly; this is
+not method access checking, virtual dispatch or Java invocation.
+
+Instance mode reuses the same decoder, prepared-method cache, explicit frame
+stack and instruction loop. Numeric static helpers still start their arguments
+at local zero and must be declared by the selected body’s class. Their field
+origin remains that declaring ClassId, including when the root receiver is a
+subclass. Cached instance preparation cannot make the root a valid invokestatic
+target. Root and callee limits/fuel have the same meaning as the earlier APIs.
+Interface roots, special initialization names, native/abstract/synchronized
+methods, handlers and reference descriptors remain excluded.
+
+Only this runtime-aware API enables `getfield` and `putfield`. Earlier APIs reject
+them even with a configured instance heap. Field operations delegate symbolic
+resolution, access and receiver relationships to the context’s explicit unnamed
+module profile. Exact owner-qualified storage preserves inherited hiding, raw
+floating bits and the approved Z/B/C/S store conversions. Final writes fail;
+reference fields support null defaults and null stores only. Reference locals,
+identity branches and all supported primitive-array operations remain available.
+
+Explicit field Java failures become symbolic `NoSuchFieldError`,
+`IllegalAccessError`, `IncompatibleClassChangeError` or the existing
+`NullPointerException`. Resolution/access, staticness and write finality precede
+bytecode null dereferences. Other context failures—including unsupported nest or
+loading constraints, invalid receivers, changed layouts and resource exhaustion—
+remain boxed `ExecutionErrorKind::FieldAccess` errors with method, instruction and
+available caller provenance. These outcomes allocate no Java error objects.
+
+Each field instruction consumes one shared fuel unit. Completed field writes and
+array allocations persist after every return, symbolic failure or host error;
+failed writes preserve their previous values. This bridge does not implement
+`new`, constructors, getstatic/putstatic, virtual/special/interface invocation,
+class initialization, reference parameters/results, non-null field stores,
+exception dispatch, monitors, named modules, full verification or complete linkage.

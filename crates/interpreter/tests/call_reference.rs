@@ -31,7 +31,10 @@ fn observed(outcome: ExecutionOutcome) -> String {
         ExecutionOutcome::ArithmeticException => "E:java/lang/ArithmeticException".to_owned(),
         unexpected @ (ExecutionOutcome::NullPointerException
         | ExecutionOutcome::ArrayIndexOutOfBoundsException
-        | ExecutionOutcome::NegativeArraySizeException) => {
+        | ExecutionOutcome::NegativeArraySizeException
+        | ExecutionOutcome::NoSuchFieldError
+        | ExecutionOutcome::IllegalAccessError
+        | ExecutionOutcome::IncompatibleClassChangeError) => {
             panic!("numeric call fixture unexpectedly raised array exception: {unexpected:?}")
         }
         ExecutionOutcome::Returned(Some(Value::Int(value))) => format!("I:{value}"),

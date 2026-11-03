@@ -1,6 +1,6 @@
 # Next field-execution bridge design
 
-Status: next design direction following `runtime-instance-storage-review.md`. This note is not a concrete implementation authorization. Resolve the API and semantic scope below before dispatch; no additional user permission is needed for that architectural work.
+Status: superseded by the authorized concrete contract in `m2-instance-field-bridge.md` on 2026-11-03. The design discussion below is retained as rationale.
 
 The next coherent execution increment should evaluate ordinary instance method bodies against explicitly supplied heap instances, beginning with numeric/void parameters and results plus getfield/putfield. Use DefinitionRegistry and MethodId/ClassId identities rather than treating a standalone ClassFile as a complete resolution context. Supply the receiver and caller-owned heap explicitly. The method body receives its receiver in local zero; numeric arguments follow with their normal category widths.
 

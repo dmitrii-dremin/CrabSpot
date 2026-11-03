@@ -1,5 +1,13 @@
 # Numeric reference outcomes
 
+instances.tsv records 402 instance-body cases over 21 methods, with provenance in
+instances.json. It includes inherited body selection, hidden fields, mixed-width
+arguments, aliases, null references, arrays, static helpers and 49 exception
+outcomes. Generate/check with tools/instance_reference.py. Rust also executes 151
+original synthetic raw putfield/getfield bodies against fields.tsv, without
+pre-store narrowing or narrow result descriptors. Allocation is explicit default
+storage; this is body evaluation, not constructed/initialized Java invocation.
+
 fields.tsv records 151 raw instance-field store/load cases across all eight
 primitive types, with provenance in fields.json. FieldStoreCases.java generates
 an original class in memory with direct numeric load/putfield/getfield/return

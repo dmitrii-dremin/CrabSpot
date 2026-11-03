@@ -26,7 +26,7 @@ kinds/defaults, visible/invisible declaration/parameter/type annotations, generi
 type paths and annotated Code, inner/nest classes, records, sealed classes, and
 a module descriptor with requires, exports, opens, uses and provides tables.
 Numeric, floating-point, static-call and hierarchy fixtures bring the manifest to
-34 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
+36 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
 reference descriptors and interface ancestry. Rust hierarchy tests supply an
 explicit synthetic root as test input; this is not a production Object fallback
 or evidence of Java library execution.
@@ -42,3 +42,7 @@ InstanceFields.java supplies inherited/hidden instance fields and all field kind
 FieldStoreCases.java builds an original raw-putfield class in memory for JDK-only
 reference execution; no narrowing instructions precede its stores. Neither fixture
 claims CrabSpot constructor, field-bytecode or class-initialization execution.
+
+InstanceBodyCases.java supplies instance method bodies and an explicit JDK-only
+oracle. Its inherited base and own fields start at defaults, giving the explicit
+Rust body kernel equivalent inputs without claiming constructor execution.

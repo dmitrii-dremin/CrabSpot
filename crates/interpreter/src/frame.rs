@@ -134,6 +134,12 @@ impl Stack {
             .copied()
             .ok_or_else(|| ExecutionError::new(Some(offset), E::StackUnderflow))
     }
+    pub fn pop_any(&mut self, offset: u32) -> Result<Value, ExecutionError> {
+        let value = self.peek(0, offset)?;
+        self.values.pop();
+        self.slots -= value.slots();
+        Ok(value)
+    }
     pub fn pop(&mut self, expected: ValueKind, offset: u32) -> Result<Value, ExecutionError> {
         let value = self.peek(0, offset)?;
         if value.kind() != expected {

@@ -1,7 +1,7 @@
 use crate::ValueKind;
 use crabspot_bytecode::DecodeError;
 use crabspot_classfile::JavaString;
-use crabspot_runtime::{HeapError, PrimitiveArrayKind};
+use crabspot_runtime::{FieldAccessError, HeapError, PrimitiveArrayKind};
 use std::fmt;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -98,6 +98,7 @@ pub enum ExecutionErrorKind {
     UnsupportedCall(&'static str),
     MissingDeclaredMethod,
     Heap(HeapError),
+    FieldAccess(Box<FieldAccessError>),
     WrongArrayKind {
         opcode: u8,
         actual: PrimitiveArrayKind,
@@ -136,6 +137,9 @@ impl fmt::Display for ExecutionError {
             write!(formatter, "bytecode offset {offset}: ")?;
         }
         match &self.kind {
+            ExecutionErrorKind::FieldAccess(error) => {
+                write!(formatter, "field service failed: {error}")
+            }
             ExecutionErrorKind::Heap(error) => write!(formatter, "heap service failed: {error}"),
             ExecutionErrorKind::WrongArrayKind { opcode, actual } => write!(
                 formatter,
@@ -247,6 +251,7 @@ impl std::error::Error for ExecutionError {
         match &self.kind {
             ExecutionErrorKind::Decode(error) => Some(error),
             ExecutionErrorKind::Heap(error) => Some(error),
+            ExecutionErrorKind::FieldAccess(error) => Some(error.as_ref()),
             _ => None,
         }
     }

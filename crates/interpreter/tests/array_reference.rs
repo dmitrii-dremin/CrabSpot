@@ -35,6 +35,11 @@ fn observed(outcome: ExecutionOutcome) -> String {
         ExecutionOutcome::Returned(Some(Value::Reference(reference))) => {
             panic!("numeric fixture returned {reference:?}")
         }
+        unexpected @ (ExecutionOutcome::NoSuchFieldError
+        | ExecutionOutcome::IllegalAccessError
+        | ExecutionOutcome::IncompatibleClassChangeError) => {
+            panic!("unexpected field outcome: {unexpected:?}")
+        }
         ExecutionOutcome::ArithmeticException => "E:java/lang/ArithmeticException".to_owned(),
         ExecutionOutcome::NullPointerException => "E:java/lang/NullPointerException".to_owned(),
         ExecutionOutcome::ArrayIndexOutOfBoundsException => {

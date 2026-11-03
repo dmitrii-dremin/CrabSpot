@@ -1,4 +1,4 @@
-//! A numeric static method-body kernel with optional primitive-array heap services.
+//! A numeric method-body kernel with explicit heap and instance-field services.
 //!
 //! This is deliberately not Java invocation: it does not load, initialize, link,
 //! or verify classes, allocate exception objects, or provide Java runtime invocation.
@@ -12,6 +12,7 @@ mod tests;
 pub use crabspot_runtime::{Value, ValueKind};
 pub use error::{CallSite, ExecutionError, ExecutionErrorKind, MethodIdentity};
 pub use execute::{
-    CallLimits, ExecutionOptions, ExecutionOutcome, execute_static_method_body,
-    execute_static_method_body_with_heap, execute_static_method_body_with_limits,
+    CallLimits, ExecutionOptions, ExecutionOutcome, execute_instance_method_body,
+    execute_static_method_body, execute_static_method_body_with_heap,
+    execute_static_method_body_with_limits,
 };

@@ -7,7 +7,10 @@ use crabspot_classfile::{
     AttributeBody, ClassFile, Constant,
     descriptor::{FieldType, parse_method_descriptor},
 };
-use crabspot_runtime::{HeapError, ManagedHeap, PrimitiveArrayKind, Reference};
+use crabspot_runtime::{
+    ClassId, FieldAccessError, FieldJavaError, FieldResolutionContext, HeapError, ManagedHeap,
+    MethodId, PrimitiveArrayKind, Reference,
+};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -30,6 +33,9 @@ pub enum ExecutionOutcome {
     NullPointerException,
     ArrayIndexOutOfBoundsException,
     NegativeArraySizeException,
+    NoSuchFieldError,
+    IllegalAccessError,
+    IncompatibleClassChangeError,
 }
 
 fn numeric_kind(field: &FieldType) -> Result<ValueKind, ExecutionError> {
@@ -124,6 +130,7 @@ impl Default for CallLimits {
     }
 }
 struct PreparedMethod {
+    instance: bool,
     parameters: Vec<ValueKind>,
     return_type: Option<FieldType>,
     decoded: DecodedCode,
@@ -151,6 +158,9 @@ enum Action {
     NullPointerException,
     ArrayIndexOutOfBoundsException,
     NegativeArraySizeException,
+    NoSuchFieldError,
+    IllegalAccessError,
+    IncompatibleClassChangeError,
 }
 
 fn identity(class: &ClassFile, index: usize) -> Option<MethodIdentity> {
@@ -250,9 +260,14 @@ fn make_frame(
     prepared: &PreparedMethod,
     args: &[Value],
     origin: Option<(usize, u32)>,
+    receiver: Option<Reference>,
 ) -> Result<Frame, ExecutionError> {
     let mut locals = Locals::new(prepared.max_locals);
     let mut slot = 0;
+    if let Some(receiver) = receiver {
+        locals.store(0, Value::Reference(receiver), 0)?;
+        slot = 1;
+    }
     for argument in args {
         locals.store(slot, *argument, 0)?;
         slot += argument.slots();
@@ -373,7 +388,7 @@ pub fn execute_static_method_body_with_limits(
     options: ExecutionOptions,
     limits: CallLimits,
 ) -> Result<ExecutionOutcome, ExecutionError> {
-    execute_with_services(class, method_index, args, options, limits, None)
+    execute_with_services(class, method_index, args, options, limits, Services::None)
 }
 
 /// Evaluate a numeric/void body graph using the caller's persistent primitive-array
@@ -386,7 +401,77 @@ pub fn execute_static_method_body_with_heap(
     limits: CallLimits,
     heap: &mut ManagedHeap,
 ) -> Result<ExecutionOutcome, ExecutionError> {
-    execute_with_services(class, method_index, arguments, options, limits, Some(heap))
+    execute_with_services(
+        class,
+        method_index,
+        arguments,
+        options,
+        limits,
+        Services::Heap(heap),
+    )
+}
+
+/// Evaluate an explicitly selected ordinary instance body. This performs no Java
+/// method resolution, virtual dispatch, constructor protocol or initialization.
+pub fn execute_instance_method_body(
+    context: &mut FieldResolutionContext<'_>,
+    method: MethodId,
+    receiver: Reference,
+    arguments: &[Value],
+    options: ExecutionOptions,
+    limits: CallLimits,
+) -> Result<ExecutionOutcome, ExecutionError> {
+    let registry = context.registry();
+    registry.method(method).map_err(|error| {
+        ExecutionError::new(
+            None,
+            E::FieldAccess(Box::new(FieldAccessError::Registry(error))),
+        )
+    })?;
+    let class = registry.class(method.owner()).map_err(|error| {
+        ExecutionError::new(
+            None,
+            E::FieldAccess(Box::new(FieldAccessError::Registry(error))),
+        )
+    })?;
+    execute_with_services(
+        class,
+        method.index(),
+        arguments,
+        options,
+        limits,
+        Services::Fields {
+            context,
+            origin: method.owner(),
+            receiver,
+        },
+    )
+}
+
+enum Services<'a, 'registry> {
+    None,
+    Heap(&'a mut ManagedHeap),
+    Fields {
+        context: &'a mut FieldResolutionContext<'registry>,
+        origin: ClassId,
+        receiver: Reference,
+    },
+}
+impl Services<'_, '_> {
+    fn heap(&self) -> Option<&ManagedHeap> {
+        match self {
+            Self::None => None,
+            Self::Heap(heap) => Some(heap),
+            Self::Fields { context, .. } => Some(context.heap()),
+        }
+    }
+    fn heap_mut(&mut self) -> Option<&mut ManagedHeap> {
+        match self {
+            Self::None => None,
+            Self::Heap(heap) => Some(heap),
+            Self::Fields { context, .. } => Some(context.heap_mut()),
+        }
+    }
 }
 
 fn execute_with_services(
@@ -395,7 +480,7 @@ fn execute_with_services(
     args: &[Value],
     options: ExecutionOptions,
     limits: CallLimits,
-    mut heap: Option<&mut ManagedHeap>,
+    mut services: Services<'_, '_>,
 ) -> Result<ExecutionOutcome, ExecutionError> {
     if limits.max_frames == 0 {
         return Err(contextualize(
@@ -411,18 +496,39 @@ fn execute_with_services(
             None,
         ));
     }
+    let receiver = match &services {
+        Services::Fields { receiver, .. } => Some(*receiver),
+        _ => None,
+    };
     let mut used_code_bytes = 0;
     let root = prepare_method(
         class,
         method_index,
         &mut used_code_bytes,
         limits.max_prepared_code_bytes,
+        receiver.is_some(),
     )
     .map_err(|error| contextualize(class, error, method_index, None))?;
     validate_args(&root, args).map_err(|error| contextualize(class, error, method_index, None))?;
     let mut reserved = check_reservation(0, 0, &root, limits)
         .map_err(|error| contextualize(class, error, method_index, None))?;
-    let root_frame = make_frame(method_index, &root, args, None)
+    if let (
+        Some(receiver),
+        Services::Fields {
+            context, origin, ..
+        },
+    ) = (receiver, &mut services)
+    {
+        context.check_receiver(*origin, receiver).map_err(|error| {
+            contextualize(
+                class,
+                ExecutionError::new(None, E::FieldAccess(Box::new(error))),
+                method_index,
+                None,
+            )
+        })?;
+    }
+    let root_frame = make_frame(method_index, &root, args, None, receiver)
         .map_err(|error| contextualize(class, error, method_index, None))?;
     let mut cache = BTreeMap::new();
     cache.insert(method_index, root);
@@ -463,9 +569,14 @@ fn execute_with_services(
             ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
         })?;
         remaining -= 1;
-        let action = step(class, prepared, frame, heap.as_deref_mut())
+        let action = step(class, prepared, frame, &mut services)
             .map_err(|error| contextualize(class, error, current, origin))?;
         match action {
+            Action::NoSuchFieldError => return Ok(ExecutionOutcome::NoSuchFieldError),
+            Action::IllegalAccessError => return Ok(ExecutionOutcome::IllegalAccessError),
+            Action::IncompatibleClassChangeError => {
+                return Ok(ExecutionOutcome::IncompatibleClassChangeError);
+            }
             Action::Continue => {}
             Action::ArithmeticException => return Ok(ExecutionOutcome::ArithmeticException),
             Action::NullPointerException => return Ok(ExecutionOutcome::NullPointerException),
@@ -508,6 +619,7 @@ fn execute_with_services(
                         target,
                         &mut used_code_bytes,
                         limits.max_prepared_code_bytes,
+                        false,
                     )
                     .map_err(|error| contextualize(class, error, target, call_site))?;
                     entry.insert(prepared);
@@ -515,6 +627,17 @@ fn execute_with_services(
                 let prepared = cache.get(&target).ok_or_else(|| {
                     ExecutionError::new(None, E::InvalidMethod("missing prepared call target"))
                 })?;
+                if prepared.instance {
+                    return Err(contextualize(
+                        class,
+                        ExecutionError::new(
+                            Some(pc),
+                            E::UnsupportedMethod("method must be static"),
+                        ),
+                        target,
+                        call_site,
+                    ));
+                }
                 let next_reserved = check_reservation(frames.len(), reserved, prepared, limits)
                     .map_err(|error| contextualize(class, error, target, call_site))?;
                 let caller = frames.last_mut().ok_or_else(|| {
@@ -530,7 +653,7 @@ fn execute_with_services(
                     );
                 }
                 args.reverse();
-                let callee = make_frame(target, prepared, &args, call_site)
+                let callee = make_frame(target, prepared, &args, call_site, None)
                     .map_err(|error| contextualize(class, error, target, call_site))?;
                 frames.push(callee);
                 reserved = next_reserved;
@@ -544,6 +667,7 @@ fn prepare_method(
     method_index: usize,
     used_code_bytes: &mut usize,
     code_limit: usize,
+    instance: bool,
 ) -> Result<PreparedMethod, ExecutionError> {
     let method = class.methods.get(method_index).ok_or_else(|| {
         ExecutionError::new(
@@ -560,12 +684,22 @@ fn prepare_method(
     if name.equals_ascii("<init>") || name.equals_ascii("<clinit>") {
         return Err(ExecutionError::new(
             None,
-            E::UnsupportedMethod(
-                "special initialization methods are not ordinary static method bodies",
-            ),
+            E::UnsupportedMethod("special initialization methods are not ordinary method bodies"),
         ));
     }
-    if method.access_flags & 0x0008 == 0 {
+    if instance && class.access_flags & 0x0200 != 0 {
+        return Err(ExecutionError::new(
+            None,
+            E::UnsupportedMethod("interface instance bodies are unsupported"),
+        ));
+    }
+    if instance && method.access_flags & 0x0008 != 0 {
+        return Err(ExecutionError::new(
+            None,
+            E::UnsupportedMethod("instance body must be non-static"),
+        ));
+    }
+    if !instance && method.access_flags & 0x0008 == 0 {
         return Err(ExecutionError::new(
             None,
             E::UnsupportedMethod("method must be static"),
@@ -649,6 +783,7 @@ fn prepare_method(
         .map_err(|error| ExecutionError::new(Some(error.offset), E::Decode(error)))?;
     *used_code_bytes = required;
     Ok(PreparedMethod {
+        instance,
         parameters: kinds,
         return_type: descriptor.return_type,
         decoded,
@@ -661,7 +796,7 @@ fn step(
     class: &ClassFile,
     prepared: &PreparedMethod,
     frame: &mut Frame,
-    heap: Option<&mut ManagedHeap>,
+    services: &mut Services<'_, '_>,
 ) -> Result<Action, ExecutionError> {
     let pc = frame.pc;
     let locals = &mut frame.locals;
@@ -672,7 +807,13 @@ fn step(
         .instruction_at(pc)
         .ok_or_else(|| ExecutionError::new(Some(pc), E::InstructionPointerOutsideCode))?;
     let opcode = instruction.opcode;
-    if is_heap_instruction(opcode) && heap.is_none() {
+    if is_heap_instruction(opcode) && services.heap().is_none() {
+        return Err(ExecutionError::new(
+            Some(pc),
+            E::UnsupportedInstruction(opcode),
+        ));
+    }
+    if matches!(opcode, 0xb4 | 0xb5) && !matches!(services, Services::Fields { .. }) {
         return Err(ExecutionError::new(
             Some(pc),
             E::UnsupportedInstruction(opcode),
@@ -683,6 +824,34 @@ fn step(
         .checked_add(instruction.length)
         .ok_or_else(|| ExecutionError::new(Some(pc), E::InstructionPointerOutsideCode))?;
     match opcode {
+        0xb4 | 0xb5 => {
+            let Operands::Constant(index) = operands else {
+                return Err(operand_error(pc));
+            };
+            let value = if opcode == 0xb5 {
+                Some(stack.pop_any(pc)?)
+            } else {
+                None
+            };
+            let receiver = stack.reference(pc)?;
+            let Services::Fields {
+                context, origin, ..
+            } = services
+            else {
+                return Err(operand_error(pc));
+            };
+            if let Some(value) = value {
+                if let Err(error) = context.write_field(*origin, *index, receiver, value) {
+                    return field_failure(error, pc);
+                }
+            } else {
+                let value = match context.read_field(*origin, *index, receiver) {
+                    Ok(value) => value,
+                    Err(error) => return field_failure(error, pc),
+                };
+                stack.push(value, pc)?;
+            }
+        }
         0x01 => stack.push(Value::Reference(Reference::null()), pc)?,
         0x00 => {}
         0x02..=0x08 => stack.push(Value::Int(i32::from(opcode) - 3), pc)?,
@@ -722,7 +891,7 @@ fn step(
             let Value::Reference(reference) = value else {
                 return Err(operand_error(pc));
             };
-            validate_reference(heap.as_deref(), reference, pc)?;
+            validate_reference(services.heap(), reference, pc)?;
             stack.push(value, pc)?;
         }
         0x2a..=0x2d => {
@@ -730,13 +899,13 @@ fn step(
             let Value::Reference(reference) = value else {
                 return Err(operand_error(pc));
             };
-            validate_reference(heap.as_deref(), reference, pc)?;
+            validate_reference(services.heap(), reference, pc)?;
             stack.push(value, pc)?;
         }
         0x2e..=0x31 | 0x33..=0x35 => {
             let index = stack.int(pc)?;
             let reference = stack.reference(pc)?;
-            let heap = heap.ok_or_else(|| operand_error(pc))?;
+            let heap = services.heap_mut().ok_or_else(|| operand_error(pc))?;
             let actual = match heap.kind(reference) {
                 Ok(kind) => kind,
                 Err(error) => return heap_failure(error, pc),
@@ -776,12 +945,12 @@ fn step(
         }
         0x3a => {
             let reference = stack.reference(pc)?;
-            validate_reference(heap.as_deref(), reference, pc)?;
+            validate_reference(services.heap(), reference, pc)?;
             locals.store(local(operands, pc)?, Value::Reference(reference), pc)?;
         }
         0x4b..=0x4e => {
             let reference = stack.reference(pc)?;
-            validate_reference(heap.as_deref(), reference, pc)?;
+            validate_reference(services.heap(), reference, pc)?;
             locals.store(usize::from(opcode - 0x4b), Value::Reference(reference), pc)?;
         }
         0x4f..=0x52 | 0x54..=0x56 => {
@@ -794,7 +963,7 @@ fn step(
             let value = stack.pop(value_kind, pc)?;
             let index = stack.int(pc)?;
             let reference = stack.reference(pc)?;
-            let heap = heap.ok_or_else(|| operand_error(pc))?;
+            let heap = services.heap_mut().ok_or_else(|| operand_error(pc))?;
             let actual = match heap.kind(reference) {
                 Ok(kind) => kind,
                 Err(error) => return heap_failure(error, pc),
@@ -1074,8 +1243,8 @@ fn step(
         0xa5 | 0xa6 => {
             let right = stack.reference(pc)?;
             let left = stack.reference(pc)?;
-            validate_reference(heap.as_deref(), right, pc)?;
-            validate_reference(heap.as_deref(), left, pc)?;
+            validate_reference(services.heap(), right, pc)?;
+            validate_reference(services.heap(), left, pc)?;
             let Operands::Branch(displacement) = operands else {
                 return Err(operand_error(pc));
             };
@@ -1085,7 +1254,7 @@ fn step(
         }
         0xc6 | 0xc7 => {
             let reference = stack.reference(pc)?;
-            validate_reference(heap.as_deref(), reference, pc)?;
+            validate_reference(services.heap(), reference, pc)?;
             let Operands::Branch(displacement) = operands else {
                 return Err(operand_error(pc));
             };
@@ -1109,7 +1278,7 @@ fn step(
                 _ => return Err(operand_error(pc)),
             };
             let length = stack.int(pc)?;
-            let heap = heap.ok_or_else(|| operand_error(pc))?;
+            let heap = services.heap_mut().ok_or_else(|| operand_error(pc))?;
             let reference = match heap.allocate_primitive_array(kind, length) {
                 Ok(reference) => reference,
                 Err(error) => return heap_failure(error, pc),
@@ -1118,7 +1287,7 @@ fn step(
         }
         0xbe => {
             let reference = stack.reference(pc)?;
-            let heap = heap.ok_or_else(|| operand_error(pc))?;
+            let heap = services.heap_mut().ok_or_else(|| operand_error(pc))?;
             let length = match heap.length(reference) {
                 Ok(length) => length,
                 Err(error) => return heap_failure(error, pc),
@@ -1217,6 +1386,21 @@ fn step(
 fn is_heap_instruction(opcode: u8) -> bool {
     matches!(opcode,0x01|0x19|0x2a..=0x31|0x33..=0x35|0x3a|0x4b..=0x52|0x54..=0x56|0xa5|0xa6|0xbc|0xbe|0xc6|0xc7)
 }
+fn field_failure(error: FieldAccessError, pc: u32) -> Result<Action, ExecutionError> {
+    match error {
+        FieldAccessError::Java(FieldJavaError::NoSuchField) => Ok(Action::NoSuchFieldError),
+        FieldAccessError::Java(FieldJavaError::IllegalAccess) => Ok(Action::IllegalAccessError),
+        FieldAccessError::Java(FieldJavaError::IncompatibleClassChange) => {
+            Ok(Action::IncompatibleClassChangeError)
+        }
+        FieldAccessError::Java(FieldJavaError::NullPointer) => Ok(Action::NullPointerException),
+        error => Err(ExecutionError::new(
+            Some(pc),
+            E::FieldAccess(Box::new(error)),
+        )),
+    }
+}
+
 fn heap_failure(error: HeapError, pc: u32) -> Result<Action, ExecutionError> {
     match error {
         HeapError::NullReference => Ok(Action::NullPointerException),
@@ -1293,8 +1477,8 @@ mod resource_tests {
             (vec![0x2e, 0xac], 0),
         ] {
             let class = crate::tests::synthetic(&code, "()I", 2, max_locals);
-            let prepared = prepare_method(&class, 0, &mut 0, usize::MAX).unwrap();
-            let mut frame = make_frame(0, &prepared, &[], None).unwrap();
+            let prepared = prepare_method(&class, 0, &mut 0, usize::MAX, false).unwrap();
+            let mut frame = make_frame(0, &prepared, &[], None, None).unwrap();
             if code[0] == 0x2a {
                 frame.locals.store(0, Value::Reference(foreign), 0).unwrap();
             } else {
@@ -1309,7 +1493,12 @@ mod resource_tests {
             if code[0] == 0x2e {
                 frame.stack.push(Value::Int(0), 0).unwrap();
             }
-            let error = match step(&class, &prepared, &mut frame, Some(&mut heap)) {
+            let error = match step(
+                &class,
+                &prepared,
+                &mut frame,
+                &mut Services::Heap(&mut heap),
+            ) {
                 Err(error) => error,
                 Ok(_) => panic!("foreign reference accepted"),
             };
@@ -1364,10 +1553,76 @@ mod resource_tests {
         }
     }
     #[test]
+    fn field_failure_maps_only_explicit_java_errors_and_keeps_host_null_structured() {
+        for (error, expected) in [
+            (FieldJavaError::NoSuchField, 0),
+            (FieldJavaError::IllegalAccess, 1),
+            (FieldJavaError::IncompatibleClassChange, 2),
+            (FieldJavaError::NullPointer, 3),
+        ] {
+            let action = field_failure(FieldAccessError::Java(error), 17).unwrap();
+            assert!(matches!(
+                (expected, action),
+                (0, Action::NoSuchFieldError)
+                    | (1, Action::IllegalAccessError)
+                    | (2, Action::IncompatibleClassChangeError)
+                    | (3, Action::NullPointerException)
+            ));
+        }
+        let host = FieldAccessError::Instance(crabspot_runtime::InstanceError::Heap(
+            HeapError::NullReference,
+        ));
+        let error = match field_failure(host.clone(), 17) {
+            Err(error) => error,
+            Ok(_) => panic!("host error mapped as Java"),
+        };
+        assert_eq!(error.offset, Some(17));
+        assert_eq!(error.kind, E::FieldAccess(Box::new(host)));
+        assert!(std::error::Error::source(&error).is_some());
+    }
+    #[test]
+    fn instance_frame_receiver_and_argument_capacity_are_checked_privately() {
+        for (descriptor, locals, args, expected) in [
+            (
+                "()V",
+                0,
+                vec![],
+                E::LocalOutOfBounds {
+                    index: 0,
+                    width: 1,
+                    capacity: 0,
+                },
+            ),
+            (
+                "(J)J",
+                2,
+                vec![Value::Long(1)],
+                E::LocalOutOfBounds {
+                    index: 1,
+                    width: 2,
+                    capacity: 2,
+                },
+            ),
+        ] {
+            // Registry admission rejects these capacities first. Mutated inspection
+            // metadata exercises the frame's independent defensive boundary.
+            let mut class = crate::tests::synthetic(&[0xb1], descriptor, 2, 3);
+            class.methods[0].access_flags &= !8;
+            let prepared = prepare_method(&class, 0, &mut 0, usize::MAX, true).unwrap();
+            let mut prepared = prepared;
+            prepared.max_locals = locals;
+            let error = match make_frame(0, &prepared, &args, None, Some(Reference::null())) {
+                Err(error) => error,
+                Ok(_) => panic!("invalid instance locals admitted"),
+            };
+            assert_eq!(error.kind, expected);
+        }
+    }
+    #[test]
     fn resource_accounting_overflow_is_a_structured_error() {
         let class = crate::tests::synthetic(&[0xb1], "()V", 1, 0);
         let mut used = usize::MAX;
-        let error = match prepare_method(&class, 0, &mut used, usize::MAX) {
+        let error = match prepare_method(&class, 0, &mut used, usize::MAX, false) {
             Err(error) => error,
             Ok(_) => panic!("overflow accepted"),
         };
@@ -1380,7 +1635,7 @@ mod resource_tests {
         );
         assert_eq!(used, usize::MAX);
         let mut used = 0;
-        let prepared = prepare_method(&class, 0, &mut used, 1).unwrap();
+        let prepared = prepare_method(&class, 0, &mut used, 1, false).unwrap();
         assert_eq!(used, 1);
         let limits = CallLimits {
             max_frames: usize::MAX,

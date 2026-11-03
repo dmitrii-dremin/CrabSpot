@@ -2,7 +2,7 @@
 
 An independent JVM implementation in Rust. It parses Java 21 class files, decodes
 JVM instructions, and executes supported numeric method bodies independently in
-Rust, including bounded calls and primitive arrays. The long-term goal is a complete
+Rust, including bounded calls, primitive arrays and instance-field bodies. The long-term goal is a complete
 JVM specification implementation with the required observable behavior of
 conforming JVMs, using HotSpot as the primary reference, and demonstrated
 performance superiority over HotSpot on representative workloads. Java SE 21 is
@@ -38,6 +38,7 @@ python tools/floating_reference.py --check
 python tools/call_reference.py --check
 python tools/array_reference.py --check
 python tools/field_reference.py --check
+python tools/instance_reference.py --check
 cargo test -p crabspot-interpreter --test numeric_reference
 cargo test -p crabspot-interpreter --test floating_reference --release
 ```
@@ -64,8 +65,9 @@ There are five crates: `crabspot-classfile` for pure byte parsing,
 method-body execution kernel, `crabspot-runtime` for bounded definition registration,
 hierarchy/field-layout plans, shared values, static storage and a managed heap,
 and `crabspot-launcher` for command-line inspection.
-The differential tests compare 616 integral, 7,263 floating-point, 126 static-call
-and 280 primitive-array OpenJDK 21 outcomes with Rust execution, including arithmetic exceptions, signed zero,
+The differential tests compare 616 integral, 7,263 floating-point, 126 static-call,
+280 primitive-array and 553 instance-field OpenJDK 21 outcomes with Rust execution,
+including arithmetic exceptions, signed zero,
 subnormals and NaN classification. The kernel supports bounded same-class static
 calls; it does not load or initialize classes, perform general method resolution,
 run native methods, or call Java. Runtime registration preserves defining-loader
@@ -80,9 +82,13 @@ match 151 OpenJDK array store/load outcomes. The opt-in instance service admits
 shared, owner-qualified layouts atomically and allocates typed default fields.
 It supports numeric/null writes with final-field protection and explicit quotas;
 151 raw-putfield JDK reference cases test its storage conversions. Constructors,
-class initialization, non-null reference assignment and field bytecodes remain
-unimplemented. The explicit-heap interpreter API supports
-179 opcode values; the original numeric-only APIs retain their 148-opcode scope.
+class initialization and non-null reference assignment remain unimplemented.
+A runtime-aware instance-body API executes getfield/putfield through bounded
+loader-aware resolution and an explicit unnamed-module access profile. It supports
+181 opcode values; the earlier explicit-heap/static API retains 179 and the
+numeric-only APIs retain 148. Host-selected bodies do not perform virtual dispatch
+or Java invocation. Named-module access, cross-class nests and cross-loader
+reference loading constraints remain explicit unsupported cases.
 The implementation uses the
 [JVMS Java SE 21](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html)
 as its format reference. Reference JVM implementation code is not copied.

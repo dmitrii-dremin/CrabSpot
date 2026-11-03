@@ -182,3 +182,41 @@ because non-null field stores are unsupported. This iterator is neither caller
 roots nor a collector. No reclamation, reference arrays, assignability,
 constructor protocol, lifecycle proof, field bytecode or interpreter instance
 bridge is implemented by this memory service.
+
+## Field resolution and access context
+
+`FieldResolutionContext::new_unnamed_modules` borrows an immutable registry, a
+heap with admitted instance layouts, and an explicit hierarchy resolver. It
+selects an unnamed-module profile. The constructor seeds exact loader/name
+bindings from the admitted graph, including delegated superclass and interface
+identities, and rejects contradictory bindings. New successful owner bindings
+are cached; failures remain distinct and may be retried. Names borrow registry
+UTF-16 data rather than copying descriptor or ancestor graphs.
+
+The context bounds unique symbols, retained name units, and cumulative lookup
+work. Defaults are 16,384 symbols, 1,048,576 UTF-16 units and 1,000,000 steps.
+Seeding charges every class and edge; lookup charges each visited node and
+compared field declaration. Traversal and ancestry checks are iterative.
+Fallible reservations are proportional to actual work. A new context starts
+fresh budgets. Heap identity or admitted-class count changes invalidate an
+existing context, including replacement through `heap_mut()`; ordinary heap
+allocation and field mutation remain permitted.
+
+`read_field` and `write_field` consume a checked Fieldref from an admitted origin
+class. Lookup visits own declarations, direct interfaces recursively in their
+class-file order, then the superclass. Interfaces do not inherit Object fields.
+Access checks preserve defining-loader package identity, same-class private
+access, and the specified protected owner/receiver restrictions. Protected
+static fields do not impose the additional nonstatic owner/receiver restriction.
+Public inherited fields do not require separate declarer accessibility.
+
+Resolution/access/loading-constraint failures precede staticness, write
+finality and null checks. Java-shaped failures are explicitly distinguished
+from host metadata, resolver, heap and policy failures. Every final write is
+rejected; approved memory-service narrowing, floating bits and null-only
+reference stores remain in effect. `check_receiver` validates host-selected
+ordinary instance identity without claiming method invocation access checks.
+
+Named modules, cross-loader reference loading constraints, cross-class private
+nest access, constructors, verification, class initialization and complete Java
+linking remain outside this profile. The runtime has no interpreter dependency.

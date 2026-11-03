@@ -21,6 +21,10 @@ impl MethodId {
     pub fn owner(self) -> ClassId {
         self.owner
     }
+    /// Read-only declaration index; metadata access still validates this handle.
+    pub fn index(self) -> usize {
+        self.index
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

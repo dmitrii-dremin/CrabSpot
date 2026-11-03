@@ -284,6 +284,12 @@ struct Shape {
     inherited: usize,
     slots: usize,
 }
+/// Borrowed relationship data from an admitted shape. No field list is copied.
+pub(crate) struct InstanceGraphNode<'a> {
+    pub superclass: Option<ClassId>,
+    pub interfaces: &'a [ClassId],
+    pub flags: u16,
+}
 impl Shape {
     fn matches(&self, layout: &ClassLayout, flags: u16) -> bool {
         self.superclass == layout.direct_superclass()
@@ -395,6 +401,39 @@ fn parse_error(error: ParseError) -> InstanceError {
 }
 
 impl ManagedHeap {
+    pub(crate) fn instance_graph_registry(&self) -> Result<Option<u64>, InstanceError> {
+        Ok(self
+            .instances
+            .as_ref()
+            .ok_or(InstanceError::Disabled)?
+            .registry)
+    }
+    pub(crate) fn instance_graph_classes(
+        &self,
+    ) -> Result<impl Iterator<Item = ClassId> + '_, InstanceError> {
+        Ok(self
+            .instances
+            .as_ref()
+            .ok_or(InstanceError::Disabled)?
+            .shapes
+            .keys()
+            .copied())
+    }
+    pub(crate) fn instance_graph_node(
+        &self,
+        class: ClassId,
+    ) -> Result<InstanceGraphNode<'_>, InstanceError> {
+        let shape = self
+            .instances
+            .as_ref()
+            .ok_or(InstanceError::Disabled)?
+            .shape(class)?;
+        Ok(InstanceGraphNode {
+            superclass: shape.superclass,
+            interfaces: &shape.interfaces,
+            flags: shape.flags,
+        })
+    }
     pub fn allocated_instances(&self) -> usize {
         self.instances.as_ref().map_or(0, |s| s.count)
     }
@@ -1273,5 +1312,64 @@ mod tests {
         assert_eq!(heap.allocated_instances(), 1);
         assert_eq!(heap.payload_bytes(), 16);
         assert_eq!(heap.total_instance_slots(), 3);
+    }
+
+    #[test]
+    fn field_context_rejects_forged_shape_flags_and_missing_or_extra_dependencies() {
+        use crate::{FieldAccessError, FieldResolutionContext, FieldResolutionOptions};
+        let mut registry = DefinitionRegistry::new(RegistryOptions::default()).unwrap();
+        let loader = registry.create_loader().unwrap();
+        let object = registry
+            .define(
+                loader,
+                &units("java/lang/Object"),
+                &definition("java/lang/Object", false, &[]),
+                ParseOptions::default(),
+            )
+            .unwrap();
+        let class = registry
+            .define(
+                loader,
+                &units("T"),
+                &definition("T", true, &[]),
+                ParseOptions::default(),
+            )
+            .unwrap();
+        let plan = build_hierarchy(
+            &registry,
+            class,
+            &mut SameLoaderResolver,
+            HierarchyOptions::default(),
+        )
+        .unwrap();
+        for corruption in 0..4 {
+            let mut heap =
+                ManagedHeap::new_with_instances(HeapOptions::default(), InstanceOptions::default())
+                    .unwrap();
+            heap.admit_instance_layouts(&registry, &[&plan]).unwrap();
+            let state = heap.instances.as_mut().unwrap();
+            if corruption == 3 {
+                state.shapes.remove(&object);
+            } else {
+                let shape = state.shapes.get_mut(&class).unwrap();
+                match corruption {
+                    0 => shape.flags ^= 0x200,
+                    1 => shape.superclass = None,
+                    _ => shape.interfaces.push(object),
+                }
+            }
+            let mut resolver = SameLoaderResolver;
+            let result = FieldResolutionContext::new_unnamed_modules(
+                &registry,
+                &mut heap,
+                &mut resolver,
+                FieldResolutionOptions::default(),
+            );
+            assert!(if corruption < 3 {
+                matches!(result, Err(FieldAccessError::InvalidState(_)))
+            } else {
+                matches!(result, Err(FieldAccessError::Instance(InstanceError::LayoutMissing { class: missing })) if missing == object)
+            });
+        }
     }
 }

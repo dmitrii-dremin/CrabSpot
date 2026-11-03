@@ -398,6 +398,9 @@ fn validate_name(name: &[u16]) -> Result<(), E> {
 }
 
 impl DefinitionRegistry {
+    pub(crate) fn identity(&self) -> u64 {
+        self.identity
+    }
     pub fn new(options: RegistryOptions) -> Result<Self, E> {
         Ok(Self {
             identity: allocate_identity(&NEXT_REGISTRY)?,
