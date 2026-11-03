@@ -5,10 +5,10 @@
 **Technical director:** GPT-6 Astra  
 **Primary implementation agent:** GPT-6.1 Sol  
 **Language:** Rust  
-**Reference implementation:** OpenJDK HotSpot  
-**Specification:** Java Virtual Machine Specification (JVMS), Java SE 21  
+**Primary behavioral and performance reference:** OpenJDK HotSpot; other conforming open JVMs provide independent cross-checks  
+**First complete specification target:** Java Virtual Machine Specification (JVMS), Java SE 21; later releases require explicit target decisions  
 **Target platform:** Linux x86-64 initially  
-**Ultimate objective:** Run real-world Java and Kotlin applications, including Spring Boot, on an independently implemented Rust JVM.
+**Ultimate objective:** Implement the complete JVM specification independently in Rust, match required observable behavior of HotSpot and other conforming JVMs, and demonstrate superior performance against HotSpot on a declared representative benchmark suite.
 
 ---
 
@@ -18,7 +18,13 @@ Build a new Java Virtual Machine implementation from scratch in Rust.
 
 This is not a toy interpreter, a wrapper around an existing JVM, a transpiler, or a research-only proof of concept.
 
-The long-term objective is to create a JVM capable of executing real Java and Kotlin applications with correct semantics, reasonable performance, and an architecture suitable for implementing advanced runtime features.
+The long-term objective is a complete, conforming JVM that executes real Java and Kotlin applications with the required observable behavior of established conforming JVMs and demonstrably outperforms HotSpot. Java SE 21 is the first complete conformance target. Supporting a subset of its instructions or running selected applications is intermediate progress, not completion.
+
+The target includes all requirements of the selected JVMS release, the applicable Java Memory Model and native/runtime-library integration contracts. Maintain an explicit inventory of specification obligations, including validation, linkage failures, historical class-file behavior and version/preview rules; the feature lists below are not an exhaustive substitute. Later Java versions require an explicit architecture decision, compatibility inventory and acceptance evidence rather than an implied claim of support.
+
+HotSpot is the primary differential behavioral oracle. Cross-check representative and disputed cases with another conforming open JVM when available, recording versions, options and platform conditions. Required observable results and failures must agree. The specification governs disagreements and permitted variation: thread schedules, permitted floating-point variation, unspecified identity values, implementation-specific diagnostics and timing do not require identical traces. Do not copy a reference implementation's bug or private implementation detail as a compatibility requirement. Internal representation and optimization choices remain implementation decisions under [JVMS public design/private implementation](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-2.html#jvms-2.13); concurrency must satisfy the allowed behaviors in the [Java Memory Model](https://docs.oracle.com/javase/specs/jls/se21/html/jls-17.html#jls-17.4).
+
+Performance superiority is a required ultimate outcome, measured against a named HotSpot baseline on representative, predeclared workloads and supported hardware. It is not a promise to win every metric on every workload or machine. Publish regressions and resource tradeoffs, and never obtain a speed advantage by weakening correctness, required checks or equivalent application work. Spring Boot/WebFlux is an important integration milestone within this larger objective.
 
 The JVM must eventually support:
 
@@ -335,6 +341,8 @@ Acceptance:
 
 Target a minimal Spring Boot application, followed by progressively more complex applications.
 
+This is an integration milestone, not the project's endpoint or proof of complete JVM conformance.
+
 Acceptance sequence:
 
 1. Spring Framework dependency injection.
@@ -364,9 +372,17 @@ Requirements:
 - Profiling infrastructure.
 - Reproducible benchmarks.
 
-Benchmark against OpenJDK using comparable configurations.
+Demonstrate superior performance against a named OpenJDK HotSpot baseline using comparable configurations. Before collecting acceptance results, review and publish the representative suite, workload inputs, metrics, repetition/statistical procedure and decision rule for a suite-level win. Do not select only winning workloads after observing results.
 
-Report performance regressions rather than concealing them.
+Include computation, allocation/GC, concurrency and real application/service workloads. Report startup and warmup separately from steady-state throughput and latency; include tail latency, pauses, CPU use and memory consumption where relevant. Microbenchmarks support diagnosis but cannot alone establish the ultimate performance claim.
+
+Record exact CrabSpot and JDK builds, operating system/hardware, compiler/JIT/GC options, heap and resource settings, workload versions, warmup, measurement duration and variability. Compare equivalent correct work on controlled baselines. Publish every measured workload, regressions and tradeoffs with reproducible commands and raw results. A performance improvement cannot waive any conformance requirement.
+
+## M11 — Complete Conformance and Performance Acceptance
+
+Close the complete Java SE 21 JVM obligation inventory with implementation, positive/negative/boundary tests and reviewed evidence. Preserve separate statuses for unimplemented requirements, implementation-defined choices, known defects and untested configurations. Required behavior must be validated against the specification, HotSpot and independent conforming-JVM cross-checks where available; unresolved required-behavior discrepancies block complete acceptance.
+
+Demonstrate full application execution and the M10 performance-superiority gate on the declared supported platform and benchmark scope. Record the precise claim and its limits. Passing Spring Boot, an opcode inventory, a partial differential suite or isolated benchmark wins does not satisfy this gate. Official compatibility certification remains a separate claim requiring its own evidence.
 
 # 6. Testing Philosophy
 
@@ -376,7 +392,7 @@ Use multiple complementary test layers.
 
 **Integration tests:** JVM components operating together.
 
-**Differential tests:** Execute identical Java programs under CrabSpot and OpenJDK and compare observable behavior.
+**Differential tests:** Execute identical Java programs under CrabSpot and the named HotSpot reference, with independent conforming open-JVM cross-checks where available. Compare required observable behavior, including failures, using specification-aware treatment of permitted variation. Investigate disagreements against the governing specification rather than choosing a majority result.
 
 **Property-based tests:** Validate invariants and generated inputs.
 
@@ -516,9 +532,13 @@ If execution must stop, leave the repository in a buildable state and write a pr
 
 # 11. Definition of Success
 
-The ultimate success condition is:
+Ultimate success requires all of the following:
 
-**A real Kotlin Spring Boot WebFlux application executes on CrabSpot, a JVM independently implemented in Rust, without delegating bytecode execution to HotSpot or another JVM.**
+1. **Complete implementation of the selected JVM specification, initially Java SE 21**, with reviewed conformance evidence and the required runtime/library/native integration, implemented independently in Rust without delegating application execution to another JVM.
+2. **Required observable behavioral compatibility with HotSpot and other conforming JVMs**, governed by the specifications and their permitted variation. Real Java/Kotlin applications, including Spring Boot WebFlux, form part of this evidence rather than defining its endpoint.
+3. **Demonstrated performance superiority against HotSpot** under the predeclared representative benchmark and supported-platform acceptance contract, with reproducible results, statistical support and published regressions/tradeoffs. No universal faster-on-every-workload claim is implied.
+
+These are joint criteria: performance cannot compensate for missing semantics, and conformance alone does not satisfy the speed objective. The expanded objective does not retroactively change existing increment approvals or claim that currently unsupported features are implemented.
 
 Intermediate success must be demonstrated through reproducible tests, not subjective assessments.
 
@@ -540,6 +560,6 @@ Sol 6.1: write the code, run the tests, fix the failures, and deliver working in
 
 Start with M0 and M1.
 
-The crab must eventually run Spring Boot.
+The crab must implement the complete target JVM specification, run Spring Boot and broader applications correctly, and earn its performance advantage through measurement.
 
 🦀

@@ -5,6 +5,12 @@ bytecode verification, linking, initialization or execution. M1 now has all 30
 standard attribute bodies decoded and was approved by the technical director
 on 2026-11-03. The sustained exact-source fuzz campaign passed.
 
+The long-term target is complete specification conformance, initially for Java SE
+21, with the required observable behavior of conforming JVMs and HotSpot as the
+primary reference. Performance superiority must be demonstrated through controlled,
+representative comparisons. Kotlin/Spring Boot execution alone will not establish
+completion of that goal.
+
 ## Implemented services and boundaries
 
 | Area / JVMS SE 21 clauses | Status | Evidence and boundary |
@@ -20,6 +26,7 @@ on 2026-11-03. The sustained exact-source fuzz campaign passed.
 | Parser fuzzing | Implemented and tested | 108,907,980 seeded cases over 300 seconds, zero failures, exact-source fingerprint; no coverage metrics or proof of panic freedom |
 | Linux/Windows hosted CI | Not tested remotely | Workflow configured; native Windows checks recorded separately |
 | Rust 1.85 minimum version | Not tested | Manifest declaration; actual local toolchain is Rust 1.98.1 |
+| Performance superiority over HotSpot | Not demonstrated | Long-term objective; no comparative performance benchmark results are claimed |
 | Bytecode decoder | Implemented and tested | All defined JVM instruction formats, version/operand constraints and static branch destinations; 10 focused tests and malformed-input corpus |
 | Numeric execution kernel | Partially implemented and tested | 148 opcode values including restricted invokestatic; 616 integral + 7,263 floating + 126 static-call JDK outcomes match in debug/release; bounded method-body evaluation only |
 | Primitive-array execution bridge | Implemented and tested | Explicit heap API adds 31 opcode values (179 total), reference locals/branches and primitive arrays; all 280 JDK cases match in debug/release, including 67 symbolic exceptions; numeric/void method signatures only |

@@ -2,9 +2,17 @@
 
 An independent JVM implementation in Rust. It parses Java 21 class files, decodes
 JVM instructions, and executes supported numeric method bodies independently in
-Rust, including bounded calls and primitive arrays. The long-term goal is
-Kotlin/Spring Boot compatibility; application startup, class loading and
-initialization are not implemented yet.
+Rust, including bounded calls and primitive arrays. The long-term goal is a complete
+JVM specification implementation with the required observable behavior of
+conforming JVMs, using HotSpot as the primary reference, and demonstrated
+performance superiority over HotSpot on representative workloads. Java SE 21 is
+the first complete conformance target; later specification versions need explicit
+support and validation. Application startup, class loading and initialization are
+not implemented yet.
+
+Kotlin and Spring Boot are integration milestones toward that goal. Correctness
+remains mandatory: performance claims require reproducible comparisons covering
+startup, warmed-up throughput, latency and resource use, with regressions reported.
 
 The project charter is [ARCHITECTURE.md](ARCHITECTURE.md). See the
 [architecture](docs/architecture/overview.md),

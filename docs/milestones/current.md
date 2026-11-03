@@ -6,6 +6,13 @@ array execution bridge increments are approved. Full M2 and later milestones
 remain open. Continue autonomously without NanoSpec; ask the user only when their
 intervention is unavoidable. The next object-storage design is still a draft.
 
+The user clarified the long-term objective: complete JVM specification support,
+required observable compatibility with conforming JVMs (HotSpot is the primary
+reference), and demonstrated performance superiority on representative workloads.
+Java SE 21 remains the first complete conformance target. Kotlin/Spring Boot are
+integration milestones, not the endpoint. This expands the success criteria;
+existing partial implementation boundaries and milestone approvals are unchanged.
+
 ## Implemented and independently checked
 
 - Five real crates: classfile, bytecode, interpreter, runtime and launcher.

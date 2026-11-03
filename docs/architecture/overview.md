@@ -4,6 +4,16 @@ Status: M1, the M2 decoder/numeric, bounded static-call and primitive-array exec
 
 `ARCHITECTURE.md` is the project charter. This document refines its initial layout without reducing its roadmap. CrabSpot is an independent Rust JVM project targeting Linux x86-64. The first deliverable reads class files; it does not execute Java programs or claim JVM compatibility. NanoSpec is not used in this project.
 
+## Ultimate target and acceptance
+
+The user expanded the ultimate objective on 2026-11-03: implement the complete JVM specification, match the required observable behavior of HotSpot and other conforming JVMs, and demonstrate superior performance against HotSpot. Java SE 21 is the first complete target; subsequent Java releases need explicit target decisions and evidence. Spring Boot/WebFlux remains M9 integration coverage, not the endpoint. Existing increment approvals, implementation scope and recorded test results are unchanged. The decision is recorded in [ADR 0008](../adr/0008-complete-conformance-and-performance-superiority.md).
+
+Maintain a complete specification-obligation inventory, covering the selected JVMS and applicable Java Memory Model/native/runtime-library contracts. Feature summaries and opcode counts cannot replace that inventory. HotSpot is the primary behavioral oracle; independent conforming open JVMs supply cross-checks when available. Required outputs and failures must agree, while the governing specifications determine allowed nondeterminism and implementation choices. Investigate discrepancies rather than copying bugs or requiring identical unspecified traces. [JVMS implementation freedom](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-2.html#jvms-2.13) permits different internals while preserving required behavior.
+
+The speed objective requires a predeclared representative benchmark suite and acceptance rule against a named, controlled HotSpot baseline. Cover computation, allocation/GC, concurrency and real applications, separating startup/warmup from steady-state throughput and latency and publishing resource costs. Record builds, hardware, software, options, equivalent work, repetitions, variability, raw results and every regression/tradeoff. A suite-level win must be demonstrated; isolated microbenchmark wins or unmeasured aspirations do not count. This is not a claim of superiority on every machine, workload or metric. Correctness cannot be traded for speed.
+
+Complete conformance, required observable compatibility and demonstrated performance superiority are joint ultimate acceptance conditions. Full-target acceptance and official certification require their own evidence; current parser/kernel approvals establish only their documented scope.
+
 ## Initial workspace
 
 Only create crates containing implemented behavior:
