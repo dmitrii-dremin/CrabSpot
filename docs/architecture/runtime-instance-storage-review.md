@@ -51,3 +51,13 @@ The director reviewed source and reported coordinator evidence without claiming 
 ## Next boundary
 
 `m2-instance-field-bridge-next.md` records the next design work: runtime-identity-aware method-body evaluation with an explicit receiver and field services. Symbolic field resolution, access/finality checks, failure ordering and receiver compatibility need a concrete reviewed contract. Constructor execution, class initialization, verification, reference assignability/stores, general invocation, exception dispatch, monitors and GC remain separate responsibilities.
+
+## Post-publication CI evidence
+
+The coordinator inspected [run 41718502938](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41718502938)
+for implementation commit `a27593f14cb1aa2d1c00c95b0ecaf0db840ab409` after
+publication. Both Linux and Windows jobs completed successfully, including all
+fixture/reference regeneration checks, formatting, strict Clippy, debug and
+optimized tests and parser fuzz smoke. This supersedes the pending hosted status
+above for this implementation commit; the earlier failed run remains historical
+evidence of the corrected atomic API compatibility issue.

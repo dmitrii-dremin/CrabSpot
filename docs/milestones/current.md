@@ -84,8 +84,11 @@ for 2617637 was inspected: Linux and Windows checked-in tests, fixture/reference
 regeneration and formatting passed with Rust 1.99.1 and Temurin JDK 21.0.13.
 Strict linting failed because AtomicU64::fetch_update is deprecated in that Rust
 release; later checks were skipped. A compatible checked CAS-loop correction is
-implemented and locally validated in this increment. No complete passing hosted
-run is claimed yet; fresh CI will validate the publication.
+implemented in this increment. Fresh [run 41718502938](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41718502938)
+for implementation commit a27593f passed the complete workflow on both Linux and
+Windows: checked-in and regenerated fixture tests, all six reference sets,
+formatting, strict Clippy, optimized runtime/interpreter tests and parser smoke.
+The implementation and its reviewed goals are pushed to origin/main.
 The declared Rust 1.85 minimum remains untested.
 
 ## Reviews and decisions
