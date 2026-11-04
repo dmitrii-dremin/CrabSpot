@@ -17,7 +17,8 @@ instruction stream before evaluation. Unsupported instructions fail when reached
 The original numeric entry points handle 148 effective opcode values. The explicit
 heap entry point adds 31, for 179 total. The runtime-aware instance entry point
 adds `getfield`, `putfield`, `invokevirtual`, `invokeinterface` and ordinary
-`invokespecial`, plus `checkcast` and `instanceof`, for 186 total. `wide` is an encoding prefix for indexed
+`invokespecial`, plus `checkcast`, `instanceof`, `anewarray`, `aaload` and
+`aastore`, for 189 total. `wide` is an encoding prefix for indexed
 loads/stores and increment; heap mode adds two reference local forms to the nine
 numeric wide forms.
 
@@ -124,7 +125,7 @@ cumulative quotas. Callers may explicitly provide a fresh heap for isolation.
 enabled only inside the explicit heap or instance body graph; a reference argument supplied
 for a numeric parameter produces a typed error in every entry point.
 
-Reference parameters/returns and reference arrays, static fields, runtime invocation,
+Reference parameters/returns, static fields, generalized runtime invocation,
 generalized cross-class static calls, constructor execution,
 exception handlers, monitors and legacy subroutines remain unsupported. Numeric
 execution never delegates application bytecode to an installed JVM. The reference
@@ -317,12 +318,12 @@ values the universe and managed handle are checked before target resolution and
 access. Successful checkcast preserves the identical reference and other stack
 operands; instanceof produces Int(0/1).
 
-Sources are admitted ordinary instances or allocated primitive arrays. Nominal
+Sources are admitted ordinary instances or allocated primitive/reference arrays. Nominal
 class/interface ancestry and structural array-component relations use exact
 registry/loader identities. All eight primitive array kinds retain distinct
-components; arrays have only the explicitly selected core supertypes. Target
-array ranks through 255 are structural service values, not reference-array
-allocations. Target classes/interfaces outside receiver ancestry require their
+components; arrays have only the explicitly selected core supertypes. Array
+ranks through 255 use the same structural representation as retained reference
+arrays. Target classes/interfaces outside receiver ancestry require their
 own admitted hierarchy plans before context creation. Rebinding a previously
 unbound heap invalidates an existing context; construct a new one afterward.
 
@@ -339,17 +340,18 @@ Each instruction consumes one shared fuel unit. Type resolution and relations
 share the existing cumulative symbol/name/work limits and do not introduce a
 second type cache. Earlier stores and array allocations persist after cast,
 access, resolution, budget or malformed-operand failures. Numeric/void method
-signatures, reference-array allocation, constructors,
-initialization, class mirrors, native binding, monitors, verification and Java
+signatures, constructors, initialization, class mirrors, native binding,
+monitors, verification and Java
 exception-object/handler protocols retain their earlier boundaries.
 
 
 ## Checked reference fields
 
 The existing runtime-aware putfield now accepts assignment-compatible non-null
-instance and primitive-array references through `FieldResolutionContext::write_field`.
-No opcode or execution API was added; runtime-aware coverage remains 186 effective
-opcodes. The shared engine still forwards the actual computational Value, typed
+instance and array references through `FieldResolutionContext::write_field`.
+Checked field stores added no opcode or execution API. Current runtime-aware
+coverage is 189 effective opcodes, including the reference-array instructions
+below. The shared engine still forwards the actual computational Value, typed
 receiver and current declaring origin to the field service. Reference arguments
 and results remain excluded from method descriptors.
 
@@ -383,6 +385,56 @@ reference, even when assignable and bound. Only the checked context reaches a
 crate-private guarded commit. Borrowed children enumeration yields each non-null
 logical location in slot order, including repeated aliases and cycles, without
 tracing, recursion, deduplication, allocation or heap quota use. These are graph
-edges, not roots or a collector. No constructor/lifecycle proof, static writes,
-reference-array allocation, reference signatures, verifier, native binding,
-monitors or exception dispatch is added.
+edges, not roots or a collector. Constructor/lifecycle proof, static writes,
+reference signatures, verification, native binding, monitors and exception
+dispatch remain outside this profile.
+
+
+## Actual reference arrays
+
+Runtime-aware instance bodies additionally execute `anewarray`, `aaload` and
+`aastore` through the existing context and shared frame loop. Earlier numeric and
+primitive-heap APIs reject these three opcodes even with a configured heap.
+`multianewarray` remains unsupported in every mode; nested arrays can be built one
+allocation at a time. Method descriptors and host arguments/results remain
+numeric/void, so these arrays travel through locals, fields, element references
+and implicit receivers inside the body graph.
+
+`anewarray` resolves the component from the current declaring frame's constant
+pool. Component resolution, access and checked rank increment precede negative
+length, followed by shared heap quotas and fallible admission. Abstract classes
+and interfaces are valid components. New elements are null, including for nested
+primitive-array components; allocation never constructs component objects.
+Rank 254 components yield rank 255 arrays, while rank 255 components are rejected.
+`arraylength` reads either actual array payload; primitive load/store opcodes
+still require a primitive payload.
+
+`aaload` pops the Int index and Reference array, then returns the stored identity
+unchanged. `aastore` pops the Reference value, Int index and Reference array.
+Typed stack extraction precedes service calls. Destination null and signed bounds
+precede source identity or assignment checks. Null stores and reads perform no
+new relation traversal. Non-null stores use the retained actual component type,
+including defining-loader identities and structural covariance; a wider alias
+does not weaken its constraint. Existing inaccessible component identities can
+accept compatible values without a new caller-access check.
+
+Only explicit `ArrayJavaError` values map to symbolic `NullPointerException`,
+`ArrayIndexOutOfBoundsException`, `NegativeArraySizeException`,
+`ArrayStoreException` and `IllegalAccessError`. Wrapped heap/type errors remain
+boxed `ExecutionErrorKind::ArrayAccess` host failures, even when a nested source
+resembles a Java category. Diagnostics retain current method, instruction and
+available invocation provenance.
+
+Primitive and reference arrays share the existing array-count, maximum-length,
+total-element and payload-byte quotas. A reference element costs the runtime's
+`REFERENCE_ARRAY_ELEMENT_BYTES`, independent of Java primitive width. Instance
+quotas remain separate. Reads preserve raw opaque identity; writes preserve aliases,
+self-links and cycles. The borrowed child iterator reports non-null elements in
+ascending index order, including duplicates. No collection or recursive tracing
+is implied.
+
+Each instruction consumes one shared fuel unit. Completed allocations, element
+stores and field changes persist after later symbolic outcomes, host failures or
+budget exhaustion; failed allocation/store leaves prior contents intact. This
+increment adds no constructors, initialization, reference signatures, exception
+handlers or generalized JVM invocation.

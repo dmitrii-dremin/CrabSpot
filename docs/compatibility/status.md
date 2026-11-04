@@ -15,14 +15,14 @@ completion of that goal.
 
 | Area / JVMS SE 21 clauses | Status | Evidence and boundary |
 | --- | --- | --- |
-| Reader, header and versions (4.1) | Implemented and tested | Checked reads, exact consumption, majors 45Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р РЋРІвЂћСћ65, historical/preview policy and configured byte limits |
+| Reader, header and versions (4.1) | Implemented and tested | Checked reads, exact consumption, majors 45Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В Р вЂ№Р В Р вЂ Р Р†Р вЂљРЎвЂєР РЋРЎвЂєР В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р Р†РІР‚С›РЎС›Р В Р’В Р вЂ™Р’В Р В Р’В Р В РІР‚в„–Р В Р’В Р В Р вЂ№Р В Р вЂ Р Р†Р вЂљРЎвЂєР РЋРЎвЂє65, historical/preview policy and configured byte limits |
 | Constant-pool encodings (4.4) | Implemented and tested | Every tag, wide holes, numeric bits, modified UTF-8, typed indices, version introductions, module/package names and method-handle constraints |
-| Names, descriptors and members (4.2Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р РЋРІвЂћСћ4.6) | Implemented and tested | Descriptor grammar/dimensions/slots, duplicate identities, versioned access flags, class/interface/initializer context and Code presence |
+| Names, descriptors and members (4.2Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В Р вЂ№Р В Р вЂ Р Р†Р вЂљРЎвЂєР РЋРЎвЂєР В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р вЂ™Р’В Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р Р†РІР‚С›РЎС›Р В Р’В Р вЂ™Р’В Р В Р’В Р В РІР‚в„–Р В Р’В Р В Р вЂ№Р В Р вЂ Р Р†Р вЂљРЎвЂєР РЋРЎвЂє4.6) | Implemented and tested | Descriptor grammar/dimensions/slots, duplicate identities, versioned access flags, class/interface/initializer context and Code presence |
 | Standard attributes (4.7) | Implemented and tested for parser stage | All 30 bodies below; later-consumer semantics remain separate |
 | Unknown attributes (4.7.1) | Implemented and tested | Payload preservation, including standard-looking names outside applicable version/location |
 | Resource bounds | Implemented and tested | Default 16 MiB class input, annotation depth 64, one million annotation/value nodes shared across the whole class; depth hard-capped at 64 even if caller requests more |
 | Inspection CLI | Implemented and tested | Escaped metadata, bounded reads, preview opt-in and nonzero argument/input failures; no bytecode execution |
-| Genuine Java 21 fixtures | Implemented and tested | 80 classes including array/instance/reference-field bodies, class/interface/special dispatch and cast hierarchies and raw-field oracle metadata; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
+| Genuine Java 21 fixtures | Implemented and tested | 86 classes including primitive/reference-array and instance/reference-field bodies, class/interface/special dispatch and cast hierarchies and raw-field oracle metadata; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
 | Parser fuzzing | Implemented and tested | 108,907,980 seeded cases over 300 seconds, zero failures, exact-source fingerprint; no coverage metrics or proof of panic freedom |
 | Linux/Windows hosted CI | Passed for e2e2e22 | [run 41801158397](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41801158397) completed all checks on both platforms with Rust 1.99.1 and JDK 21.0.13, including strict lint, 80 regenerated fixtures/twelve oracle sets, debug/optimized tests and fuzz smoke |
 | Rust 1.85 minimum version | Not tested | Manifest declaration; actual local toolchain is Rust 1.98.1 |
@@ -40,26 +40,27 @@ completion of that goal.
 | Ordinary virtual-call execution | Implemented and tested within body-kernel scope | Runtime-aware mode adds invokevirtual (182 opcode values), bounded class resolution and package-aware receiver selection, MethodId-keyed cross-class frames and current-frame static helpers; 494 genuine JDK comparisons pass in debug/release; constructor/signature-polymorphic invocation, reference signatures and lifecycle remain unsupported |
 | Interface/default dispatch | Implemented and tested within body-kernel scope | Runtime-aware mode adds invokeinterface (183 opcode values) and completes class Methodref default fallback; shared maximal-interface analysis, class priority, private helpers, count validation, symbolic conflicts/abstract failures; all 1,337 genuine JDK comparisons pass in debug/release |
 | Ordinary special-call execution | Implemented and tested within body-kernel scope | Runtime-aware mode adds nonconstructor invokespecial (184 opcode values), prescribed superclass/direct-interface selection, effective ACC_SUPER, checked owner/receiver/declarer identities and shared MethodId caches; all 450 JDK cases pass in debug/release; constructors remain unsupported |
-| Reference types and cast instructions | Implemented and tested within body-kernel scope | Explicit heap Object/Cloneable/Serializable identities; loader-aware nominal/interface and structural-array assignment; checkcast/instanceof (186 runtime-aware opcode values), null target skipping and symbolic ClassCastException; all 1,276 genuine JDK comparisons pass in debug/release; reference-array allocation remains unsupported |
+| Reference types and cast instructions | Implemented and tested within body-kernel scope | Explicit heap Object/Cloneable/Serializable identities; loader-aware nominal/interface and structural-array assignment; checkcast/instanceof (186 runtime-aware opcode values), null target skipping and symbolic ClassCastException; all 1,276 genuine JDK comparisons pass in debug/release; reference-array allocation is covered by the later service below |
 | Checked non-null instance-reference fields | Implemented and tested within body-kernel scope | Existing putfield stores compatible ordinary-instance/primitive-array values after declaring-loader descriptor resolution and bounded assignment; public raw writes remain numeric/null only; private atomic commit and per-location child edges; all 690 JDK cases pass in debug/release; reference signatures, static writes and loading-constraint enforcement remain unsupported |
+| Reference-array storage and execution | Implemented and tested within body-kernel scope | Typed retained actual arrays, null defaults, context-only checked allocation/read/store and covariant ArrayStoreException; shared quotas with actual Reference element size, generic length and ordered child edges; anewarray/aaload/aastore bring runtime-aware coverage to 189; all 3,948 JDK cases pass in debug/release; multianewarray, mirrors, lifecycle and GC remain unsupported |
 | Full linkage, bytecode verifier and initialization | Not implemented | Subsequent increments; registration and layout planning are not full linkage |
-| Class loading, reference-array heap, GC, threads, Java libraries, JNI, Kotlin, Spring Boot, JIT | Not implemented | Subsequent milestones |
+| Class loading, multianewarray, GC, threads, Java libraries, JNI, Kotlin, Spring Boot, JIT | Not implemented | Subsequent milestones |
 
 No executed test currently remains failing. This statement is limited to the
 recorded tests; it is not proof that no defect exists.
 
-Latest independent native Windows checks: 551 workspace tests and 464 optimized
+Latest independent native Windows checks: 595 workspace tests and 508 optimized
 runtime/interpreter tests pass, with strict Clippy and formatting clean. All
-13,085 execution comparisons match; separate array and field memory services
-have 151 oracle roundtrips each. All 80 class fixtures and twelve reference sets
-reproduce, with all 74 prior class hashes unchanged. This increment adds 32 tests
-covering checked field assignment, aliases/cycles, atomic failures, private commit
-defenses, hidden descriptor types, loader/UTF-16 boundaries, deep assignment,
-exact shared quotas, current-frame origins and retained effects. The old
-non-null rejection regression now checks the missing-universe boundary.
-Final frozen review approved the increment in docs/architecture/m2-reference-fields-review.md;
-full M2 remains open. Hosted CI passed for e2e2e22 on Linux and Windows;
-that evidence applies to the implementation commit, separately from this update.
+17,033 execution comparisons match; separate array and field memory services
+have 151 oracle roundtrips each. All 86 class fixtures and thirteen reference sets
+reproduce, with all 80 prior class hashes unchanged. This increment adds 44 tests
+covering actual array identity/covariance, shared quotas, rank boundaries,
+invalid/corrupt handles, atomic failures, current-frame origins, exact limits and
+deep iterative graph/drop behavior. Generic length intentionally generalizes its
+expected-kind diagnostic to Array; primitive operations retain PrimitiveArray.
+Final frozen review approved the increment in docs/architecture/m2-reference-arrays-review.md;
+full M2 remains open. Hosted CI for this increment is pending publication;
+the preceding run in the table applies only to its named implementation commit.
 
 ## Standard attribute coverage
 

@@ -1,4 +1,4 @@
-//! A bounded, noncollecting arena of primitive arrays and ordinary instances. Handles survive arena
+//! A bounded, noncollecting arena of primitive/reference arrays and ordinary instances. Handles survive arena
 //! relocation; this service does not issue Java exception objects or array mirrors.
 use crate::instance::{InstanceOptions, InstancePayload, InstanceState};
 use crate::{HeapRef, Reference, Value, ValueKind};
@@ -81,6 +81,9 @@ pub enum HeapResource {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum HeapEntryKind {
     PrimitiveArray,
+    ReferenceArray,
+    /// Expected kind for generic length; never an actual entry payload kind.
+    Array,
     Instance,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -290,12 +293,17 @@ impl Payload {
 #[derive(Debug)]
 pub(crate) enum EntryPayload {
     Array(Payload),
+    ReferenceArray(crate::reference_array::ReferenceArrayPayload),
     Instance(InstancePayload),
 }
 impl EntryPayload {
     fn array(&self) -> Result<&Payload, HeapError> {
         match self {
             Self::Array(payload) => Ok(payload),
+            Self::ReferenceArray(_) => Err(HeapError::WrongEntryKind {
+                expected: HeapEntryKind::PrimitiveArray,
+                actual: HeapEntryKind::ReferenceArray,
+            }),
             Self::Instance(_) => Err(HeapError::WrongEntryKind {
                 expected: HeapEntryKind::PrimitiveArray,
                 actual: HeapEntryKind::Instance,
@@ -305,6 +313,10 @@ impl EntryPayload {
     fn array_mut(&mut self) -> Result<&mut Payload, HeapError> {
         match self {
             Self::Array(payload) => Ok(payload),
+            Self::ReferenceArray(_) => Err(HeapError::WrongEntryKind {
+                expected: HeapEntryKind::PrimitiveArray,
+                actual: HeapEntryKind::ReferenceArray,
+            }),
             Self::Instance(_) => Err(HeapError::WrongEntryKind {
                 expected: HeapEntryKind::PrimitiveArray,
                 actual: HeapEntryKind::Instance,
@@ -465,6 +477,51 @@ impl ManagedHeap {
         }
         Ok(index)
     }
+    pub(crate) fn allocate_reference_array_payload(
+        &mut self,
+        array_type: crate::ReferenceType,
+        length: i32,
+    ) -> Result<Reference, HeapError> {
+        use crate::reference_array::{ReferenceArrayPayload, reference_payload_size};
+        ReferenceArrayPayload::validate_type(array_type)?;
+        let size = usize::try_from(length).map_err(|_| HeapError::NegativeLength { length })?;
+        let arrays = increased(
+            self.arrays,
+            1,
+            self.options.max_arrays,
+            HeapResource::Arrays,
+        )?;
+        increased(
+            0,
+            size,
+            self.options.max_array_length,
+            HeapResource::ArrayLength,
+        )?;
+        let elements = increased(
+            self.elements,
+            size,
+            self.options.max_total_elements,
+            HeapResource::TotalElements,
+        )?;
+        let payload_bytes = reference_payload_size(size, self.options.max_payload_bytes)?;
+        let bytes = increased(
+            self.bytes,
+            payload_bytes,
+            self.options.max_payload_bytes,
+            HeapResource::PayloadBytes,
+        )?;
+        let payload = ReferenceArrayPayload::new(array_type, size)?;
+        reserve_entries(&mut self.entries, 1)?;
+        let index = self.entries.len();
+        self.entries.push(Entry {
+            generation: LIVE_GENERATION,
+            payload: EntryPayload::ReferenceArray(payload),
+        });
+        self.arrays = arrays;
+        self.elements = elements;
+        self.bytes = bytes;
+        Ok(Reference::issued(self.identity, index, LIVE_GENERATION))
+    }
     pub(crate) fn entry(&self, reference: Reference) -> Result<&Entry, HeapError> {
         let handle = reference.heap_ref().ok_or(HeapError::NullReference)?;
         let index = self.checked_handle(handle)?;
@@ -476,7 +533,14 @@ impl ManagedHeap {
         Ok(self.entry(reference)?.payload.array()?.kind())
     }
     pub fn length(&self, reference: Reference) -> Result<i32, HeapError> {
-        self.entry(reference)?.payload.array()?.length()
+        match &self.entry(reference)?.payload {
+            EntryPayload::Array(payload) => payload.length(),
+            EntryPayload::ReferenceArray(payload) => payload.length(),
+            EntryPayload::Instance(_) => Err(HeapError::WrongEntryKind {
+                expected: HeapEntryKind::Array,
+                actual: HeapEntryKind::Instance,
+            }),
+        }
     }
     pub fn load(&self, reference: Reference, index: i32) -> Result<Value, HeapError> {
         let payload = self.entry(reference)?.payload.array()?;
@@ -655,5 +719,65 @@ mod tests {
         assert_eq!(tokens.len(), 1024);
         assert!(!tokens.contains(&0));
         assert_eq!(allocator.load(Ordering::Relaxed), 1025);
+    }
+}
+#[test]
+fn reference_array_checked_counter_overflows_and_arena_reservation_preserve_publication() {
+    let array_type = crate::ReferenceType::Array {
+        dimensions: 1,
+        element: crate::ArrayElement::Class(crate::ClassId {
+            registry: 1,
+            index: 0,
+        }),
+        defining_loader: crate::LoaderId {
+            registry: 1,
+            index: 0,
+        },
+    };
+    for resource in [
+        HeapResource::Arrays,
+        HeapResource::TotalElements,
+        HeapResource::PayloadBytes,
+    ] {
+        let mut heap = ManagedHeap::new(HeapOptions {
+            max_arrays: usize::MAX,
+            max_array_length: usize::MAX,
+            max_total_elements: usize::MAX,
+            max_payload_bytes: usize::MAX,
+        })
+        .unwrap();
+        let reference = heap
+            .allocate_reference_array_payload(array_type, 1)
+            .unwrap();
+        match resource {
+            HeapResource::Arrays => heap.arrays = usize::MAX,
+            HeapResource::TotalElements => heap.elements = usize::MAX,
+            HeapResource::PayloadBytes => heap.bytes = usize::MAX,
+            _ => unreachable!(),
+        }
+        let before = (heap.entries.len(), heap.arrays, heap.elements, heap.bytes);
+        assert_eq!(
+            heap.allocate_reference_array_payload(array_type, 1),
+            Err(HeapError::ResourceLimit {
+                resource,
+                limit: usize::MAX,
+                required: usize::MAX
+            })
+        );
+        assert_eq!(
+            before,
+            (heap.entries.len(), heap.arrays, heap.elements, heap.bytes)
+        );
+        assert_eq!(heap.length(reference), Ok(1));
+        assert_eq!(heap.load_reference(reference, 0), Ok(Reference::null()));
+        assert!(matches!(
+            reserve_entries(&mut heap.entries, usize::MAX),
+            Err(HeapError::AllocationFailure { .. })
+        ));
+        assert_eq!(
+            before,
+            (heap.entries.len(), heap.arrays, heap.elements, heap.bytes)
+        );
+        assert_eq!(heap.reference_array_type(reference), Ok(array_type));
     }
 }

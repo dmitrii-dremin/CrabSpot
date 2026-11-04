@@ -2,7 +2,7 @@
 
 An independent JVM implementation in Rust. It parses Java 21 class files, decodes
 JVM instructions, and executes supported numeric method bodies independently in
-Rust, including bounded virtual/interface/super calls across bodies, primitive arrays,
+Rust, including bounded virtual/interface/super calls across bodies, primitive/reference arrays,
 instance fields, casts and type tests. The long-term goal is a complete
 JVM specification implementation with the required observable behavior of
 conforming JVMs, using HotSpot as the primary reference, and demonstrated
@@ -45,6 +45,7 @@ python tools/interface_dispatch_reference.py --check
 python tools/special_reference.py --check
 python tools/type_reference.py --check
 python tools/reference_field_reference.py --check
+python tools/reference_array_reference.py --check
 cargo test -p crabspot-interpreter --test numeric_reference
 cargo test -p crabspot-interpreter --test floating_reference --release
 ```
@@ -73,8 +74,8 @@ hierarchy/field-layout plans, shared values, static storage and a managed heap,
 and `crabspot-launcher` for command-line inspection.
 The differential tests compare 616 integral, 7,263 floating-point, 126 static-call,
 280 primitive-array, 553 instance-field, 494 virtual-call, 1,337 interface/default,
-450 ordinary special-call, 1,276 cast/type-test and 690 reference-field OpenJDK 21
-outcomes with Rust execution,
+450 ordinary special-call, 1,276 cast/type-test, 690 reference-field and 3,948
+reference-array OpenJDK 21 outcomes with Rust execution,
 including arithmetic exceptions, signed zero,
 subnormals and NaN classification. The kernel supports bounded same-class static
 helpers, ordinary virtual calls and interface/default dispatch across registered
@@ -93,12 +94,17 @@ Raw heap writes support numeric/null values with final-field protection and
 explicit quotas;
 151 raw-putfield JDK reference cases test its storage conversions. Constructors and
 class initialization remain unimplemented. Checked context writes additionally
-store compatible non-null instance/primitive-array references, preserving loader
+store compatible non-null instance and array references, preserving loader
 identities and per-location child edges without implementing collection.
+Typed reference arrays retain actual component identity, use checked covariant
+stores, and share array quotas with primitive arrays. Reference payload accounting
+uses the actual Rust Reference element size; it excludes container/allocator
+overhead and is not total process memory.
 A runtime-aware instance-body API executes getfield/putfield, invokevirtual,
 invokeinterface and ordinary nonconstructor invokespecial through bounded
 loader-aware resolution and an explicit unnamed-module access profile.
-It supports 186 opcode values, including checkcast and instanceof; the earlier
+It supports 189 opcode values, including checkcast/instanceof and reference-array
+allocation/load/store; the earlier
 explicit-heap/static API
 retains 179 and the numeric-only APIs retain 148. Virtual selection handles
 inherited declarations, private/final methods and package-aware overrides. Shared
@@ -111,7 +117,8 @@ null skips target resolution after constant-pool shape checks. Each
 frame uses its declaring class and shares execution limits with the whole call
 graph. Host-selected root bodies still require supplied instance storage; they
 do not construct objects or start Java applications. Constructor invocation,
-named-module access, cross-class nests and cross-loader reference loading
+recursive multianewarray allocation, named-module access, cross-class nests and
+cross-loader reference loading
 constraints remain explicit unsupported cases.
 The implementation uses the
 [JVMS Java SE 21](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html)

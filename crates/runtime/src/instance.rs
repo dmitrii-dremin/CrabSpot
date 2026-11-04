@@ -398,6 +398,10 @@ fn instance(payload: &EntryPayload) -> Result<&InstancePayload, HeapError> {
             expected: HeapEntryKind::Instance,
             actual: HeapEntryKind::PrimitiveArray,
         }),
+        EntryPayload::ReferenceArray(_) => Err(HeapError::WrongEntryKind {
+            expected: HeapEntryKind::Instance,
+            actual: HeapEntryKind::ReferenceArray,
+        }),
     }
 }
 fn same_layout(left: &ClassLayout, right: &ClassLayout) -> bool {
@@ -906,14 +910,22 @@ impl ManagedHeap {
         &self,
         reference: Reference,
     ) -> Result<impl Iterator<Item = HeapRef> + '_, HeapError> {
-        let values = match &self.entry(reference)?.payload {
-            EntryPayload::Array(_) => &[][..],
-            EntryPayload::Instance(object) => object.values.as_slice(),
+        let (values, references): (&[Value], &[Reference]) = match &self.entry(reference)?.payload {
+            EntryPayload::Array(_) => (&[], &[]),
+            EntryPayload::ReferenceArray(array) => (&[], array.values.as_slice()),
+            EntryPayload::Instance(object) => (object.values.as_slice(), &[]),
         };
-        Ok(values.iter().filter_map(|value| match value {
-            Value::Reference(r) => r.heap_ref(),
-            _ => None,
-        }))
+        Ok(values
+            .iter()
+            .filter_map(|value| match value {
+                Value::Reference(r) => r.heap_ref(),
+                _ => None,
+            })
+            .chain(
+                references
+                    .iter()
+                    .filter_map(|reference| reference.heap_ref()),
+            ))
     }
 }
 fn validate_acyclic(candidates: &HashMap<ClassId, &ClassLayout>) -> Result<(), InstanceError> {
@@ -1297,7 +1309,6 @@ mod tests {
         ));
         for result in [
             heap.kind(object).map(|_| ()),
-            heap.length(object).map(|_| ()),
             heap.load(object, 0).map(|_| ()),
             heap.store(object, 0, Value::Int(1)),
         ] {
@@ -1309,6 +1320,13 @@ mod tests {
                 }
             );
         }
+        assert_eq!(
+            heap.length(object),
+            Err(HeapError::WrongEntryKind {
+                expected: HeapEntryKind::Array,
+                actual: HeapEntryKind::Instance,
+            })
+        );
     }
     #[test]
     fn damaged_shapes_and_payloads_fail_with_bounded_walks_and_no_publication() {

@@ -128,7 +128,8 @@ and maps its supported symbolic Java exception outcomes. `validate_root` checks 
 handle without marking or retaining it. Allocated entries are not automatically
 roots. Primitive arrays contain no child references. The heap performs no tracing,
 collection, reclamation or safepoint synchronization, and has no substitute caller
-root set. Reference arrays, array class mirrors/assignability and general Java startup
+root set. The raw primitive API does not allocate reference arrays; checked services
+are described below. Array class mirrors and general Java startup
 remain outside this service. Ordinary instances are an explicitly enabled memory
 service described below.
 
@@ -138,7 +139,7 @@ service described below.
 `ManagedHeap::new_with_instances(HeapOptions, InstanceOptions)` enables ordinary
 instances in the same opaque-reference arena as primitive arrays. The original
 constructor leaves instance operations disabled. Array counters and all four
-array quotas continue to count only primitive arrays. Instance quotas separately
+array quotas count primitive and reference arrays together. Instance quotas separately
 bound retained class shapes, direct dependency edges, own instance fields, object
 entries, locations per object and aggregate object locations. Their defaults are
 1,024 / 8,192 / 65,536 / 4,096 / 65,536 / 1,048,576 respectively. These are logical
@@ -181,8 +182,8 @@ primitive arrays yield none. Checked context stores can populate these locations
 aliases and cycles are returned as immediate edges in slot order. This iterator is neither caller
 roots nor a collector. The raw instance memory API does not perform assignment
 checks, field-bytecode execution, constructors or lifecycle transitions; the checked
-context described below supplies resolution and assignment. Reclamation and
-reference arrays remain unimplemented.
+context described below supplies resolution and assignment. Reclamation remains
+unimplemented.
 
 ## Field resolution and access context
 
@@ -325,8 +326,8 @@ replacement and additional admission. New target-name scans charge each UTF-16
 unit even on cache hits; nominal validation, type reductions, graph nodes and every
 edge enqueue share the existing cumulative work limits. Diamond traversal is
 deduplicated and fallibly reserved without recursion or permanent type caches.
-Reference-array allocation and reference call signatures,
-constructors, initialization, verification and collection remain outside this service.
+Reference call signatures, constructors, initialization, verification and collection
+remain outside this service.
 
 ## Checked non-null instance-reference fields
 
@@ -353,5 +354,43 @@ before one mutation. Public `put_field` continues rejecting all non-null referen
 Stores allocate no heap entries or payload, do not change quotas or identity, and
 do not claim construction or initialization. `children` borrows one handle per
 non-null slot, preserving repeated aliases and cycles without recursion, tracing,
-deduplication or allocation. Static writes, reference arrays, reference call
+deduplication or allocation. Static writes and reference call
 signatures, lifecycle protocols and collection remain outside this increment.
+
+## Checked reference arrays
+
+The context's `allocate_reference_array` validates a resolved component identity;
+`new_reference_array` first resolves and access-checks a current-origin Class
+constant. Both allocate one null-filled vector and retain the complete actual
+array type. A nominal component creates rank one; an array component adds one
+rank without allocating inner arrays. Rank 254 can produce rank 255; rank 255
+components fail before length or quota checks. Typed allocation has no caller
+access check and permits abstract/interface components.
+
+`read_reference_array` and `write_reference_array` use the retained component
+identity and shared assignment relation. Stores check null, destination kind and
+signed bounds before value/type validation. Incompatible values produce the
+explicit ArrayStore Java category; field mismatches retain their host diagnostic.
+Only destination null/bounds checks and allocation negative length receive their
+local Java mapping. Wrapped type errors and corrupt stored/source handles stay
+host errors. Reads and null stores do not consume lookup work. Non-null stores
+validate source, actual array type and assignment before guarded commit.
+
+Reference arrays share all existing array count, length, element and payload
+quotas with primitive arrays. `REFERENCE_ARRAY_ELEMENT_BYTES` is the actual
+`size_of::<Reference>()`; checked length multiplication counts the shallow typed
+Vec payload. Headers, capacity slack, retained type metadata, arena/allocator
+overhead and instance payloads are excluded. It is not total process memory.
+Fallible payload/arena reservation completes before handle publication and
+counter changes. Failed allocation/store preserves existing state; stores do not
+allocate entries or invalidate the context.
+
+Heap `reference_array_type` and `load_reference` expose read-only inspection with
+local structural/handle checks. There is no public raw reference-array allocator,
+setter or mutable payload. Primitive `kind`/`load`/`store` reject reference arrays;
+generic `length` accepts both payloads and reports expected Array for instances.
+`children` borrows non-null elements in ascending index order, preserving aliases,
+self-edges and cycles without allocation, recursion or tracing. Existing checked
+fields and cast/type services accept actual arrays through the same relation.
+Recursive multianewarray allocation, mirrors, reference call signatures,
+constructors, initialization, verification and collection remain outside scope.

@@ -186,7 +186,7 @@ impl ManagedHeap {
 }
 
 impl<'a> FieldResolutionContext<'a> {
-    fn universe(&self) -> Result<ReferenceTypeUniverse, TypeAccessError> {
+    pub(crate) fn universe(&self) -> Result<ReferenceTypeUniverse, TypeAccessError> {
         self.heap()
             .reference_type_universe()
             .ok_or(TypeAccessError::MissingUniverse)
@@ -197,7 +197,7 @@ impl<'a> FieldResolutionContext<'a> {
         self.heap().instance_graph_node(class)?;
         Ok(())
     }
-    fn validate_reference_type(
+    pub(crate) fn validate_reference_type(
         &mut self,
         value: ReferenceType,
         universe: ReferenceTypeUniverse,
@@ -396,6 +396,11 @@ impl<'a> FieldResolutionContext<'a> {
                 element: ArrayElement::Primitive(self.heap().kind(reference)?),
                 defining_loader: universe.bootstrap_loader,
             },
+            crate::heap::EntryPayload::ReferenceArray(_) => {
+                let actual = self.heap().reference_array_type(reference)?;
+                self.validate_reference_type(actual, universe)?;
+                actual
+            }
         };
         Ok(Some(value))
     }
@@ -521,7 +526,7 @@ impl<'a> FieldResolutionContext<'a> {
         self.is_assignable(source, target)
     }
 }
-fn component(
+pub(crate) fn component(
     dimensions: u8,
     element: ArrayElement,
     defining_loader: LoaderId,

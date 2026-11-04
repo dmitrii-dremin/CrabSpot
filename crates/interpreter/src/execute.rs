@@ -8,9 +8,9 @@ use crabspot_classfile::{
     descriptor::{FieldType, parse_method_descriptor},
 };
 use crabspot_runtime::{
-    ClassId, DefinitionRegistry, FieldAccessError, FieldJavaError, FieldResolutionContext,
-    HeapError, ManagedHeap, MethodAccessError, MethodId, MethodJavaError, PrimitiveArrayKind,
-    Reference, TypeAccessError, TypeJavaError,
+    ArrayAccessError, ArrayJavaError, ClassId, DefinitionRegistry, FieldAccessError,
+    FieldJavaError, FieldResolutionContext, HeapError, ManagedHeap, MethodAccessError, MethodId,
+    MethodJavaError, PrimitiveArrayKind, Reference, TypeAccessError, TypeJavaError,
 };
 use std::collections::HashMap;
 
@@ -32,6 +32,7 @@ pub enum ExecutionOutcome {
     /// A symbolic uncaught Java exception; no exception object is fabricated.
     ArithmeticException,
     ClassCastException,
+    ArrayStoreException,
     NullPointerException,
     ArrayIndexOutOfBoundsException,
     NegativeArraySizeException,
@@ -210,6 +211,7 @@ enum Action {
     Return(Option<Value>),
     ArithmeticException,
     ClassCastException,
+    ArrayStoreException,
     NullPointerException,
     ArrayIndexOutOfBoundsException,
     NegativeArraySizeException,
@@ -721,6 +723,7 @@ fn execute_with_services(
             Action::IncompatibleClassChangeError => {
                 return Ok(ExecutionOutcome::IncompatibleClassChangeError);
             }
+            Action::ArrayStoreException => return Ok(ExecutionOutcome::ArrayStoreException),
             Action::ClassCastException => return Ok(ExecutionOutcome::ClassCastException),
             Action::Continue => {}
             Action::ArithmeticException => return Ok(ExecutionOutcome::ArithmeticException),
@@ -1059,8 +1062,10 @@ fn step(
             E::UnsupportedInstruction(opcode),
         ));
     }
-    if matches!(opcode, 0xb4..=0xb7 | 0xb9 | 0xc0 | 0xc1)
-        && !matches!(services, Services::Fields { .. })
+    if matches!(
+        opcode,
+        0x32 | 0x53 | 0xb4..=0xb7 | 0xb9 | 0xbd | 0xc0 | 0xc1
+    ) && !matches!(services, Services::Fields { .. })
     {
         return Err(ExecutionError::new(
             Some(pc),
@@ -1072,6 +1077,44 @@ fn step(
         .checked_add(instruction.length)
         .ok_or_else(|| ExecutionError::new(Some(pc), E::InstructionPointerOutsideCode))?;
     match opcode {
+        0xbd => {
+            let Operands::Constant(index) = operands else {
+                return Err(operand_error(pc));
+            };
+            let length = stack.int(pc)?;
+            let Services::Fields { context, .. } = services else {
+                return Err(operand_error(pc));
+            };
+            let origin = frame.method.owner().ok_or_else(|| operand_error(pc))?;
+            let reference = match context.new_reference_array(origin, *index, length) {
+                Ok(reference) => reference,
+                Err(error) => return array_failure(error, pc),
+            };
+            stack.push(Value::Reference(reference), pc)?;
+        }
+        0x32 => {
+            let index = stack.int(pc)?;
+            let array = stack.reference(pc)?;
+            let Services::Fields { context, .. } = services else {
+                return Err(operand_error(pc));
+            };
+            let reference = match context.read_reference_array(array, index) {
+                Ok(reference) => reference,
+                Err(error) => return array_failure(error, pc),
+            };
+            stack.push(Value::Reference(reference), pc)?;
+        }
+        0x53 => {
+            let value = stack.reference(pc)?;
+            let index = stack.int(pc)?;
+            let array = stack.reference(pc)?;
+            let Services::Fields { context, .. } = services else {
+                return Err(operand_error(pc));
+            };
+            if let Err(error) = context.write_reference_array(array, index, value) {
+                return array_failure(error, pc);
+            }
+        }
         0xc0 | 0xc1 => {
             let Operands::Constant(index) = operands else {
                 return Err(operand_error(pc));
@@ -1749,6 +1792,24 @@ fn invocation_parameters(
         slots: descriptor.parameter_slots,
     })
 }
+fn array_failure(error: ArrayAccessError, pc: u32) -> Result<Action, ExecutionError> {
+    match error {
+        ArrayAccessError::Java(ArrayJavaError::NullPointer) => Ok(Action::NullPointerException),
+        ArrayAccessError::Java(ArrayJavaError::IndexOutOfBounds) => {
+            Ok(Action::ArrayIndexOutOfBoundsException)
+        }
+        ArrayAccessError::Java(ArrayJavaError::NegativeArraySize) => {
+            Ok(Action::NegativeArraySizeException)
+        }
+        ArrayAccessError::Java(ArrayJavaError::ArrayStore) => Ok(Action::ArrayStoreException),
+        ArrayAccessError::Java(ArrayJavaError::IllegalAccess) => Ok(Action::IllegalAccessError),
+        error => Err(ExecutionError::new(
+            Some(pc),
+            E::ArrayAccess(Box::new(error)),
+        )),
+    }
+}
+
 fn type_failure(error: TypeAccessError, pc: u32) -> Result<Action, ExecutionError> {
     match error {
         TypeAccessError::Java(TypeJavaError::ClassCast) => Ok(Action::ClassCastException),
@@ -2009,6 +2070,46 @@ mod resource_tests {
         assert_eq!(error.offset, Some(7));
         assert_eq!(error.kind, E::MethodAccess(Box::new(host)));
         assert!(std::error::Error::source(&error).is_some());
+    }
+    #[test]
+    fn array_failure_maps_only_explicit_java_variants_and_preserves_nested_host_errors() {
+        for (kind, expected) in [
+            (ArrayJavaError::NullPointer, 0),
+            (ArrayJavaError::IndexOutOfBounds, 1),
+            (ArrayJavaError::NegativeArraySize, 2),
+            (ArrayJavaError::ArrayStore, 3),
+            (ArrayJavaError::IllegalAccess, 4),
+        ] {
+            let action = array_failure(ArrayAccessError::Java(kind), 19).unwrap();
+            assert!(matches!(
+                (expected, action),
+                (0, Action::NullPointerException)
+                    | (1, Action::ArrayIndexOutOfBoundsException)
+                    | (2, Action::NegativeArraySizeException)
+                    | (3, Action::ArrayStoreException)
+                    | (4, Action::IllegalAccessError)
+            ));
+        }
+        for host in [
+            ArrayAccessError::Heap(HeapError::NullReference),
+            ArrayAccessError::Heap(HeapError::IndexOutOfBounds {
+                index: -1,
+                length: 0,
+            }),
+            ArrayAccessError::Heap(HeapError::NegativeLength { length: -1 }),
+            ArrayAccessError::Type(Box::new(TypeAccessError::Java(
+                TypeJavaError::IllegalAccess,
+            ))),
+            ArrayAccessError::Type(Box::new(TypeAccessError::Java(TypeJavaError::ClassCast))),
+        ] {
+            let error = match array_failure(host.clone(), 19) {
+                Err(error) => error,
+                Ok(_) => panic!("nested host failure became instruction Java"),
+            };
+            assert_eq!(error.offset, Some(19));
+            assert_eq!(error.kind, E::ArrayAccess(Box::new(host)));
+            assert!(std::error::Error::source(&error).is_some());
+        }
     }
     #[test]
     fn reference_field_nested_type_java_errors_remain_boxed_field_host_errors() {

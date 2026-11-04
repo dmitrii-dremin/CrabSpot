@@ -26,7 +26,7 @@ kinds/defaults, visible/invisible declaration/parameter/type annotations, generi
 type paths and annotated Code, inner/nest classes, records, sealed classes, and
 a module descriptor with requires, exports, opens, uses and provides tables.
 Numeric, floating-point, static-call and hierarchy fixtures bring the manifest to
-80 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
+86 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
 reference descriptors and interface ancestry. Rust hierarchy tests supply an
 explicit synthetic root as test input; this is not a production Object fallback
 or evidence of Java library execution.
@@ -83,3 +83,12 @@ package; its wrapper stores and copies the value without naming that type.
 Rust checks exact field state, repeated child handles in slot order and allocations
 against fixture-source expectations, separately from recorded JDK return/exception
 rows. Distinct-object cycles and malformed assignments use synthetic service tests.
+
+ReferenceArrayBase/Cases and four companions add genuine anewarray/aaload/aastore
+coverage. The 3,948-row oracle covers object/interface covariance, all primitive
+array component kinds, rank-two/rank-three arrays, null/default elements, aliasing,
+cycles, overwritten/cleared slots, calls through loaded values and Java array
+failures. Rust verifies complete source-derived graph state, retained actual types,
+child ordering and shared allocation/payload counters separately from JDK result
+rows. Selected Code is decoded to require all three new instructions and exclude
+multianewarray; the Java driver is outside CrabSpot execution.

@@ -13,6 +13,7 @@ mod hierarchy;
 pub mod instance;
 mod method;
 mod reference;
+mod reference_array;
 mod registry;
 mod source;
 mod storage;
@@ -33,6 +34,7 @@ pub use hierarchy::{
     HierarchyResource, ResolveError, SameLoaderResolver, build_hierarchy,
 };
 pub use reference::{HeapRef, Reference};
+pub use reference_array::{ArrayAccessError, ArrayJavaError, REFERENCE_ARRAY_ELEMENT_BYTES};
 pub use registry::{DefinitionRegistry, RegistryOptions};
 pub use source::{DefinitionSource, InMemorySource, SourceError};
 pub use storage::{StaticStorage, StaticStorageOptions, StorageError};

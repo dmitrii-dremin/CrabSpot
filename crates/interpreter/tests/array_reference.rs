@@ -40,7 +40,8 @@ fn observed(outcome: ExecutionOutcome) -> String {
         | ExecutionOutcome::IncompatibleClassChangeError
         | ExecutionOutcome::NoSuchMethodError
         | ExecutionOutcome::AbstractMethodError
-        | ExecutionOutcome::ClassCastException) => {
+        | ExecutionOutcome::ClassCastException
+        | ExecutionOutcome::ArrayStoreException) => {
             panic!("unexpected field outcome: {unexpected:?}")
         }
         ExecutionOutcome::ArithmeticException => "E:java/lang/ArithmeticException".to_owned(),

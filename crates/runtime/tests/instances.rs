@@ -1574,7 +1574,13 @@ fn array_and_instance_entries_share_identity_validation_but_keep_independent_quo
         actual: HeapEntryKind::Instance,
     };
     assert_eq!(heap.kind(instance).unwrap_err(), wrong_array);
-    assert_eq!(heap.length(instance).unwrap_err(), wrong_array);
+    assert_eq!(
+        heap.length(instance).unwrap_err(),
+        HeapError::WrongEntryKind {
+            expected: HeapEntryKind::Array,
+            actual: HeapEntryKind::Instance,
+        }
+    );
     assert_eq!(heap.load(instance, 0).unwrap_err(), wrong_array);
     assert_eq!(
         heap.store(instance, 0, Value::Int(0)).unwrap_err(),

@@ -138,6 +138,7 @@ fn observed(outcome: ExecutionOutcome) -> String {
         ExecutionOutcome::Returned(Some(Value::Reference(_))) => {
             panic!("unexpected reference result")
         }
+        ExecutionOutcome::ArrayStoreException => "E:java/lang/ArrayStoreException".to_owned(),
         ExecutionOutcome::ClassCastException => "E:java/lang/ClassCastException".to_owned(),
         ExecutionOutcome::ArithmeticException => "E:java/lang/ArithmeticException".to_owned(),
         ExecutionOutcome::NullPointerException => "E:java/lang/NullPointerException".to_owned(),

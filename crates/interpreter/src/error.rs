@@ -2,7 +2,8 @@ use crate::ValueKind;
 use crabspot_bytecode::DecodeError;
 use crabspot_classfile::JavaString;
 use crabspot_runtime::{
-    ClassId, FieldAccessError, HeapError, MethodAccessError, PrimitiveArrayKind, TypeAccessError,
+    ArrayAccessError, ClassId, FieldAccessError, HeapError, MethodAccessError, PrimitiveArrayKind,
+    TypeAccessError,
 };
 use std::fmt;
 
@@ -104,6 +105,7 @@ pub enum ExecutionErrorKind {
     FieldAccess(Box<FieldAccessError>),
     MethodAccess(Box<MethodAccessError>),
     TypeAccess(Box<TypeAccessError>),
+    ArrayAccess(Box<ArrayAccessError>),
     WrongArrayKind {
         opcode: u8,
         actual: PrimitiveArrayKind,
@@ -148,6 +150,9 @@ impl fmt::Display for ExecutionError {
             write!(formatter, "bytecode offset {offset}: ")?;
         }
         match &self.kind {
+            ExecutionErrorKind::ArrayAccess(error) => {
+                write!(formatter, "reference array service failed: {error}")
+            }
             ExecutionErrorKind::TypeAccess(error) => {
                 write!(formatter, "type service failed: {error}")
             }
@@ -271,6 +276,7 @@ impl std::error::Error for ExecutionError {
             ExecutionErrorKind::FieldAccess(error) => Some(error.as_ref()),
             ExecutionErrorKind::MethodAccess(error) => Some(error.as_ref()),
             ExecutionErrorKind::TypeAccess(error) => Some(error.as_ref()),
+            ExecutionErrorKind::ArrayAccess(error) => Some(error.as_ref()),
             _ => None,
         }
     }

@@ -1,10 +1,10 @@
-# Accepted checkpoint: checked non-null instance fields
+# Accepted checkpoint: reference-array storage and execution
 
-Updated 2026-11-04. M1 and earlier M2/runtime increments through reference types
-and cast instructions are approved. Checked non-null instance fields are approved after
-final integrated validation and frozen-source review; see
-docs/architecture/m2-reference-fields-review.md. Full M2 remains open. Continue autonomously without NanoSpec; ask only
-when user intervention is unavoidable.
+Updated 2026-11-04. M1 and earlier M2/runtime increments through checked non-null
+reference fields are approved. Reference-array storage and anewarray/aaload/aastore
+are approved after integrated validation and frozen-source review; see
+docs/architecture/m2-reference-arrays-review.md. Full M2 remains open. Continue autonomously without
+NanoSpec; ask only when user intervention is unavoidable.
 
 The long-term objective is complete JVM specification support, required observable
 compatibility with conforming JVMs (HotSpot is the primary reference), and
@@ -18,7 +18,7 @@ milestones, not the endpoint. No performance result is claimed.
 - Java 21 class-file encodings and all 30 standard attributes, lossless UTF-16,
   checked reads and explicit parser limits; metadata inspection CLI.
 - Full instruction-format decoder. Runtime-aware instance execution supports
-  186 opcode values; the earlier heap/static mode retains 179 and numeric APIs 148.
+  189 opcode values; the earlier heap/static mode retains 179 and numeric APIs 148.
 - Numeric/void body graphs with shared instruction fuel, explicit iterative
   frames and frame/slot/prepared-code quotas. Registered frames and prepared
   cache entries use complete MethodIds, with each frame's own constant pool,
@@ -26,7 +26,7 @@ milestones, not the endpoint. No performance result is claimed.
 - Immutable definitions keyed by defining loader and exact UTF-16 name; bounded
   sources, explicit hierarchy resolution, parent-linked layouts, hidden fields,
   and typed default static storage without initialization.
-- A noncollecting managed heap with primitive arrays and explicitly enabled
+- A noncollecting managed heap with primitive/reference arrays and explicitly enabled
   ordinary instances, checked opaque references, atomic multi-plan admission,
   fallible allocation, numeric/null field stores and final-write protection.
 - A reusable unnamed-module context with shared loader/name bindings, admitted
@@ -66,16 +66,25 @@ structural array assignment is iterative and bounded; protected class-only acces
 remains separate. checkcast/instanceof use the current frame's class, preserve
 reference identity, and skip target resolution for null after CP shape checks.
 Only explicit Java failures become symbolic outcomes; malformed host input retains
-structured errors. Reference-array types do not imply reference-array storage.
+structured errors. Actual reference arrays now retain these same structural identities.
 
 Checked context writes now accept assignment-compatible non-null ordinary-instance
-and primitive-array references. They preserve field/access/static/final/receiver
+and array references. They preserve field/access/static/final/receiver
 ordering, resolve descriptor identity through the declaring loader, and commit
 one slot only after all checks pass. Public raw writes remain numeric/null only.
 The descriptor type need not be accessible to the caller; cast accessibility
 checks remain separate. Incompatible stores are structured host errors, and child
 enumeration preserves immediate locations, repeated aliases and cycles without
 tracing or collection.
+
+Typed reference arrays initialize elements to null and use the shared array count,
+length, element and payload quotas. Payload accounting uses size_of::<Reference>()
+per stored element and excludes container/allocator overhead. Checked covariant
+stores use retained actual component identity; destination null and bounds checks
+precede value validation and ArrayStoreException. Reads preserve handles, generic
+arraylength accepts both array payloads, and immediate child enumeration preserves
+index order, aliases and cycles without recursion or collection. The old primitive
+heap APIs remain primitive-only and expose no raw reference-array mutation.
 
 ## Validation
 
@@ -85,66 +94,64 @@ Final independent checks passed on the verified frozen source:
 | --- | --- |
 | cargo fmt --check | Passed |
 | Strict workspace/all-target Clippy | Passed |
-| Debug workspace tests | 551 passed, zero failed |
-| Optimized runtime/interpreter tests | 464 passed: 253 runtime + 211 interpreter |
-| Execution comparisons | All 13,085 match in debug and release |
+| Debug workspace tests | 595 passed, zero failed |
+| Optimized runtime/interpreter tests | 508 passed: 275 runtime + 233 interpreter |
+| Execution comparisons | All 17,033 match in debug and release |
 | Separate memory-service roundtrips | 151 array + 151 field cases match in both profiles |
-| Fixture/reference reproduction | 80 classes and all twelve output sets reproduced |
+| Fixture/reference reproduction | 86 classes and all thirteen output sets reproduced |
 | Expanded parser smoke | 10,000 cases, zero failures |
 
-This increment adds 32 tests: 13 runtime public and two private, 15 interpreter
-public and one private mapping guard, and one independent 690-case JDK integration.
-Coverage includes distinct-object cycles, aliases and slot order, inherited/hidden
-fields, private commit defenses, source/receiver invalidity, cross-loader boundaries,
-Unicode descriptors, a 10,000-class assignment walk, a maximum 65,535-unit descriptor,
-exact budgets and failure persistence. The old interpreter test for unsupported
-non-null writes now checks MissingUniverse; the combined run includes that updated
-regression. No executed test remains failing. All 74 prior class hashes are unchanged.
+This increment adds 44 tests: 18 public runtime and four private guards,
+20 public interpreter and one private mapping guard, plus one independent JDK
+integration. Tests cover rank-254/255 boundaries, all eight primitive components,
+shared quota/overflow/reservation failures, exact work/fuel limits, invalid and
+corrupt handles/types, per-frame resolution, wide reference locals, casts/fields/
+all accepted call forms, and a 10,000-class/array graph with nonrecursive drop.
+The generic length error now intentionally expects Array for an instance;
+primitive-specific operations still expect PrimitiveArray. All 80 prior class
+hashes are unchanged. No executed test remains failing.
 
-The complete execution corpus is 13,085 cases: 616 integral, 7,263 floating,
+The complete execution corpus is 17,033 cases: 616 integral, 7,263 floating,
 126 static-call, 280 primitive-array, 402 genuine instance-body, 151 raw-field,
-494 virtual-call, 1,337 interface/default, 450 ordinary-special, 1,276 type and
-690 reference-field cases. Separate array and field memory services each have
-151 oracle roundtrips, not extra execution cases.
+494 virtual-call, 1,337 interface/default, 450 ordinary-special, 1,276 type,
+690 reference-field and 3,948 reference-array cases. Separate array and field
+memory services each have 151 oracle roundtrips, not extra execution cases.
 
-The new oracle covers 42 receiver/method pairs and 100 Java failures:
-14 ClassCastException, 54 NegativeArraySizeException, 28 NullPointerException,
-two ArithmeticException and two ArrayIndexOutOfBoundsException. Exact field state,
-child slot order, duplicate handles and allocation checks derive from fixture
-source; JDK rows independently record results/exceptions. A public field has a
-package-private nominal type in another package, and the caller successfully
-stores and copies references without naming that type. Production execution never
-invokes Java. Default host storage does not establish constructor execution.
+The new oracle covers 42 receiver/method pairs: 399 successful results and 3,549
+Java failures (313 ArrayStoreException, 1,406 NegativeArraySizeException,
+1,810 ArrayIndexOutOfBoundsException and 20 NullPointerException). JDK rows record
+independent results/exceptions. A fixture-specific source model separately checks
+all retained array identities/types/elements, instance fields, ordered child edges,
+shared counts and payload bytes after every outcome. It does not compute return
+values or implement a general JVM type relation. Selected genuine Code is decoded
+to require bd/32/53 and exclude c5; the Java oracle driver is not executed by
+CrabSpot. Host default receivers do not establish constructor execution.
 
 The unchanged parser's sustained M1 evidence remains in docs/milestones/evidence:
 108,907,980 cases over 300 seconds, zero failures, with exact-source fingerprint.
-The expanded 80-class smoke run passed 10,000 cases at seed 4851011501752864596:
-125 accepted, 9,875 rejected, ten deterministic rechecks, corpus 205, zero failures.
+The expanded 86-class smoke run passed 10,000 cases at seed 4851011501752864596:
+136 accepted, 9,864 rejected, ten deterministic rechecks, corpus 222, zero failures.
 No finite test proves panic freedom. Rust 1.85, the declared minimum, remains
 untested; local tools are Rust/Cargo 1.98.1 and Zulu OpenJDK 21.0.7.
 
-The preceding reference-type implementation f05fa69 passed complete Linux/Windows
-[run 41798076784](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41798076784)
-with Rust 1.99.1 and Temurin JDK 21.0.13. Checked-field implementation e2e2e22 passed complete [run 41801158397](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41801158397)
-on Linux and Windows with Rust 1.99.1 and Temurin JDK 21.0.13. Every check passed:
-checked-in/regenerated fixtures, all twelve output sets, strict lint, debug and
-optimized tests, and parser smoke. Both hosted smoke runs completed 10,000 cases
-with 125 accepted, 9,875 rejected, ten rechecks, corpus 205 and zero failures.
-This evidence belongs to the implementation commit, separately from this update.
+The preceding checked-field implementation e2e2e22 passed complete Linux/Windows
+[run 41801158397](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41801158397)
+with Rust 1.99.1 and Temurin JDK 21.0.13. Hosted CI for this increment is pending
+publication; prior CI is not attributed to current changes.
 
 ## Reviews, limitations and next work
 
-The exact contract is docs/architecture/m2-reference-fields.md. Final director review found no blocking semantic defect and approved the frozen
-increment in docs/architecture/m2-reference-fields-review.md. Workers
+The exact contract is docs/architecture/m2-reference-arrays.md. Final director review found no blocking semantic defect and approved the frozen
+increment in docs/architecture/m2-reference-arrays-review.md. Workers
 use isolated runtime/interpreter worktrees; the coordinator owns genuine fixtures,
 reference comparisons and integration. The technical director is GPT-6 Astra (high);
 workers are GPT-6.1 Sol (high).
 
-Next direction is reference-array storage and anewarray/aaload/aastore, outlined in
-docs/architecture/m2-reference-arrays-next.md. It requires a concrete reviewed
-contract after this increment's acceptance. No repeated user approval is needed.
-
-Constructor invocation, reference parameters/results, reference-array storage,
+Next direction is bounded multianewarray, outlined in
+docs/architecture/m2-multidimensional-arrays-next.md. An exact reviewed contract
+must pin complete-geometry quotas and transactional publication before dispatch;
+no repeated user approval is needed.
+Constructor invocation, reference parameters/results, multianewarray,
 initialization, full linkage, verification, loading constraints, exception
 objects/handlers, monitors, native methods, threads, GC and Java library integration
 remain incomplete. Kotlin/Spring Boot is not yet executable. Full M2 and complete
@@ -172,10 +179,11 @@ python tools/interface_dispatch_reference.py --check
 python tools/special_reference.py --check
 python tools/type_reference.py --check
 python tools/reference_field_reference.py --check
+python tools/reference_array_reference.py --check
 cargo run -p crabspot-classfile --example fuzz_parser -- tests/fixtures/classes --iterations 10000
 ```
 
 On this Windows host, add C:/Users/Admin/.cargo/bin to PATH and set
 CARGO_INCREMENTAL=0. Use isolated CARGO_TARGET_DIR and TMP/TEMP directories inside
 the project. The coordinator used target/verification-m2; workers used separate
-reference-fields-runtime-worker and reference-fields-interpreter-worker output directories.
+reference-arrays-runtime-worker and reference-arrays-interpreter-worker output directories.

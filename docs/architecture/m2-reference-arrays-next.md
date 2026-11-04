@@ -1,6 +1,6 @@
 # Next: reference arrays and their bytecodes
 
-Status: proposed direction on 2026-11-04 after the bounded approval in `m2-reference-fields-review.md`. This note does not authorize implementation; an exact runtime API, storage accounting and instruction/error contract must precede dispatch. Full M2 remains open.
+Status: historical direction, superseded by the exact contract in `m2-reference-arrays.md` and bounded approval in `m2-reference-arrays-review.md` on 2026-11-04. The rationale below is retained; the next proposed increment is `m2-multidimensional-arrays-next.md`. Full M2 remains open.
 
 After checked instance fields, add reference-array storage and anewarray, aaload and aastore to the existing runtime-aware engine. This makes the structural array identities and component relation executable for real reference-array values. Numeric wrappers can allocate arrays, store this or primitive arrays, retrieve aliases, use fields/calls/casts and return numeric results. Reference method signatures and constructors are not prerequisites.
 

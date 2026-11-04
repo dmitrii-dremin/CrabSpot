@@ -1098,7 +1098,7 @@ fn completed_field_and_array_effects_persist_across_every_symbolic_outcome_and_h
 }
 #[test]
 fn unsupported_instruction_families_stay_explicit_and_all_code_is_eagerly_decoded() {
-    for opcode in [0xb2, 0xb3, 0xbb, 0xbd, 0xb0, 0xbf, 0xc2, 0xc3] {
+    for opcode in [0xb2, 0xb3, 0xbb, 0xb0, 0xbf, 0xc2, 0xc3] {
         let mut class = ordinary();
         let index = class.class("p/T");
         let mut code = if matches!(opcode, 0xb2 | 0xb3 | 0xb6 | 0xb7 | 0xbb | 0xbd) {
@@ -1116,6 +1116,19 @@ fn unsupported_instruction_families_stay_explicit_and_all_code_is_eagerly_decode
             E::UnsupportedInstruction(opcode)
         );
     }
+    // anewarray now reaches typed extraction and its Class-constant guard.
+    let mut class = ordinary();
+    let index = class.utf8("not a Class constant");
+    let mut code = vec![0x03];
+    code.extend(op(0xbd, index));
+    code.extend([0x57, 0xb1]);
+    class.method("array", "()V", 1, &code, 1, 1);
+    let mut fixture = Fixture::new(vec![class]);
+    let receiver = fixture.object("p/T");
+    let method = fixture.method("p/T", "array", "()V");
+    assert!(
+        matches!(fixture.run(method, receiver, &[]).unwrap_err().kind, E::ArrayAccess(error) if matches!(error.as_ref(), crabspot_runtime::ArrayAccessError::Type(error) if matches!(error.as_ref(), crabspot_runtime::TypeAccessError::InvalidConstant { .. })))
+    );
     // invokevirtual is now enabled in runtime mode, so a Class constant operand
     // reaches its structural Methodref guard instead of the old opcode gate.
     let mut class = ordinary();
