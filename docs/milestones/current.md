@@ -95,10 +95,14 @@ corpus 256 and zero failures. The unchanged parser's sustained M1 evidence remai
 Finite testing is not proof of panic freedom. Local checks used Windows x86-64,
 Rust/Cargo 1.98.1 and Zulu OpenJDK 21.0.7. Rust 1.85 remains untested.
 
-Hosted evidence for this increment is pending publication. The previous accepted
-static-memory implementation e29b74f passed both Linux and Windows in
-[run 41828535972](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41828535972).
-That earlier hosted run does not validate the new initialization implementation.
+Implementation `6dbbef4ad399f9d0f5938b3bea2485e08e45eff4` passed complete
+[Linux/Windows run 41839995587](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41839995587).
+Both job logs were inspected: Rust/Cargo 1.99.1, Temurin JDK 21.0.13, six Python
+regressions, 40-source/18-record preflight, 132 reproduced fixtures and all 18
+reference sets. Each platform passed 838 checked-in and 838 regenerated workspace
+tests plus 751 optimized tests (2,427 Rust test executions), strict formatting/lint,
+and parser smoke: 134 accepted, 9,866 rejected, ten rechecks, corpus 256 and zero
+failures over 10,000 cases at seed 4851011501752864596.
 
 ## Review, limits and next work
 

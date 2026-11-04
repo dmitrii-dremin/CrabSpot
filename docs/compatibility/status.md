@@ -24,7 +24,7 @@ completion of that goal.
 | Inspection CLI | Implemented and tested | Escaped metadata, bounded reads, preview opt-in and nonzero argument/input failures; no bytecode execution |
 | Genuine Java 21 fixtures | Implemented and tested | 132 classes including initialization and primitive/reference/multidimensional-array and instance/reference-field bodies, class/interface/special dispatch and cast hierarchies and raw-field oracle metadata; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
 | Parser fuzzing | Implemented and tested | 108,907,980 seeded cases over 300 seconds, zero failures, exact-source fingerprint; no coverage metrics or proof of panic freedom |
-| Linux/Windows hosted CI | Passed for e29b74f | [run 41828535972](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41828535972) completed all checks on both platforms with Rust/Cargo 1.99.1 and JDK 21.0.13, 104 regenerated fixtures/seventeen reference sets, strict lint, debug/optimized tests and fuzz smoke |
+| Linux/Windows hosted CI | Passed for 6dbbef4 | [Linux/Windows run 41839995587](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41839995587) passed every step on both platforms with Rust/Cargo 1.99.1 and Temurin 21.0.13: 132 fixtures/18 reference sets, 838 workspace tests before and after regeneration, 751 optimized tests, provenance, strict lint and parser smoke |
 | Rust 1.85 minimum version | Not tested | Manifest declaration; actual local toolchain is Rust 1.98.1 |
 | Performance superiority over HotSpot | Not demonstrated | Long-term objective; no comparative performance benchmark results are claimed |
 | Bytecode decoder | Implemented and tested | All defined JVM instruction formats, version/operand constraints and static branch destinations; 10 focused tests and malformed-input corpus |
@@ -93,8 +93,17 @@ All 132 fixture classes and 18 reference sets reproduce with Zulu JDK 21.0.7;
 are unchanged. Parser smoke reports 134 accepted, 9,866 rejected, ten rechecks,
 corpus 256 and zero failures over 10,000 cases at seed 4851011501752864596.
 All 48 integrated implementation/fixture/config hashes were rechecked after the
-gate. Local checks used Windows and Rust/Cargo 1.98.1; new hosted evidence is
-pending. Previous hosted records above retain their original scope.
+gate. Local checks used Windows and Rust/Cargo 1.98.1. Previous hosted records
+above retain their original scope.
+
+Implementation `6dbbef4ad399f9d0f5938b3bea2485e08e45eff4` passed complete
+[Linux/Windows run 41839995587](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41839995587).
+Both job logs were inspected: Rust/Cargo 1.99.1, Temurin JDK 21.0.13, six Python
+regressions, 40-source/18-record preflight, 132 reproduced fixtures and all 18
+reference sets. Each platform passed 838 checked-in and 838 regenerated workspace
+tests plus 751 optimized tests (2,427 Rust test executions), strict formatting/lint,
+and parser smoke: 134 accepted, 9,866 rejected, ten rechecks, corpus 256 and zero
+failures over 10,000 cases at seed 4851011501752864596.
 
 [Bounded technical approval](../architecture/m2-initialization-session-review.md)
 is recorded. This remains a single-session subset. String constants, generated wrappers and

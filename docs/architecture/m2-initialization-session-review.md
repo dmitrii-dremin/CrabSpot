@@ -1,6 +1,6 @@
 # Single-session initialization review
 
-Status: approved by the technical director on 2026-11-04 for the bounded single-owner initialization session specified in `m2-initialization-session.md`. Frozen source review and the coordinator's integrated gate pass. Full M2 and complete JVM initialization remain open. Fresh hosted CI is pending publication.
+Status: approved by the technical director on 2026-11-04 for the bounded single-owner initialization session specified in `m2-initialization-session.md`. Frozen source review and the coordinator's integrated gate pass. Full M2 and complete JVM initialization remain open. Fresh Linux/Windows CI passed for implementation 6dbbef4; inspected evidence is recorded below.
 
 ## Reviewed behavior
 
@@ -48,7 +48,18 @@ The coordinator completed the independent integrated gate on the frozen source:
 - All 132 genuine class fixtures and eighteen reference-output sets reproduce. All 104 prior class hashes remain unchanged. The forty-source/eighteen-record preflight and six Python provenance regressions pass.
 - The expanded corpus passes 10,000 parser mutations: 134 accepted, 9,866 rejected, ten deterministic rechecks, corpus 256 and zero failures; seed 4851011501752864596.
 
-All 48 combined source hashes were reverified after the gate, and whitespace checking passes. The seventy added Rust tests comprise twenty-two runtime, twenty-nine primary interpreter, five private interpreter, twelve independent boundary and two root-oracle tests. Local validation used Rust/Cargo 1.98.1 and Zulu JDK 21.0.7. New hosted Linux/Windows evidence remains pending publication and must be recorded separately from this local approval.
+All 48 combined source hashes were reverified after the gate, and whitespace checking passes. The seventy added Rust tests comprise twenty-two runtime, twenty-nine primary interpreter, five private interpreter, twelve independent boundary and two root-oracle tests. Local validation used Rust/Cargo 1.98.1 and Zulu JDK 21.0.7. The hosted evidence below is subsequent to this local approval and validates the published implementation.
+
+## Hosted validation
+
+Implementation `6dbbef4ad399f9d0f5938b3bea2485e08e45eff4` passed complete
+[Linux/Windows run 41839995587](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41839995587).
+Both job logs were inspected: Rust/Cargo 1.99.1, Temurin JDK 21.0.13, six Python
+regressions, 40-source/18-record preflight, 132 reproduced fixtures and all 18
+reference sets. Each platform passed 838 checked-in and 838 regenerated workspace
+tests plus 751 optimized tests (2,427 Rust test executions), strict formatting/lint,
+and parser smoke: 134 accepted, 9,866 rejected, ten rechecks, corpus 256 and zero
+failures over 10,000 cases at seed 4851011501752864596.
 
 ## Boundary
 

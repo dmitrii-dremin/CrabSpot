@@ -71,6 +71,15 @@ The interface/default-dispatch implementation `3574484` passed complete Linux/Wi
 
 The ordinary-special-call implementation `8d2c523` passed complete Linux/Windows [run 41795065210](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41795065210) with Rust 1.99.1 and JDK 21.0.13, including all ten reference sets, debug/optimized tests, strict lint and parser smoke.
 
+Implementation `6dbbef4ad399f9d0f5938b3bea2485e08e45eff4` passed complete
+[Linux/Windows run 41839995587](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41839995587).
+Both job logs were inspected: Rust/Cargo 1.99.1, Temurin JDK 21.0.13, six Python
+regressions, 40-source/18-record preflight, 132 reproduced fixtures and all 18
+reference sets. Each platform passed 838 checked-in and 838 regenerated workspace
+tests plus 751 optimized tests (2,427 Rust test executions), strict formatting/lint,
+and parser smoke: 134 accepted, 9,866 rejected, ten rechecks, corpus 256 and zero
+failures over 10,000 cases at seed 4851011501752864596.
+
 Reference JDK tooling is development-only: compile fixtures, inspect class metadata, and later produce differential reference results. Fixture generation records the JDK version, source inputs, compiler options, and generated artifact provenance. Ordinary Rust tests must be reproducible without quietly executing a Java application or downloading a JDK. Tests using checked-in binary fixtures should validate the expected major version; regeneration uses an explicit Java 21 toolchain.
 
 ## Acceptance gates
