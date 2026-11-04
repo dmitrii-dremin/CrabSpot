@@ -1,6 +1,6 @@
 # Next: class preparation, static state and initialization
 
-Status: proposed direction on 2026-11-04 after `m2-exception-dispatch-review.md`. This note does not authorize production changes. An exact bounded runtime/engine contract and review gate must precede implementation. Full M2 and later milestones remain open.
+Status: historical direction after `m2-exception-dispatch-review.md`. Its checked static-memory prerequisite was specified in `m2-static-state.md` and approved in `m2-static-state-review.md` on 2026-11-04. Initialization remains open; the subsequent proposal is `m2-initialization-engine-next.md`. This note supplies design context, not additional production authorization. Full M2 and later milestones remain open.
 
 The body engine now supports reference calls and supplied-Throwable abrupt completion. The next direction should establish owned static state and explicit lifecycle responsibilities before ordinary object construction or VM exception materialization. Existing default-only StaticStorage is useful storage, but is not evidence that a class has been linked or initialized. Existing selected-body entry points must retain their documented host-supplied-state boundary.
 

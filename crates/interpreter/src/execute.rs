@@ -14,6 +14,7 @@ use crabspot_runtime::{
     MethodReturnKind, MethodValueShape, PrimitiveArrayKind, Reference, ThrownException,
     TypeAccessError, TypeJavaError, VmExceptionKind,
 };
+use crabspot_runtime::{StaticAccessError, StaticJavaError, StaticStateProfile};
 use std::collections::HashMap;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -624,6 +625,25 @@ pub fn execute_static_method_body_with_heap(
     )
 }
 
+fn instance_root_class<'registry>(
+    context: &FieldResolutionContext<'registry>,
+    method: MethodId,
+) -> Result<&'registry ClassFile, ExecutionError> {
+    let registry = context.registry();
+    registry.method(method).map_err(|error| {
+        ExecutionError::new(
+            None,
+            E::FieldAccess(Box::new(FieldAccessError::Registry(error))),
+        )
+    })?;
+    registry.class(method.owner()).map_err(|error| {
+        ExecutionError::new(
+            None,
+            E::FieldAccess(Box::new(FieldAccessError::Registry(error))),
+        )
+    })
+}
+
 /// Evaluate an explicitly selected ordinary instance root without Java root
 /// invocation/dispatch or initialization. Its body may perform supported bounded
 /// virtual/interface dispatch and ordinary special selection through its runtime context.
@@ -635,19 +655,7 @@ pub fn execute_instance_method_body(
     options: ExecutionOptions,
     limits: CallLimits,
 ) -> Result<ExecutionOutcome, ExecutionError> {
-    let registry = context.registry();
-    registry.method(method).map_err(|error| {
-        ExecutionError::new(
-            None,
-            E::FieldAccess(Box::new(FieldAccessError::Registry(error))),
-        )
-    })?;
-    let class = registry.class(method.owner()).map_err(|error| {
-        ExecutionError::new(
-            None,
-            E::FieldAccess(Box::new(FieldAccessError::Registry(error))),
-        )
-    })?;
+    let class = instance_root_class(context, method)?;
     execute_with_services(
         class,
         method.index(),
@@ -658,6 +666,7 @@ pub fn execute_instance_method_body(
             context,
             root: method,
             receiver,
+            statics: None,
         },
     )
 }
@@ -678,20 +687,8 @@ pub fn execute_instance_method_body_with_exceptions(
     context
         .check_exception_profile(profile)
         .map_err(|error| exception_failure(error, None))?;
-    let registry = context.registry();
-    registry.method(method).map_err(|error| {
-        ExecutionError::new(
-            None,
-            E::FieldAccess(Box::new(FieldAccessError::Registry(error))),
-        )
-    })?;
-    let class = registry.class(method.owner()).map_err(|error| {
-        ExecutionError::new(
-            None,
-            E::FieldAccess(Box::new(FieldAccessError::Registry(error))),
-        )
-    })?;
-    match execute_engine(
+    let class = instance_root_class(context, method)?;
+    exception_outcome(execute_engine(
         class,
         method.index(),
         arguments,
@@ -701,6 +698,7 @@ pub fn execute_instance_method_body_with_exceptions(
             context,
             root: method,
             receiver,
+            statics: None,
         },
         Some(ExceptionState {
             profile,
@@ -708,7 +706,81 @@ pub fn execute_instance_method_body_with_exceptions(
             prepared_handlers: 0,
             dispatch_steps: 0,
         }),
-    )? {
+    )?)
+}
+
+/// Access explicitly allocated host-controlled static memory without initialization.
+pub fn execute_instance_method_body_with_static_state(
+    context: &mut FieldResolutionContext<'_>,
+    statics: &StaticStateProfile,
+    method: MethodId,
+    receiver: Reference,
+    arguments: &[Value],
+    options: ExecutionOptions,
+    call_limits: CallLimits,
+) -> Result<ExecutionOutcome, ExecutionError> {
+    context
+        .check_static_profile(statics)
+        .map_err(|error| ExecutionError::new(None, E::StaticAccess(Box::new(error))))?;
+    let class = instance_root_class(context, method)?;
+    execute_with_services(
+        class,
+        method.index(),
+        arguments,
+        options,
+        call_limits,
+        Services::Fields {
+            context,
+            root: method,
+            receiver,
+            statics: Some(statics),
+        },
+    )
+}
+
+/// Compose host-controlled static memory with supplied-Throwable dispatch.
+#[allow(clippy::too_many_arguments)] // Exact public contract keeps independent capabilities/policies explicit.
+pub fn execute_instance_method_body_with_static_state_and_exceptions(
+    context: &mut FieldResolutionContext<'_>,
+    statics: &StaticStateProfile,
+    exceptions: &ExceptionProfile,
+    method: MethodId,
+    receiver: Reference,
+    arguments: &[Value],
+    options: ExecutionOptions,
+    call_limits: CallLimits,
+    exception_limits: ExceptionLimits,
+) -> Result<ExceptionOutcome, ExecutionError> {
+    context
+        .check_static_profile(statics)
+        .map_err(|error| ExecutionError::new(None, E::StaticAccess(Box::new(error))))?;
+    context
+        .check_exception_profile(exceptions)
+        .map_err(|error| exception_failure(error, None))?;
+    let class = instance_root_class(context, method)?;
+    exception_outcome(execute_engine(
+        class,
+        method.index(),
+        arguments,
+        options,
+        call_limits,
+        Services::Fields {
+            context,
+            root: method,
+            receiver,
+            statics: Some(statics),
+        },
+        Some(ExceptionState {
+            profile: exceptions,
+            limits: exception_limits,
+            prepared_handlers: 0,
+            dispatch_steps: 0,
+        }),
+    )?)
+}
+
+fn exception_outcome(outcome: EngineOutcome) -> Result<ExceptionOutcome, ExecutionError> {
+    match outcome {
         EngineOutcome::Legacy(ExecutionOutcome::Returned(value)) => {
             Ok(ExceptionOutcome::Returned(value))
         }
@@ -727,6 +799,7 @@ enum Services<'a, 'registry> {
         context: &'a mut FieldResolutionContext<'registry>,
         root: MethodId,
         receiver: Reference,
+        statics: Option<&'a StaticStateProfile>,
     },
 }
 impl<'registry> Services<'_, 'registry> {
@@ -1674,11 +1747,55 @@ fn step(
             E::UnsupportedInstruction(opcode),
         ));
     }
+    if matches!(opcode, 0xb2 | 0xb3)
+        && !matches!(
+            services,
+            Services::Fields {
+                statics: Some(_),
+                ..
+            }
+        )
+    {
+        return Err(ExecutionError::new(
+            Some(pc),
+            E::UnsupportedInstruction(opcode),
+        ));
+    }
     let operands = &instruction.operands;
     let mut next = pc
         .checked_add(instruction.length)
         .ok_or_else(|| ExecutionError::new(Some(pc), E::InstructionPointerOutsideCode))?;
     match opcode {
+        0xb2 | 0xb3 => {
+            let Operands::Constant(index) = operands else {
+                return Err(operand_error(pc));
+            };
+            let value = if opcode == 0xb3 {
+                Some(stack.pop_any(pc)?)
+            } else {
+                None
+            };
+            let Services::Fields {
+                context,
+                statics: Some(profile),
+                ..
+            } = services
+            else {
+                return Err(operand_error(pc));
+            };
+            let origin = frame.method.owner().ok_or_else(|| operand_error(pc))?;
+            if let Some(value) = value {
+                if let Err(error) = context.write_static(profile, origin, *index, value) {
+                    return static_failure(error, pc);
+                }
+            } else {
+                let value = match context.read_static(profile, origin, *index) {
+                    Ok(value) => value,
+                    Err(error) => return static_failure(error, pc),
+                };
+                stack.push(value, pc)?;
+            }
+        }
         0xbf => {
             let reference = stack.reference(pc)?;
             if reference.is_null() {
@@ -2370,6 +2487,20 @@ fn step(
 fn is_heap_instruction(opcode: u8) -> bool {
     matches!(opcode,0x01|0x19|0x2a..=0x31|0x33..=0x35|0x3a|0x4b..=0x52|0x54..=0x56|0xa5|0xa6|0xbc|0xbe|0xc6|0xc7)
 }
+fn static_failure(error: StaticAccessError, pc: u32) -> Result<Action, ExecutionError> {
+    match error {
+        StaticAccessError::Java(StaticJavaError::NoSuchField) => Ok(Action::NoSuchFieldError),
+        StaticAccessError::Java(StaticJavaError::IllegalAccess) => Ok(Action::IllegalAccessError),
+        StaticAccessError::Java(StaticJavaError::IncompatibleClassChange) => {
+            Ok(Action::IncompatibleClassChangeError)
+        }
+        error => Err(ExecutionError::new(
+            Some(pc),
+            E::StaticAccess(Box::new(error)),
+        )),
+    }
+}
+
 fn array_failure(error: ArrayAccessError, pc: u32) -> Result<Action, ExecutionError> {
     match error {
         ArrayAccessError::Java(ArrayJavaError::NullPointer) => Ok(Action::NullPointerException),
@@ -3011,6 +3142,39 @@ mod resource_tests {
                 error.kind,
                 E::UnsupportedVmException(vm_kind(outcome).unwrap())
             );
+        }
+    }
+    #[test]
+    fn static_failure_maps_only_direct_java_variants_and_preserves_nested_host_errors() {
+        for (error, expected) in [
+            (StaticJavaError::NoSuchField, 0),
+            (StaticJavaError::IllegalAccess, 1),
+            (StaticJavaError::IncompatibleClassChange, 2),
+        ] {
+            let action = static_failure(StaticAccessError::Java(error), 17).unwrap();
+            assert!(matches!(
+                (expected, action),
+                (0, Action::NoSuchFieldError)
+                    | (1, Action::IllegalAccessError)
+                    | (2, Action::IncompatibleClassChangeError)
+            ));
+        }
+        for host in [
+            StaticAccessError::Context(FieldAccessError::Java(FieldJavaError::IllegalAccess)),
+            StaticAccessError::Context(FieldAccessError::Java(FieldJavaError::NullPointer)),
+            StaticAccessError::Type(Box::new(TypeAccessError::Java(TypeJavaError::ClassCast))),
+            StaticAccessError::Type(Box::new(TypeAccessError::Java(
+                TypeJavaError::IllegalAccess,
+            ))),
+            StaticAccessError::Heap(HeapError::NullReference),
+        ] {
+            let error = match static_failure(host.clone(), 17) {
+                Err(error) => error,
+                Ok(_) => panic!("nested host error mapped to symbolic Java"),
+            };
+            assert_eq!(error.kind, E::StaticAccess(Box::new(host)));
+            assert_eq!(error.offset, Some(17));
+            assert!(std::error::Error::source(&error).is_some());
         }
     }
 }

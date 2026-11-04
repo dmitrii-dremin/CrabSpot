@@ -71,6 +71,8 @@ jobs:
           python tools/reference_call_reference.py --check
           python tools/exception_reference.py
           python tools/exception_reference.py --check
+          python tools/static_reference.py
+          python tools/static_reference.py --check
       - name: Format
         run: cargo fmt --check
       - name: Lint

@@ -3,7 +3,7 @@
 An independent JVM implementation in Rust. It parses Java 21 class files, decodes
 JVM instructions, and executes supported primitive/reference method bodies independently in
 Rust, including bounded virtual/interface/super calls across bodies, primitive/reference arrays,
-instance fields, casts, type tests and explicit supplied-Throwable handlers. The long-term goal is a complete
+instance fields, explicit static-memory access, casts, type tests and supplied-Throwable handlers. The long-term goal is a complete
 JVM specification implementation with the required observable behavior of
 conforming JVMs, using HotSpot as the primary reference, and demonstrated
 performance superiority over HotSpot on representative workloads. Java SE 21 is
@@ -51,6 +51,7 @@ python tools/reference_array_reference.py --check
 python tools/multidimensional_reference.py --check
 python tools/reference_call_reference.py --check
 python tools/exception_reference.py --check
+python tools/static_reference.py --check
 cargo test -p crabspot-interpreter --test numeric_reference
 cargo test -p crabspot-interpreter --test floating_reference --release
 ```
@@ -80,8 +81,8 @@ and `crabspot-launcher` for command-line inspection.
 The differential tests compare 616 integral, 7,263 floating-point, 126 static-call,
 280 primitive-array, 553 instance-field, 494 virtual-call, 1,337 interface/default,
 450 ordinary special-call, 1,276 cast/type-test, 690 reference-field, 3,948
-reference-array, 7,388 multidimensional-array, 904 reference-call and 336
-supplied-exception OpenJDK 21 outcomes with Rust execution,
+reference-array, 7,388 multidimensional-array, 904 reference-call, 336
+supplied-exception and 364 static-memory OpenJDK 21 outcomes with Rust execution,
 including arithmetic exceptions, signed zero,
 subnormals and NaN classification. The kernel supports bounded same-class static
 helpers, ordinary virtual calls and interface/default dispatch across registered
@@ -92,7 +93,12 @@ registered definitions remain unverified and unlinked. Hierarchy planning checks
 explicitly resolved ancestry and preserves declaring owners in field layouts,
 with bounded nonrecursive traversal and no synthesized missing classes.
 Static storage allocates typed zero/null defaults without applying constants or
-running initializers. A bounded noncollecting heap owns primitive arrays of all
+running initializers. The opt-in checked static service owns one set of locations
+per heap, preserves values across atomic storage extension, checks typed writes
+and enumerates reference roots. Its body API adds getstatic/putstatic for 193
+opcodes, or 194 when combined with supplied-Throwable dispatch. These explicit
+memory APIs do not perform Java active-use initialization; final writes remain
+rejected. A bounded noncollecting heap owns primitive arrays of all
 eight kinds through checked opaque references. Heap-service tests additionally
 match 151 OpenJDK array store/load outcomes. The opt-in instance service admits
 shared, owner-qualified layouts atomically and allocates typed default fields.

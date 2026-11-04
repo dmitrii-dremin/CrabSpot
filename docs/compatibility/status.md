@@ -22,9 +22,9 @@ completion of that goal.
 | Unknown attributes (4.7.1) | Implemented and tested | Payload preservation, including standard-looking names outside applicable version/location |
 | Resource bounds | Implemented and tested | Default 16 MiB class input, annotation depth 64, one million annotation/value nodes shared across the whole class; depth hard-capped at 64 even if caller requests more |
 | Inspection CLI | Implemented and tested | Escaped metadata, bounded reads, preview opt-in and nonzero argument/input failures; no bytecode execution |
-| Genuine Java 21 fixtures | Implemented and tested | 88 classes including primitive/reference/multidimensional-array and instance/reference-field bodies, class/interface/special dispatch and cast hierarchies and raw-field oracle metadata; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
+| Genuine Java 21 fixtures | Implemented and tested | 104 classes including primitive/reference/multidimensional-array and instance/reference-field bodies, class/interface/special dispatch and cast hierarchies and raw-field oracle metadata; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
 | Parser fuzzing | Implemented and tested | 108,907,980 seeded cases over 300 seconds, zero failures, exact-source fingerprint; no coverage metrics or proof of panic freedom |
-| Linux/Windows hosted CI | Passed for c0ce0a3 | [run 41804561054](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41804561054) completed all checks on both platforms with Rust 1.99.1 and JDK 21.0.13, including strict lint, 86 regenerated fixtures/thirteen oracle sets, debug/optimized tests and fuzz smoke |
+| Linux/Windows hosted CI | Passed for 215ec91; current static increment pending | [run 41824069552](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41824069552) completed all checks on both platforms with Rust/Cargo 1.99.1 and JDK 21.0.13; new static-state source requires its own hosted run |
 | Rust 1.85 minimum version | Not tested | Manifest declaration; actual local toolchain is Rust 1.98.1 |
 | Performance superiority over HotSpot | Not demonstrated | Long-term objective; no comparative performance benchmark results are claimed |
 | Bytecode decoder | Implemented and tested | All defined JVM instruction formats, version/operand constraints and static branch destinations; 10 focused tests and malformed-input corpus |
@@ -41,40 +41,36 @@ completion of that goal.
 | Interface/default dispatch | Implemented and tested within body-kernel scope | Runtime-aware mode adds invokeinterface (183 opcode values) and completes class Methodref default fallback; shared maximal-interface analysis, class priority, private helpers, count validation, symbolic conflicts/abstract failures; all 1,337 genuine JDK comparisons pass in debug/release |
 | Ordinary special-call execution | Implemented and tested within body-kernel scope | Runtime-aware mode adds nonconstructor invokespecial (184 opcode values), prescribed superclass/direct-interface selection, effective ACC_SUPER, checked owner/receiver/declarer identities and shared MethodId caches; all 450 JDK cases pass in debug/release; constructors remain unsupported |
 | Reference types and cast instructions | Implemented and tested within body-kernel scope | Explicit heap Object/Cloneable/Serializable identities; loader-aware nominal/interface and structural-array assignment; checkcast/instanceof (186 runtime-aware opcode values), null target skipping and symbolic ClassCastException; all 1,276 genuine JDK comparisons pass in debug/release; reference-array allocation is covered by the later service below |
-| Checked non-null instance-reference fields | Implemented and tested within body-kernel scope | Existing putfield stores compatible ordinary-instance/primitive-array values after declaring-loader descriptor resolution and bounded assignment; public raw writes remain numeric/null only; private atomic commit and per-location child edges; all 690 JDK cases pass in debug/release; static writes and loading-constraint enforcement remain unsupported; reference signatures are covered below |
+| Checked non-null instance-reference fields | Implemented and tested within body-kernel scope | Existing putfield stores compatible ordinary-instance/primitive-array values after declaring-loader descriptor resolution and bounded assignment; public raw writes remain numeric/null only; private atomic commit and per-location child edges; all 690 JDK cases pass in debug/release; checked static writes are covered below; loading-constraint enforcement remains unsupported; reference signatures are covered below |
 | Reference-array storage and execution | Implemented and tested within body-kernel scope | Typed retained actual arrays, null defaults, context-only checked allocation/read/store and covariant ArrayStoreException; shared quotas with actual Reference element size, generic length and ordered child edges; anewarray/aaload/aastore bring runtime-aware coverage to 189; all 3,948 JDK cases pass in debug/release; multidimensional allocation is covered below; mirrors, lifecycle and GC remain unsupported |
 | Bounded multidimensional allocation | Implemented and tested within body-kernel scope | Runtime-aware c5 brings coverage to 190; complete/partial actual types, all-count sign checks, level-ordered aggregate quotas, atomic work precharge, iterative staging and validated whole-graph publication; 7,388 JDK cases pass in debug/release; host allocation failures remain separate from Java OOM/GC semantics |
 | Reference method arguments/results | Implemented and tested within body-kernel scope | Runtime-aware areturn brings coverage to 191; compact charged shapes, selected-declarer identity checks, null shortcuts, all call forms and exact handle transfer; conservative nominal loader/override boundary; all 904 new JDK outcomes pass in debug/release; full loading constraints and lifecycle remain unsupported |
 | Supplied-Throwable dispatch | Implemented and tested in opt-in body-kernel profile | Explicit checked Throwable identity, lazy ordered catches, catch-all/finally/rethrow and iterative invocation-PC unwind; athrow gives 192 opt-in opcodes while existing runtime mode stays 191; all 336 JDK outcomes pass in debug/release; all eleven unmaterialized VM categories fail explicitly, existing APIs unchanged |
+| Checked static state and body access (5.4.2, 6.5.b2/b3 memory behavior) | Implemented and tested in explicit memory profile | Unique heap-owned locations, defaults, atomic value-preserving extension, typed checked stores, final protection and alias-preserving roots; static-only/composed profiles support 193/194 opcodes; 364 JDK outcomes plus retained-state assertions pass debug/release; ConstantValue, clinit and Java active-use initialization remain unapplied |
 | Full linkage, bytecode verifier and initialization | Not implemented | Subsequent increments; registration and layout planning are not full linkage |
 | Class loading, GC, threads, Java libraries, JNI, Kotlin, Spring Boot, JIT | Not implemented | Subsequent milestones |
 
 No executed test currently remains failing. This statement is limited to the
 recorded tests; it is not proof that no defect exists.
 
-Latest independent native Windows checks: 724 workspace tests and 637 optimized
-runtime/interpreter tests pass, with strict Clippy and formatting clean. All
-25,661 execution comparisons match; separate array and field memory services
-have 151 oracle roundtrips each. All 98 class fixtures and sixteen reference sets
-reproduce, with all 92 previous class hashes unchanged. Forty-four new Rust tests
-cover profile/throw/catch identity, malformed boundaries/tokens, lazy access,
-exact accounting, all unsupported VM-production paths, iterative unwind and
-persistent effects. Final bounded approval is recorded in
-docs/architecture/m2-exception-dispatch-review.md; full M2 remains open.
+Latest independent native Windows checks: 768 workspace tests and 681 optimized
+runtime/interpreter tests pass (366 runtime + 315 interpreter), with strict Clippy
+and formatting clean. All 26,025 execution comparisons match; separate array and
+field services have 151 oracle roundtrips each. All 104 class fixtures and seventeen
+reference sets reproduce; all 98 earlier class hashes remain unchanged. Forty-four
+new Rust tests cover allocation/extension, identities, access/order, raw stores,
+roots, work limits, corrupt retained mappings and persistent effects. Final review
+is recorded in docs/architecture/m2-static-state-review.md; full M2 remains open.
 
-Canonical source checks verify 38 Java source hashes and sixteen named reference
-records with matching JSON/TSV sets; six Python regressions pass. Sources retain
-LF bytes and raw-byte hashes. Expanded parser smoke completed 10,000 cases with
-zero failures, 131 accepted, 9,869 rejected, ten rechecks and corpus 229.
+Canonical source checks verify 39 Java sources and seventeen named reference
+records; six Python regressions pass. Sources retain LF bytes and raw-byte hashes.
+Expanded parser smoke completed 10,000 cases with zero failures: 121 accepted,
+9,879 rejected, ten rechecks and corpus 225.
 
-Implementation `215ec91` passed complete
-[Linux/Windows run 41824069552](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41824069552).
-Inspected logs confirm Rust/Cargo 1.99.1 and Temurin 21.0.13, six Python tests,
-38-source/sixteen-record preflight, 98 reproduced classes and all sixteen reference
-sets. Both platforms passed 724 workspace tests against checked-in fixtures and
-again after regeneration, 637 optimized tests, strict formatting/lint and the
-10,000-case parser smoke: 131 accepted, 9,869 rejected, ten rechecks, corpus 229,
-zero failures. Earlier evidence retains its named scope.
+Hosted CI for this static increment is pending publication. Earlier implementation
+`215ec91` passed [Linux/Windows run 41824069552](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41824069552)
+with Rust/Cargo 1.99.1 and Temurin 21.0.13. Its observed counts and scope remain in
+the supplied-Throwable review; they are not attributed to new source.
 
 ## Standard attribute coverage
 

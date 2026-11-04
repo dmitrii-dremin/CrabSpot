@@ -1,0 +1,8 @@
+{
+  "reference_runtime": "openjdk version \"21.0.7\" 2025-04-15 LTS\nOpenJDK Runtime Environment Zulu21.42+19-CA (build 21.0.7+6-LTS)\nOpenJDK 64-Bit Server VM Zulu21.42+19-CA (build 21.0.7+6-LTS, mixed mode, sharing)",
+  "source": "StaticBodyCases.java",
+  "source_sha256": "1e2c3f896b9461448a6803fabd7cab19cf3e62fd920fd659fc0a669ede2248d3",
+  "class_sha256": "df1d06a285849819e4e1d9b85968c23131c230a35961c312941bc0b203d638c0",
+  "results_sha256": "cf7bf4074c2c11d54c5a4b0114eba66e145074011cc0fc8006342d4ac014b718",
+  "cases": 364
+}

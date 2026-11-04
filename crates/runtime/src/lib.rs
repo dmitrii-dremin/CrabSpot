@@ -18,6 +18,7 @@ mod reference;
 mod reference_array;
 mod registry;
 mod source;
+mod static_state;
 mod storage;
 mod types;
 mod values;
@@ -40,6 +41,10 @@ pub use reference::{HeapRef, Reference};
 pub use reference_array::{ArrayAccessError, ArrayJavaError, REFERENCE_ARRAY_ELEMENT_BYTES};
 pub use registry::{DefinitionRegistry, RegistryOptions};
 pub use source::{DefinitionSource, InMemorySource, SourceError};
+pub use static_state::{
+    STATIC_STATE_SLOT_BYTES, StaticAccessError, StaticJavaError, StaticResource,
+    StaticStateOptions, StaticStateProfile,
+};
 pub use storage::{StaticStorage, StaticStorageOptions, StorageError};
 pub use values::{Value, ValueKind};
 

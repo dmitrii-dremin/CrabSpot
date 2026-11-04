@@ -19,7 +19,8 @@ heap entry point adds 31, for 179 total. The runtime-aware instance entry point
 adds `getfield`, `putfield`, `invokevirtual`, `invokeinterface` and ordinary
 `invokespecial`, plus `checkcast`, `instanceof`, `anewarray`, `aaload` and
 `aastore`, `multianewarray` and `areturn`, for 191 total. The opt-in exception
-profile adds `athrow`, for 192 total. `wide` is an encoding prefix for indexed
+profile adds `athrow`, for 192 total. The static-only and composed static/exception
+profiles add `getstatic`/`putstatic`, for 193 and 194 respectively. `wide` is an encoding prefix for indexed
 loads/stores and increment; heap mode adds two reference local forms to the nine
 numeric wide forms.
 
@@ -126,8 +127,8 @@ cumulative quotas. Callers may explicitly provide a fresh heap for isolation.
 enabled only inside the explicit heap or instance body graph; a reference argument supplied
 for a numeric parameter produces a typed error in every entry point.
 
-Static fields, generalized runtime invocation,
-generalized cross-class static calls, constructor execution,
+Static memory requires the opt-in host-controlled profiles below. Generalized
+runtime invocation, generalized cross-class static calls, constructor execution,
 VM exception materialization, monitors and legacy subroutines remain unsupported. Numeric
 execution never delegates application bytecode to an installed JVM. The reference
 fixture integration compares results against separately generated OpenJDK records.
@@ -176,7 +177,7 @@ available caller provenance. These outcomes allocate no Java error objects.
 Each field instruction consumes one shared fuel unit. Completed field writes and
 array allocations persist after every return, symbolic failure or host error;
 failed writes preserve their previous values. This bridge does not implement
-`new`, constructors, getstatic/putstatic, class initialization,
+`new`, constructors, automatic class initialization,
 VM exception materialization, monitors, named modules, full verification or complete linkage.
 
 
@@ -350,7 +351,7 @@ exception-object materialization retain their earlier boundaries.
 
 The existing runtime-aware putfield now accepts assignment-compatible non-null
 instance and array references through `FieldResolutionContext::write_field`.
-Checked field stores added no opcode or execution API. Current runtime-aware
+Checked field stores added no opcode or execution API. Base runtime-aware
 coverage is 191 effective opcodes, including the reference-array instructions
 below. The shared engine still forwards the actual computational Value, typed
 receiver and current declaring origin to the field service. Reference arguments
@@ -386,7 +387,7 @@ reference, even when assignable and bound. Only the checked context reaches a
 crate-private guarded commit. Borrowed children enumeration yields each non-null
 logical location in slot order, including repeated aliases and cycles, without
 tracing, recursion, deduplication, allocation or heap quota use. These are graph
-edges, not roots or a collector. Constructor/lifecycle proof, static writes,
+edges, not roots or a collector. Constructor/lifecycle proof, final-write authority,
 verification, native binding, monitors and VM exception
 materialization remain outside this profile.
 
@@ -612,3 +613,65 @@ Earlier writes and allocations survive caught/uncaught completion and every host
 failure. No allocation, constructor, initialization, monitor release, async
 exception, exception materialization, full loading/verification, Java startup or
 GC guarantee is added. This is bounded dispatch of explicitly supplied instances.
+
+
+## Composable host-controlled static memory
+
+`execute_instance_method_body_with_static_state(context, statics, method, receiver,
+arguments, options, call_limits)` opts the same shared engine into `getstatic` and
+`putstatic` and returns the existing `ExecutionOutcome`. The composed
+`execute_instance_method_body_with_static_state_and_exceptions` also takes an
+ExceptionProfile and ExceptionLimits and returns `ExceptionOutcome`. It checks the
+static profile first, the exception profile second, then follows the unchanged
+root method/shape/argument/reservation/receiver pipeline. Older entry points keep
+rejecting both static opcodes even when their heap contains static memory.
+
+The caller obtains an opaque `StaticStateProfile` by explicitly allocating checked
+heap-owned defaults through the context. Each declaring FieldId has one logical
+location; inherited symbolic owners do not duplicate it. Primitive defaults have
+positive zero bits and references start null. ConstantValue and clinit are not
+applied, classes are not marked prepared or initialized, and selecting the profile
+does not authorize automatic initialization. All final writes are rejected. The
+older standalone default-only StaticStorage remains read-only and independent.
+
+A static profile is shared by every nested static helper and virtual, interface or
+ordinary special target. Each instruction uses its current declaring class/CP as
+the resolution origin. `getstatic` pushes the actual value at its category width.
+`putstatic` pops one Value with pop_any and no receiver, then delegates to the
+runtime. Underflow precedes field selection; access, static-category, finality and
+location checks precede computational-kind and reference assignment checks.
+B/S/C/Z narrowing and Float/Double raw-bit storage use the established field rules.
+
+Non-null references require checked actual identity, then the selected declaring
+field's descriptor under its defining loader and identity-only assignment. Null
+writes do not require a universe or type resolution. Inaccessible descriptor
+types are not caller-access failures; conservative nominal cross-loader boundaries
+remain. Reads validate stored handles. Static roots enumerate one identity per
+non-null location in field order, including aliases, without following child
+edges or allocating. Instance/array children and quotas remain separate, and this
+is not a collector root-location or synchronization protocol.
+
+Repeated allocation with unchanged admitted classes/options is idempotent and
+preserves values without work/reset. Layout growth invalidates old profiles and
+contexts; a fresh context can extend with the original options, preserving old
+locations/values/root order and appending only new declarations atomically.
+Static allocation/writes do not themselves invalidate exception/type/method
+snapshots. A profile allocated before first universe binding can be reused with a
+fresh context after binding. There is no raw store/reset API or final-write bypass.
+
+Only direct StaticJava errors become the established NoSuchFieldError,
+IllegalAccessError or IncompatibleClassChangeError outcomes. In the composed
+profile those same categories become UnsupportedVmException before handler search;
+a catch-all cannot fabricate their Throwable. Nested Context/Type/Heap Java-shaped
+errors remain boxed `ExecutionErrorKind::StaticAccess` host failures. Actually
+supplied throws continue through the same ordered catch/unwind implementation.
+
+Each static instruction consumes one ordinary fuel unit, with the same frame,
+slot, Code and shared resolution budgets. Completed static changes persist after
+returns, symbolic errors, caught/uncaught supplied throws, exhausted fuel, host
+failures and rejected later stores. Diagnostics retain current declaration,
+bytecode offset and invocation provenance, including late assignment and
+category-two push failures. These APIs add checked mutable memory and composable
+body execution; they add no initializer execution, lifecycle-success state,
+complete loading/preparation, String materialization, final-write authority,
+VM exception production, constructor, synchronization, Java startup or GC claim.

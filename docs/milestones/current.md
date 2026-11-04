@@ -1,8 +1,8 @@
-# Accepted checkpoint: supplied-Throwable exception dispatch
+# Accepted checkpoint: checked static state and body access
 
-Updated 2026-11-04. M1 and earlier M2/runtime increments are approved. The opt-in
-supplied-Throwable dispatch increment is approved after integrated validation and
-frozen-source review; see docs/architecture/m2-exception-dispatch-review.md.
+Updated 2026-11-04. M1 and earlier M2/runtime increments are approved. Checked
+heap-owned static state and the composable body-access profiles passed integrated
+validation and frozen-source review; see docs/architecture/m2-static-state-review.md.
 Full M2 remains open. Continue autonomously without NanoSpec; ask only when user
 intervention is unavoidable.
 
@@ -19,6 +19,7 @@ milestones, not the endpoint. No performance result is claimed.
   checked reads and explicit parser limits; metadata inspection CLI.
 - Full instruction-format decoder. Runtime-aware instance execution supports
   191 opcode values; opt-in explicit exception dispatch adds athrow for 192.
+  Checked static access supports 193, or 194 with supplied exceptions.
   The earlier heap/static mode retains 179 and numeric APIs 148.
 - Runtime-aware primitive/reference body graphs with shared instruction fuel, explicit iterative
   frames and frame/slot/prepared-code quotas. Registered frames and prepared
@@ -26,7 +27,7 @@ milestones, not the endpoint. No performance result is claimed.
   fields, static helpers and diagnostic owner identity.
 - Immutable definitions keyed by defining loader and exact UTF-16 name; bounded
   sources, explicit hierarchy resolution, parent-linked layouts, hidden fields,
-  and typed default static storage without initialization.
+  and typed static storage without initialization.
 - A noncollecting managed heap with primitive/reference arrays and explicitly enabled
   ordinary instances, checked opaque references, atomic multi-plan admission,
   fallible allocation, numeric/null field stores and final-write protection.
@@ -122,77 +123,95 @@ No object is fabricated or matching handler silently skipped. Existing APIs reta
 their symbolic outcomes and handler/athrow rejection. Dispatch does not certify
 Throwable constructors, initialized library fields, messages or stack traces.
 
+Checked static state belongs once to each managed heap, separately from the old
+read-only StaticStorage. It retains one location per declared static field and
+explicit zero-field class membership. Class/slot/actual-Value-byte limits and
+fallible amortized staging bound allocation. Repeated allocation is idempotent;
+extension after graph growth preserves every old value and location, appends only
+new defaults, and publishes after all checks/reservations. Stale contexts/profiles
+fail explicitly. Static allocation or writes alone do not invalidate other profiles.
+
+The service reuses field resolution and defining declarations, protects final
+fields, normalizes raw primitive stores and checks non-null reference assignment.
+Borrowed roots retain repeated aliases in location order. The two opt-in body APIs
+share the existing engine, resolve b2/b3 from each declaring frame and compose with
+supplied-Throwable handlers. Existing entry points still reject static accesses.
+Completed writes survive normal, symbolic, supplied-Throwable and host exits.
+
+This is explicit static memory access, not complete Java active-use behavior.
+ConstantValue and clinit remain unapplied; no Prepared/Initialized flag exists.
+Complete preparation, class initialization, final initializer writes and general
+cross-class invokestatic still require their own implementation and review.
+
 ## Validation
 
-Final independent checks passed on the verified frozen source:
+Final independent checks passed on all eighteen reverified frozen files:
 
 | Check | Result |
 | --- | --- |
 | cargo fmt --check | Passed |
 | Strict workspace/all-target Clippy | Passed |
-| Debug workspace tests | 724 passed, zero failed |
-| Optimized runtime/interpreter tests | 637 passed: 341 runtime + 296 interpreter |
-| Execution comparisons | All 25,661 match in debug and release |
+| Debug workspace tests | 768 passed, zero failed |
+| Optimized runtime/interpreter tests | 681 passed: 366 runtime + 315 interpreter |
+| Execution comparisons | All 26,025 match in debug and release |
 | Separate memory-service roundtrips | 151 array + 151 field cases match in both profiles |
-| Fixture/reference reproduction | 98 classes and all sixteen output sets reproduced |
-| Canonical source provenance | 38 Java sources and sixteen named reference records verified |
+| Fixture/reference reproduction | 104 classes and all seventeen output sets reproduced |
+| Canonical source provenance | 39 Java sources and seventeen named reference records verified |
 | Python provenance regressions | Six passed |
 | Expanded parser smoke | 10,000 cases, zero failures |
 
-This increment adds 44 Rust tests: eighteen public and three private runtime cases,
-eighteen public and four private interpreter cases, and the genuine execution/state
-oracle. They cover explicit bootstrap/Throwable identity, foreign/replaced snapshots,
-forged tokens/handles, actual cross-loader subclasses, lazy typed/catch-all matching,
-caller access, exact work/name limits, eager structural boundaries, handler caching,
-all eleven unsupported production paths, stack preservation on failed installation,
-iterative unwind accounting/origins, legacy modes and retained effects.
+This increment adds 44 Rust tests: eighteen public and seven private runtime cases,
+seventeen public and one private interpreter case, and the genuine execution/state
+oracle. Coverage includes identity/invalidation, atomic extension and retry, exact
+class/field/descriptor work, 65,535-unit shared descriptors, a 10,000-class hierarchy,
+access/finality/assignment ordering, corrupt positions/counters/handles, raw narrow
+stores, all call families, old modes, direct/nested mapping and retained effects.
+Review corrected repeated exact staging allocations and added an exact retained
+field-to-position mapping check with a duplicate/phantom-key regression.
 
-The execution corpus comprises 25,325 earlier cases plus 336 new supplied-exception
-cases across thirty-six type/method pairs. The JDK records 240 numeric completions
-and 96 uncaught identities: nineteen first-object and seventy-seven second-object
-outcomes. Separate source-derived checks inspect saved/first/second references,
-state, repeated child edges and unchanged allocation totals. Decoded genuine Code
-pins typed catch order, catch-all rows, athrow and all four invocation forms. A
-protected call ending exactly at the resume PC proves invocation-PC unwind search.
-Host objects are preseeded/default values with original core metadata; only the JDK
-oracle driver invokes constructors. Implicit VM exceptions are outside this corpus.
+The execution corpus comprises 25,661 earlier cases plus 364 static-memory cases
+across thirty-four receiver/method pairs. Results include 334 numeric returns,
+six VM failures and 24 supplied uncaught identities. The JDK resets mutable state
+before each row. Rust independently checks all twenty initial locations, ordered
+aliases/roots, fields, array contents and allocation totals. Each row then admits
+another genuine class and checks extension to twenty-four locations, retained
+prior effects and four new defaults. ConstantValue/clinit metadata stays unapplied
+in separately labeled memory assertions. Java constructors run only in the oracle
+driver; this does not establish Java initialization or application startup.
 
-All 92 previous class hashes remain unchanged. Canonical LF source guards and the
-pre-regeneration source/JSON/TSV provenance checks remain active and pass.
-The unchanged parser's sustained M1 evidence remains in docs/milestones/evidence:
-108,907,980 cases over 300 seconds, zero failures, with exact-source fingerprint.
-The expanded 98-class smoke passed 10,000 cases at seed 4851011501752864596:
-131 accepted, 9,869 rejected, ten deterministic rechecks, corpus 229, zero failures.
-No finite test proves panic freedom. Rust 1.85, the declared minimum, remains
-untested; local tools are Rust/Cargo 1.98.1 and Zulu OpenJDK 21.0.7.
+All 98 prior class hashes remain unchanged. All seventeen reference sets reproduce.
+The expanded 104-class parser smoke passed 10,000 cases at seed
+4851011501752864596: 121 accepted, 9,879 rejected, ten deterministic rechecks,
+corpus 225 and zero failures. The unchanged parser's sustained M1 evidence remains
+in docs/milestones/evidence: 108,907,980 cases over 300 seconds, zero failures,
+with exact-source fingerprint. No finite test proves panic freedom. Rust 1.85,
+the declared minimum, remains untested. Local tools are Rust/Cargo 1.98.1 and
+Zulu OpenJDK 21.0.7.
 
-Implementation `215ec91ee10cd9b20e9860a33376193b82c89198` passed complete
-[Linux/Windows run 41824069552](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41824069552).
-Both job logs were inspected: Rust/Cargo 1.99.1, Temurin JDK 21.0.13, six Python
-regressions, 38-source/sixteen-record preflight, 98 reproduced classes and all
-sixteen reference sets. Each platform passed 724 checked-in and 724 regenerated
-workspace tests plus 637 optimized tests (2,085 Rust test executions), strict
-formatting/lint, and the same 10,000-case parser smoke with zero failures.
+Hosted CI for this static increment is pending publication. The preceding
+exception implementation `215ec91` passed complete
+[Linux/Windows run 41824069552](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41824069552)
+with Rust/Cargo 1.99.1 and Temurin JDK 21.0.13; earlier evidence retains its scope.
 
 ## Reviews, limitations and next work
 
-The exact contract and final approval are docs/architecture/m2-exception-dispatch.md
-and docs/architecture/m2-exception-dispatch-review.md. Component manifests and all
-sixteen combined source/evidence hashes were verified. The technical director is
-GPT-6 Astra (high); isolated runtime/interpreter workers are GPT-6.1 Sol (high).
+The exact contract and review are docs/architecture/m2-static-state.md and
+docs/architecture/m2-static-state-review.md. Component manifests and all eighteen
+combined hashes were verified before/after the full gate. The technical director
+is GPT-6 Astra (high); isolated runtime/interpreter workers are GPT-6.1 Sol (high).
 The coordinator owns genuine fixtures, integration and evidence. Integration uses
 atomic replacements with explicit backups and verifies Admin ownership.
 
-Next direction is class preparation/static state and initialization responsibilities,
-under a separate exact contract. These shared lifecycle requirements precede real
-VM exception materialization and ordinary new/constructor execution. Default storage
-must not be described as initialized class or object state.
+Static locations now provide persistent state needed by the initialization engine.
+Next work must address lifecycle and active-use responsibilities under a separate
+exact contract, including prerequisites for real constants and failure identities.
+Default storage must never be described as initialized class or object state.
 
-Constructor invocation, initialization, static writes, full linkage, verification,
-loading constraints, VM exception production, monitors, native methods, threads, GC
-and Java library integration remain incomplete. Kotlin/Spring Boot is not yet
-executable. Full M2 and complete JVM conformance remain open; no performance
-superiority has been demonstrated.
+Constructor invocation, initialization, final initializer writes, general static
+method resolution, full linkage, verification, loading constraints, VM exception
+production, monitors, native methods, threads, GC and Java library integration
+remain incomplete. Kotlin/Spring Boot is not executable. Full M2 and complete JVM
+conformance remain open; no performance superiority has been demonstrated.
 
 The user initialized Git and authorized autonomous publication to the CrabSpot
 remote. Preserve interactive-user Git ownership and the Apache 2.0 license.
@@ -222,10 +241,11 @@ python tools/reference_array_reference.py --check
 python tools/multidimensional_reference.py --check
 python tools/reference_call_reference.py --check
 python tools/exception_reference.py --check
+python tools/static_reference.py --check
 cargo run -p crabspot-classfile --example fuzz_parser -- tests/fixtures/classes --iterations 10000
 ```
 
 On this Windows host, add C:/Users/Admin/.cargo/bin to PATH and set
 CARGO_INCREMENTAL=0. Use isolated CARGO_TARGET_DIR and TMP/TEMP directories inside
 the project. The coordinator used target/verification-m2; workers used separate
-exception-runtime-worker and exception-interpreter-worker output directories.
+static-runtime-worker and static-interpreter-worker output directories.

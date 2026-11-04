@@ -3,7 +3,7 @@ use crabspot_bytecode::DecodeError;
 use crabspot_classfile::JavaString;
 use crabspot_runtime::{
     ArrayAccessError, ClassId, ExceptionAccessError, FieldAccessError, HeapError,
-    MethodAccessError, PrimitiveArrayKind, TypeAccessError, VmExceptionKind,
+    MethodAccessError, PrimitiveArrayKind, StaticAccessError, TypeAccessError, VmExceptionKind,
 };
 use std::fmt;
 
@@ -31,6 +31,7 @@ pub struct CallSite {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExecutionErrorKind {
+    StaticAccess(Box<StaticAccessError>),
     ExceptionAccess(Box<ExceptionAccessError>),
     UnsupportedVmException(VmExceptionKind),
     InvalidExceptionHandler {
@@ -184,6 +185,9 @@ impl fmt::Display for ExecutionError {
                 formatter,
                 "primitive array kind {actual:?} is invalid for instruction 0x{opcode:02x}"
             ),
+            ExecutionErrorKind::StaticAccess(error) => {
+                write!(formatter, "static service failed: {error}")
+            }
             ExecutionErrorKind::ExceptionAccess(error) => {
                 write!(formatter, "exception service failed: {error}")
             }
@@ -309,6 +313,7 @@ impl fmt::Display for ExecutionError {
 impl std::error::Error for ExecutionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.kind {
+            ExecutionErrorKind::StaticAccess(error) => Some(error.as_ref()),
             ExecutionErrorKind::ExceptionAccess(error) => Some(error.as_ref()),
             ExecutionErrorKind::Decode(error) => Some(error),
             ExecutionErrorKind::Heap(error) => Some(error),

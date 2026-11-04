@@ -186,7 +186,7 @@ fn increased(
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum FieldKind {
+pub(crate) enum FieldKind {
     Boolean,
     Byte,
     Char,
@@ -198,7 +198,7 @@ enum FieldKind {
     Reference,
 }
 impl FieldKind {
-    fn default_value(self) -> Value {
+    pub(crate) fn default_value(self) -> Value {
         match self {
             Self::Long => Value::Long(0),
             Self::Float => Value::Float(0),
@@ -207,7 +207,7 @@ impl FieldKind {
             _ => Value::Int(0),
         }
     }
-    fn store(self, field: FieldId, value: Value) -> Result<Value, InstanceError> {
+    pub(crate) fn store(self, field: FieldId, value: Value) -> Result<Value, InstanceError> {
         let expected = self.default_value().kind();
         if value.kind() != expected {
             return Err(HeapError::ValueKindMismatch {
@@ -230,7 +230,7 @@ impl FieldKind {
 }
 // Allocation-free descriptor validation avoids copying arbitrarily long object
 // names. Metadata remains immutable; the scalar CP key is classified once.
-fn classify(field: FieldId, units: &[u16]) -> Result<FieldKind, InstanceError> {
+pub(crate) fn classify(field: FieldId, units: &[u16]) -> Result<FieldKind, InstanceError> {
     let invalid = || InstanceError::InvalidDescriptor {
         field,
         error: ParseError {

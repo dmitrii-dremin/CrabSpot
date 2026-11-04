@@ -98,7 +98,8 @@ final-field bypass. `heap_roots` is an allocation-free borrowed iterator of non-
 managed handles. It is empty by construction because default-only static slots
 remain null. It does not expose mutable root locations, create a synchronized
 snapshot, trace objects, establish safepoints or implement a collector.
-Static-storage mutation, initialization execution and field bytecodes remain later work.
+This standalone container remains read-only. The separate heap-owned static memory
+profile below supplies checked mutation; initialization execution remains later work.
 
 ## Managed primitive-array heap
 
@@ -398,8 +399,8 @@ before one mutation. Public `put_field` continues rejecting all non-null referen
 Stores allocate no heap entries or payload, do not change quotas or identity, and
 do not claim construction or initialization. `children` borrows one handle per
 non-null slot, preserving repeated aliases and cycles without recursion, tracing,
-deduplication or allocation. Static writes, lifecycle protocols and collection
-remain outside this increment.
+deduplication or allocation. The explicit static profile below supplies static
+writes; lifecycle protocols and collection remain outside this increment.
 
 ## Checked reference arrays
 
@@ -516,3 +517,66 @@ handlers/athrow. No fabricated default object stands for a VM-produced exception
 Messages, stack traces, constructors, native/monitor/thread startup, asynchronous
 exceptions, full verification, collection and general exception production remain
 outside this bounded service.
+
+## Heap-owned checked static memory
+
+`allocate_static_state` creates the heap's unique static container from every
+currently admitted class/interface, including abstract and zero-field types.
+Each declared static FieldId owns one logical location; inheritance creates no
+copies and Long/Double use one location each. Initial classes are ordered by
+registry declaration index, then fields by declaration order. Defaults are zero,
+positive floating zero or null. ConstantValue and actual clinit bodies remain
+unapplied: this is host-controlled memory, not Java preparation/initialization.
+
+`StaticStateOptions` defaults to 16,384 classes, 65,536 locations and 8,388,608
+payload bytes. Payload is exactly locations times `STATIC_STATE_SLOT_BYTES`, the
+actual size of Value, excluding maps, metadata, capacity slack and allocator
+overhead. These limits are independent of array and ordinary-instance quotas.
+Arithmetic overflow and allocation failures remain explicit host failures.
+
+The first successful allocation fixes options. Repeating identical options with
+unchanged layouts consumes no work and preserves all values. Admitted graph
+growth requires a fresh context and an atomic extension with the original options.
+Only newly admitted classes append locations; old values, field order and root
+aliases remain. Zero-field membership is retained so profile generations cannot
+be reset or replaced without graph growth. Failed extension preserves the prior
+container and permits a later work-budget retry, without restoring old profiles
+against the enlarged graph.
+
+Inventory work is charged atomically before collection. Each new declared field
+is charged, including skipped instance fields; each distinct scalar CP descriptor
+key is charged and classified once without retaining nominal-name copies. Staging
+uses bounded, fallible amortized growth. Retained positions must bijectively match
+field order; all validation and destination reservation precede publication, and
+no callback or fallible operation follows the first published location.
+
+The opaque Copy `StaticStateProfile` binds registry/heap identity and class/slot/
+payload counts. Profile checks and host inspection consume no lookup work.
+Profiles exclude the reference universe: binding it later requires a fresh
+context under existing rules, while the same static profile remains usable.
+Static allocation and writes do not invalidate existing exception/type/method
+snapshots. Different heaps and same-count heap replacement cannot reuse a token.
+
+`read_static`/`write_static` share field resolution, defining-loader packages,
+protected-static access and the conservative nominal loading constraint. Static
+category precedes final rejection; every final write fails. Numeric values use
+the existing narrowing/masking and raw IEEE-bit rules. Non-null references validate
+source identity before the selected declarer's complete identity-only descriptor
+and assignment; hidden descriptor types add no caller-access restriction. Null
+requires no universe or target resolution. A guarded private commit rechecks
+ownership, field/category/finality/kind/position and source handles before mutation.
+No public raw setter, reset or initializer permission is exposed.
+
+`static_fields` and `inspect_static` provide read-only owner-qualified inspection.
+`static_roots` validates stored values and borrows each non-null handle in field
+order, preserving aliases without allocation or child traversal. Corrupt values
+are host failures rather than silently filtered roots. Object `children` remains
+separate; neither API supplies mutable GC root locations or a synchronized snapshot.
+
+Only direct selector Java categories become StaticJava errors; nested type/context
+failures preserve their sources. Opt-in engine profiles enable static bytecodes
+and compose with supplied-Throwable dispatch. Existing entry points keep their
+gates. Completed writes survive later symbolic Java outcomes, uncaught supplied
+references and host/fuel failures. Class initialization, ConstantValue/String
+materialization, lifecycle success states, synchronization, general static calls,
+verification, collection and VM exception materialization remain unimplemented.

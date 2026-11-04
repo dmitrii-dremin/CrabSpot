@@ -718,6 +718,13 @@ impl<'a> FieldResolutionContext<'a> {
             protected_receiver,
         })
     }
+    pub(crate) fn select_field_id(
+        &mut self,
+        origin: ClassId,
+        index: u16,
+    ) -> Result<FieldId, FieldAccessError> {
+        Ok(self.select(origin, index)?.field)
+    }
     fn field_receiver(
         &mut self,
         selected: &Selected,

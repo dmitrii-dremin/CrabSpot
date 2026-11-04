@@ -131,3 +131,18 @@ execute only in the oracle driver, and no initialized Throwable library state is
 claimed. Implicit VM exception materialization is outside this profile. Final
 debug/release comparisons and combined validation pass; bounded technical review
 is complete. This does not establish full Java exception support.
+
+StaticBodyCases and five companions add explicit checked static-memory access.
+The JDK driver resets mutable statics before each of 364 cases; CrabSpot uses
+fresh default storage, with no initialization claim. Primitive/raw floating
+values, inherited/hidden declarations, aliases, arrays, all call forms and
+supplied-Throwable completion are compared. Rust independently inspects all
+20 initial static locations, ordered repeated roots, unchanged receiver fields,
+full array contents and allocation totals, and idempotent allocation without reset.
+Each case then admits another genuine class, rejects the stale context/profile,
+and checks that extension preserves all prior values and roots while adding four
+default locations.
+StaticUnapplied supplies separately labeled ConstantValue/clinit metadata whose
+values remain unapplied in this memory profile. The final integrated debug
+and optimized oracle tests and combined verification gate pass; bounded technical
+review is complete. Full JVM initialization remains outside this profile.
