@@ -47,7 +47,7 @@ The coordinator independently observed on the frozen combined source:
 - All 86 genuine class fixtures and thirteen reference-output sets reproduce; the previous 80 class hashes remain unchanged.
 - The 86-class parser smoke campaign completes 10,000 cases with zero failures: 136 accepted, 9,864 rejected, ten deterministic rechecks, final corpus 222, seed 4851011501752864596.
 
-The coordinator reverified all seventeen frozen hashes after these checks. Fresh hosted Linux/Windows validation for this increment remains pending publication; the preceding checked-field increment's passing CI is separate evidence.
+The coordinator reverified all seventeen frozen hashes after these checks. The coordinator subsequently inspected complete [run 41804561054](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41804561054) for implementation commit c0ce0a3. Linux and Windows passed every check with Rust 1.99.1 and Temurin JDK 21.0.13: checked-in/regenerated fixtures, all thirteen reference sets, strict lint, debug/optimized tests and parser smoke. Both smoke runs completed 10,000 cases with 136 accepted, 9,864 rejected, ten deterministic rechecks, corpus 222 and zero failures. This hosted evidence is recorded separately after frozen-source approval.
 
 ## Boundary and next direction
 

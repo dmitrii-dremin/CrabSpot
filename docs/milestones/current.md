@@ -136,8 +136,12 @@ untested; local tools are Rust/Cargo 1.98.1 and Zulu OpenJDK 21.0.7.
 
 The preceding checked-field implementation e2e2e22 passed complete Linux/Windows
 [run 41801158397](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41801158397)
-with Rust 1.99.1 and Temurin JDK 21.0.13. Hosted CI for this increment is pending
-publication; prior CI is not attributed to current changes.
+with Rust 1.99.1 and Temurin JDK 21.0.13. Reference-array implementation c0ce0a3 passed complete [run 41804561054](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41804561054)
+on Linux and Windows with Rust 1.99.1 and Temurin JDK 21.0.13. Every check passed:
+checked-in/regenerated fixtures, all thirteen output sets, strict lint, debug and
+optimized tests, and parser smoke. Both hosted smoke runs completed 10,000 cases
+with 136 accepted, 9,864 rejected, ten rechecks, corpus 222 and zero failures.
+This evidence belongs to the implementation commit, separately from this update.
 
 ## Reviews, limitations and next work
 
