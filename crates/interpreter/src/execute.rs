@@ -147,6 +147,7 @@ impl Preparation {
 enum CallKind {
     Static,
     Virtual,
+    Special,
     Interface { count: u8 },
 }
 impl CallKind {
@@ -157,6 +158,7 @@ impl CallKind {
         match self {
             Self::Static => 0xb8,
             Self::Virtual => 0xb6,
+            Self::Special => 0xb7,
             Self::Interface { .. } => 0xb9,
         }
     }
@@ -535,7 +537,7 @@ pub fn execute_static_method_body_with_heap(
 
 /// Evaluate an explicitly selected ordinary instance root without Java root
 /// invocation/dispatch or initialization. Its body may perform supported bounded
-/// virtual/interface resolution and dispatch through the supplied runtime context.
+/// virtual/interface dispatch and ordinary special selection through its runtime context.
 pub fn execute_instance_method_body(
     context: &mut FieldResolutionContext<'_>,
     method: MethodId,
@@ -811,6 +813,9 @@ fn execute_with_services(
                         CallKind::Virtual => {
                             context.select_virtual(origin, constant_index, receiver)
                         }
+                        CallKind::Special => {
+                            context.select_special(origin, constant_index, receiver)
+                        }
                         CallKind::Interface { .. } => {
                             context.select_interface(origin, constant_index, receiver)
                         }
@@ -1051,7 +1056,7 @@ fn step(
             E::UnsupportedInstruction(opcode),
         ));
     }
-    if matches!(opcode, 0xb4..=0xb6 | 0xb9) && !matches!(services, Services::Fields { .. }) {
+    if matches!(opcode, 0xb4..=0xb7 | 0xb9) && !matches!(services, Services::Fields { .. }) {
         return Err(ExecutionError::new(
             Some(pc),
             E::UnsupportedInstruction(opcode),
@@ -1603,17 +1608,17 @@ fn step(
                 kind: CallKind::Interface { count: *count },
             });
         }
-        0xb6 | 0xb8 => {
+        0xb6..=0xb8 => {
             let Operands::Constant(index) = operands else {
                 return Err(operand_error(pc));
             };
             frame.pc = next;
             return Ok(Action::Call {
                 constant_index: *index,
-                kind: if opcode == 0xb6 {
-                    CallKind::Virtual
-                } else {
-                    CallKind::Static
+                kind: match opcode {
+                    0xb6 => CallKind::Virtual,
+                    0xb7 => CallKind::Special,
+                    _ => CallKind::Static,
                 },
             });
         }
@@ -1651,7 +1656,7 @@ fn invocation_parameters(
     let (class_index, name_and_type_index) =
         match (kind, class.constant_pool.get(index).map_err(|_| invalid())?) {
             (
-                CallKind::Virtual,
+                CallKind::Virtual | CallKind::Special,
                 Constant::Methodref {
                     class_index,
                     name_and_type_index,
@@ -1664,6 +1669,13 @@ fn invocation_parameters(
                     name_and_type_index,
                 },
             ) => (*class_index, *name_and_type_index),
+            (
+                CallKind::Special,
+                Constant::InterfaceMethodref {
+                    class_index,
+                    name_and_type_index,
+                },
+            ) if class.version.major >= 52 => (*class_index, *name_and_type_index),
             _ => return Err(invalid()),
         };
     class

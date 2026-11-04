@@ -262,5 +262,32 @@ budget before work. Interface edges are charged before enqueueing even duplicate
 targets; candidate comparisons include self pairs and charge bounded pairwise
 dominance traversals. Temporary storage is iterative and fallibly reserved; no
 transitive-closure matrix or permanent candidate cache is retained.
-The service does not implement constructors, invokespecial, native binding,
+The service does not implement constructors, native binding,
 class initialization, verification, named-module/nest services or general Java startup.
+
+## Ordinary special-call selection
+
+`FieldResolutionContext::select_special` resolves a checked Methodref, or an
+InterfaceMethodref from an origin of major 52 or later, for an ordinary numeric/void
+call. Initialization names remain explicitly unsupported. Resolution, access and
+resolved staticness precede the defensive symbolic-owner check, then null. Legal
+owners are the current type, a class ancestor, a direct superinterface, or the
+current interface's exact Object dependency. Other owners produce the host
+InvalidSpecialOwner error; this service does not establish bytecode verification.
+
+Superclass calls start lookup at the current class's direct superclass regardless
+of the raw ACC_SUPER bit or file version. Other calls start at the symbolic owner.
+Lookup selects exact instance declarations (including private ones), skips static
+declarations, and searches the prescribed class superchain or interface Object
+dependency before shared maximal-default analysis. Access is checked during
+resolution, not reapplied to a different selected declaration. The actual receiver's
+overrides and additional interface branches cannot alter this lookup; no virtual
+receiver-side final guard is introduced here.
+
+The ordinary receiver must satisfy both the current and symbolic types, and the
+selected declaring type must also be compatible, by admitted ClassId relationships.
+An interface's Object dependency does not make it a class subclass for protected
+access. All new node/edge/declaration scans use the existing cumulative work budget;
+selection retains successful symbol bindings without introducing another cache.
+Native/synchronized methods remain preparation responsibilities. This does not
+construct, initialize or mark an instance as having completed a constructor.

@@ -53,6 +53,8 @@ jobs:
           python tools/virtual_reference.py --check
           python tools/interface_dispatch_reference.py
           python tools/interface_dispatch_reference.py --check
+          python tools/special_reference.py
+          python tools/special_reference.py --check
       - name: Format
         run: cargo fmt --check
       - name: Lint

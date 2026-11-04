@@ -26,7 +26,7 @@ kinds/defaults, visible/invisible declaration/parameter/type annotations, generi
 type paths and annotated Code, inner/nest classes, records, sealed classes, and
 a module descriptor with requires, exports, opens, uses and provides tables.
 Numeric, floating-point, static-call and hierarchy fixtures bring the manifest to
-59 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
+65 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
 reference descriptors and interface ancestry. Rust hierarchy tests supply an
 explicit synthetic root as test input; this is not a production Object fallback
 or evidence of Java library execution.
@@ -57,3 +57,9 @@ and default-method dispatch: inheritance, diamonds, a more-specific default,
 class implementations, abstract redeclaration, private interface helpers and
 same-interface static helpers. The explicit JDK driver produces result records;
 Rust supplies default storage and selects ordinary class wrappers as roots.
+
+SpecialCallBase/Middle/Cases/Leaf and SpecialRootDefault/ChildDefault add ordinary
+superclass and direct-superinterface call bodies. The fixtures deliberately mix
+special selection with later virtual/interface/static dispatch, hidden fields,
+numeric/void values, recursion and arrays. Receiver storage remains default-only
+at Rust entry; fixture constructors are not executed by CrabSpot.

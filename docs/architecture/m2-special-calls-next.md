@@ -1,6 +1,6 @@
 # Next ordinary special-call increment
 
-Status: design direction only, following the bounded approval in `m2-interface-dispatch-review.md`. No implementation is authorized by this note. The director will pin the concrete API, error ordering and tests before dispatch. Autonomous continuation is already authorized by the user; another user permission request is unnecessary.
+Status: superseded by the implemented and approved contract `m2-special-calls.md` on 2026-11-04; final evidence is in `m2-special-calls-review.md`. The rationale below is retained as history. The proposed subsequent direction is `m2-reference-types-next.md`.
 
 The next coherent execution increment should add ordinary nonconstructor invokespecial to the existing runtime-aware numeric/void body engine. It enables explicit superclass calls and direct-superinterface default calls that ordinary Java code emits. Same-class/interface private calls can reuse the service where the encoding is legal. This complements virtual/interface dispatch without pretending that allocated storage has passed a constructor or that class initialization is implemented.
 

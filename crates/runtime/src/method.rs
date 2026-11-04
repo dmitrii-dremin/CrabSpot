@@ -45,6 +45,10 @@ pub enum MethodAccessError {
         method: MethodId,
         overridden: MethodId,
     },
+    InvalidSpecialOwner {
+        origin: ClassId,
+        owner: ClassId,
+    },
 }
 impl fmt::Display for MethodAccessError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -76,6 +80,10 @@ impl fmt::Display for MethodAccessError {
             Self::InvalidOverride { method, overridden } => write!(
                 f,
                 "method {method:?} overrides final declaration {overridden:?}"
+            ),
+            Self::InvalidSpecialOwner { origin, owner } => write!(
+                f,
+                "special-call owner {owner:?} is not the current type, a superclass, a direct superinterface or the current interface's Object dependency of {origin:?}"
             ),
         }
     }
@@ -631,6 +639,138 @@ impl<'a> FieldResolutionContext<'a> {
     ) -> Result<MethodId, MethodAccessError> {
         self.select_method(origin, index, receiver, true)
     }
+    fn special_start(
+        &mut self,
+        origin: ClassId,
+        owner: ClassId,
+    ) -> Result<ClassId, MethodAccessError> {
+        if origin == owner {
+            return Ok(owner);
+        }
+        self.step()?;
+        let origin_interface = self.heap().instance_graph_node(origin)?.flags & 0x200 != 0;
+        self.step()?;
+        let owner_interface = self.heap().instance_graph_node(owner)?.flags & 0x200 != 0;
+        if !origin_interface && !owner_interface {
+            if self.subclass(origin, owner)? {
+                // Java SE 21 treats ACC_SUPER as set, including old classfiles
+                // whose raw stored flag is clear. The actual receiver is absent
+                // from this choice of lookup origin.
+                return self.heap().instance_graph_node(origin)?.superclass.ok_or(
+                    FieldAccessError::InvalidState("strict superclass without a direct parent")
+                        .into(),
+                );
+            }
+        } else if owner_interface {
+            let len = self.heap().instance_graph_node(origin)?.interfaces.len();
+            for index in 0..len {
+                self.step()?;
+                let interface = self
+                    .heap()
+                    .instance_graph_node(origin)?
+                    .interfaces
+                    .get(index)
+                    .ok_or(FieldAccessError::InvalidState(
+                        "special owner edge disappeared",
+                    ))?;
+                if *interface == owner {
+                    return Ok(owner);
+                }
+            }
+        } else {
+            self.step()?; // interface-origin Object dependency edge comparison
+            if self.heap().instance_graph_node(origin)?.superclass == Some(owner) {
+                return Ok(owner);
+            }
+        }
+        Err(MethodAccessError::InvalidSpecialOwner { origin, owner })
+    }
+    fn require_method_receiver(
+        &mut self,
+        actual: ClassId,
+        expected: ClassId,
+    ) -> Result<(), MethodAccessError> {
+        self.step()?;
+        let interface = self.heap().instance_graph_node(expected)?.flags & 0x200 != 0;
+        let compatible = if interface {
+            let roots = self.interface_roots(actual)?;
+            self.interface_ancestry(roots, expected)?
+        } else {
+            self.subclass(actual, expected)?
+        };
+        if compatible {
+            Ok(())
+        } else {
+            Err(FieldAccessError::InvalidReceiver { expected, actual }.into())
+        }
+    }
+    fn special_lookup(
+        &mut self,
+        start: ClassId,
+        symbol: &Symbol<'_>,
+    ) -> Result<MethodId, MethodAccessError> {
+        let mut current = Some(start);
+        for _ in 0..self.heap().retained_layout_classes() {
+            let Some(class) = current else { break };
+            self.step()?;
+            if let Some(method) = self.declared_method(class, symbol, false)? {
+                if self.registry().method(method)?.access_flags & 8 == 0 {
+                    return Ok(method);
+                }
+            }
+            let node = self.heap().instance_graph_node(class)?;
+            if node.flags & 0x200 != 0 {
+                let object = node.superclass.ok_or(FieldAccessError::InvalidState(
+                    "special interface has no Object dependency",
+                ))?;
+                self.step()?;
+                if let Some(method) = self.declared_method(object, symbol, false)? {
+                    if self.registry().method(method)?.access_flags & 9 == 1 {
+                        return Ok(method);
+                    }
+                }
+                current = None;
+                break;
+            }
+            current = node.superclass;
+        }
+        if current.is_some() {
+            return Err(FieldAccessError::InvalidState("cyclic special selection ancestry").into());
+        }
+        self.interface_candidates(start, symbol)?.selection()
+    }
+    /// Resolve an ordinary nonconstructor special call and search its prescribed
+    /// type, independently of receiver overrides. No constructor state is implied.
+    pub fn select_special(
+        &mut self,
+        origin: ClassId,
+        index: u16,
+        receiver: Reference,
+    ) -> Result<MethodId, MethodAccessError> {
+        self.unchanged()?;
+        let definition = self.registry().class(origin)?;
+        self.heap().instance_graph_node(origin)?;
+        let interface = match definition.constant_pool.get(index) {
+            Ok(Constant::Methodref { .. }) => false,
+            Ok(Constant::InterfaceMethodref { .. }) if definition.version.major >= 52 => true,
+            _ => return Err(MethodAccessError::InvalidConstant { origin, index }),
+        };
+        let symbol = self.method_symbol(origin, index, interface)?;
+        let resolved = self.resolve_method(origin, &symbol, interface)?;
+        let start = self.special_start(origin, resolved.owner)?;
+        if receiver.is_null() {
+            return Err(MethodAccessError::Java(MethodJavaError::NullPointer));
+        }
+        let actual = self.heap().instance_class(receiver)?;
+        self.require_method_receiver(actual, origin)?;
+        self.require_method_receiver(actual, resolved.owner)?;
+        let selected = self.special_lookup(start, &symbol)?;
+        self.require_method_receiver(actual, selected.owner())?;
+        if self.registry().method(selected)?.access_flags & 0x400 != 0 {
+            return Err(MethodAccessError::Java(MethodJavaError::AbstractMethod));
+        }
+        Ok(selected)
+    }
     fn select_method(
         &mut self,
         origin: ClassId,
@@ -785,7 +925,19 @@ mod tests {
             context.select_interface(forged_origin, 6, receiver),
             Err(MethodAccessError::Context(FieldAccessError::Registry(_)))
         ));
+        assert!(matches!(
+            context.select_special(forged_origin, 6, receiver),
+            Err(MethodAccessError::Context(FieldAccessError::Registry(_)))
+        ));
         let symbol = context.method_symbol(class, 6, false).unwrap();
+        assert!(matches!(
+            context.special_lookup(forged_origin, &symbol),
+            Err(MethodAccessError::Context(FieldAccessError::Registry(_)))
+        ));
+        assert!(matches!(
+            context.require_method_receiver(class, forged_origin),
+            Err(MethodAccessError::Context(FieldAccessError::Instance(_)))
+        ));
         let forged = MethodId {
             owner: class,
             index: usize::MAX,
@@ -816,6 +968,16 @@ mod tests {
                 .source()
                 .is_none()
         );
+        let owner = ClassId {
+            registry: 1,
+            index: 0,
+        };
+        let error = MethodAccessError::InvalidSpecialOwner {
+            origin: owner,
+            owner,
+        };
+        assert!(error.to_string().contains("special-call owner"));
+        assert!(error.source().is_none());
     }
     #[test]
     fn resolution_witnesses_do_not_replace_maximal_receiver_selection() {

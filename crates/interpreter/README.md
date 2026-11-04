@@ -16,7 +16,8 @@ instruction stream before evaluation. Unsupported instructions fail when reached
 
 The original numeric entry points handle 148 effective opcode values. The explicit
 heap entry point adds 31, for 179 total. The runtime-aware instance entry point
-adds `getfield`, `putfield`, `invokevirtual` and `invokeinterface`, for 183 total. `wide` is an encoding prefix for indexed
+adds `getfield`, `putfield`, `invokevirtual`, `invokeinterface` and ordinary
+`invokespecial`, for 184 total. `wide` is an encoding prefix for indexed
 loads/stores and increment; heap mode adds two reference local forms to the nine
 numeric wide forms.
 
@@ -124,7 +125,7 @@ enabled only inside the explicit heap or instance body graph; a reference argume
 for a numeric parameter produces a typed error in every entry point.
 
 Reference parameters/returns and reference arrays, static fields, runtime invocation,
-generalized cross-class static calls, special calls, constructor execution,
+generalized cross-class static calls, constructor execution,
 exception handlers, monitors and legacy subroutines remain unsupported. Numeric
 execution never delegates application bytecode to an installed JVM. The reference
 fixture integration compares results against separately generated OpenJDK records.
@@ -172,8 +173,7 @@ available caller provenance. These outcomes allocate no Java error objects.
 Each field instruction consumes one shared fuel unit. Completed field writes and
 array allocations persist after every return, symbolic failure or host error;
 failed writes preserve their previous values. This bridge does not implement
-`new`, constructors, getstatic/putstatic, special invocation,
-class initialization, reference parameters/results, non-null field stores,
+`new`, constructors, getstatic/putstatic, class initialization, reference parameters/results, non-null field stores,
 exception dispatch, monitors, named modules, full verification or complete linkage.
 
 
@@ -190,7 +190,7 @@ Equal local method indices in different classes remain different bodies and
 consume separate prepared-code allowance. Legacy standalone APIs keep their own
 tagged index identities and manufacture no runtime handles. Every frame uses its
 own declaring class's constant pool, return descriptor, field origin and static
-helper policy. Both invocation paths check static/instance mode on cache hits.
+helper policy. Every invocation path checks static/instance mode on cache hits.
 
 Virtual arguments are extracted as typed values from the call-site descriptor.
 The receiver occupies target local zero; numeric arguments follow at their usual
@@ -217,7 +217,7 @@ need not identify an ancestor of the method reporting the error.
 
 Earlier completed writes and allocations survive every failure. This remains an
 explicit body-graph evaluation profile, without constructor execution, new,
-invokespecial, reference arguments/results, generalized cross-class
+reference arguments/results, generalized cross-class
 static calls, lifecycle proof, exception dispatch, complete linkage or JVM startup.
 
 
@@ -257,5 +257,41 @@ access and resolved staticness precede null; null precedes interface membership
 and selection. Nonimplementing ordinary receivers, conflicting defaults, absent
 concrete targets and selected visibility follow the runtime's bounded contract.
 Other invalid handles/metadata, unsupported profiles and policy failures remain
-structured host errors. Constructors, invokespecial, initialization, reference
+structured host errors. Constructors, initialization, reference
 arguments/results, native binding, handlers and monitors remain separate work.
+
+
+## Ordinary special calls
+
+Runtime-aware instance mode enables nonconstructor `invokespecial` with the same
+host entry point, context and frame loop. Calls use `select_special` from the
+current frame's declaring class or interface. Methodref is supported throughout
+the parser's version range; InterfaceMethodref requires the origin to have major
+version 52 or above. Earlier standalone and heap-only entry points still reject
+b7. Wrong CP kind/version, reference descriptors and initialization names fail
+before typed stack extraction. `<init>` and `<clinit>` remain explicitly
+unsupported: no constructor execution or uninitialized-reference transition is
+performed, and storage is never marked constructed or initialized.
+
+The runtime separates symbolic owner, resolved declaration and prescribed lookup
+start. Explicit superclass calls start from the origin's direct superclass when
+required, even if the reference names an older ancestor or raw ACC_SUPER is clear
+in an old file. Direct-superinterface defaults, current-type and private current
+type calls retain exact identity checks. Selection uses that prescribed type,
+not an override or unrelated interface on the actual receiver. Receiver checks
+require compatibility with both current and symbolic types. Invalid structural
+owners remain MethodAccess host errors, while supported resolution/access,
+staticness, null, abstract-target and default-conflict failures keep their Java
+outcomes and ordering.
+
+Special, virtual and interface paths share one prepared entry per MethodId.
+Static-versus-instance eligibility remains checked on every cache hit. Selected
+bodies use their own constant pool, field origin and diagnostics; subsequent
+virtual/interface calls dispatch normally and current-class static helpers retain
+their narrow policy. Receiver local zero, mixed numeric widths, narrow/FP/void
+returns, remaining caller operands, fuel and frame/slot/code/work limits keep the
+earlier rules. Code preparation remains eager and excludes native, synchronized
+and handler bodies. Existing writes and allocations persist after every later
+Java or host failure. No new public execution API, constructor/lifecycle proof,
+class initialization, reference-valued API, general static resolution, native
+binding, monitors or exception dispatch is supplied by this increment.

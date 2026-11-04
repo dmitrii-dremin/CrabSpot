@@ -82,3 +82,12 @@ Cases include private and static interface helpers, default/class mutual recursi
 all numeric widths, void, arrays, and 98 null, seven arithmetic and fourteen
 negative-array-size outcomes. Rust's additional state/allocation assertions derive
 from fixture sources; the TSV records return values and symbolic exceptions only.
+
+special_calls.tsv adds 450 Java 21 ordinary invokespecial body-graph outcomes
+across 36 receiver/method pairs. Generate/check with tools/special_reference.py.
+The two receiver types distinguish prescribed superclass/interface selection
+from later dynamic calls inside those selected bodies. All numeric widths and
+void are covered, with two arithmetic and four negative-array-size outcomes.
+Rust's source-derived assertions additionally check owner-qualified hidden fields,
+raw stored numeric values and allocated object/array counts. Null/invalid owner,
+legacy flags and malformed special-call encodings use separate synthetic tests.

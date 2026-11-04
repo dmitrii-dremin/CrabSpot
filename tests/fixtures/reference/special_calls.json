@@ -1,0 +1,7 @@
+{
+  "reference_runtime": "openjdk version \"21.0.7\" 2025-04-15 LTS\nOpenJDK Runtime Environment Zulu21.42+19-CA (build 21.0.7+6-LTS)\nOpenJDK 64-Bit Server VM Zulu21.42+19-CA (build 21.0.7+6-LTS, mixed mode, sharing)",
+  "source_sha256": "d0964b088c820fb77ba4187c0628ea3407b2ae68d2fa7e9f717b2cb638c3da45",
+  "class_sha256": "f233df735b1f019ec99b04f8d2c968487edbb63fcdb8b580f78197150e5b5914",
+  "results_sha256": "20151b1ec345091bb932389f3b418db95083c1b5472c5924bded349c0d9c79f4",
+  "cases": 450
+}
