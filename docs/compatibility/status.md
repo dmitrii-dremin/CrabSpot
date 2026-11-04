@@ -60,8 +60,11 @@ complete quotas, atomic work charging, corrupted/failure-injected publication,
 current-frame origins and persistent effects. A bounded source-derived DFS model
 checks all genuine graph nodes/values/counters separately from JDK outcomes.
 Final frozen review approved the increment in docs/architecture/m2-multidimensional-arrays-review.md;
-full M2 remains open. Hosted CI for this increment is pending publication;
-the preceding run in the table applies only to its named implementation commit.
+full M2 remains open. Implementation a753941 passed complete Linux/Windows
+[run 41813463546](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41813463546).
+Both inspected logs show Rust/Cargo 1.99.1, Temurin 21.0.13, both 631-test debug
+passes, all 544 optimized tests, fixture/oracle reproduction and a zero-failure
+10,000-case parser smoke run. Earlier CI rows retain their named-commit scope.
 
 ## Standard attribute coverage
 

@@ -42,7 +42,7 @@ The coordinator independently observed on the frozen combined source:
 - All 88 genuine class fixtures and fourteen reference-output sets reproduce; the previous 86 class hashes remain unchanged.
 - The 88-class parser smoke campaign completes 10,000 cases with zero failures: 130 accepted, 9,870 rejected, ten deterministic rechecks, final corpus 218, seed 4851011501752864596.
 
-The coordinator reverified all ten frozen hashes after these checks. Fresh hosted Linux/Windows validation for this increment remains pending publication; the preceding reference-array increment's passing CI is separate evidence.
+The coordinator reverified all ten frozen hashes after these checks. Published implementation `a7539419700ae668853a568af50bbac6e967a09a` subsequently passed complete [Linux/Windows run 41813463546](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41813463546). Both job logs were inspected: Rust/Cargo 1.99.1 and Temurin JDK 21.0.13; 631 checked-in-fixture tests, 631 freshly compiled-fixture tests and 544 optimized runtime/interpreter tests pass on each platform. All 88 classes and fourteen reference outputs reproduce. Both smoke runs report the same 10,000 cases, 130 accepted, 9,870 rejected, ten rechecks, corpus 218 and zero failures.
 
 ## Boundary and next direction
 

@@ -144,10 +144,13 @@ The expanded 88-class smoke run passed 10,000 cases at seed 4851011501752864596:
 No finite test proves panic freedom. Rust 1.85, the declared minimum, remains
 untested; local tools are Rust/Cargo 1.98.1 and Zulu OpenJDK 21.0.7.
 
-The preceding reference-array implementation c0ce0a3 passed complete Linux/Windows
-[run 41804561054](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41804561054)
-with Rust 1.99.1 and Temurin JDK 21.0.13. Hosted CI for this increment is pending
-publication; prior CI is not attributed to current changes.
+Implementation a7539419700ae668853a568af50bbac6e967a09a passed complete Linux/Windows
+[run 41813463546](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41813463546).
+Both job logs were inspected: Rust/Cargo 1.99.1 and Temurin JDK 21.0.13; 631 tests
+against checked-in fixtures, 631 against freshly compiled fixtures, and 544 optimized
+runtime/interpreter tests. All 88 fixtures and fourteen reference sets reproduce.
+Both parser smoke runs report 130 accepted, 9,870 rejected, ten rechecks, corpus 218
+and zero failures at the same 10,000-case seed.
 
 ## Reviews, limitations and next work
 
