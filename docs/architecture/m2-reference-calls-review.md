@@ -1,6 +1,6 @@
 # Reference arguments and results review
 
-Status: approved by the technical director on 2026-11-04 for the bounded reference-argument/result and areturn increment. Frozen technical review and the coordinator's integrated gate satisfy `m2-reference-calls.md`. Full M2 remains open. New hosted Linux/Windows evidence is pending publication.
+Status: approved by the technical director on 2026-11-04 for the bounded reference-argument/result and areturn increment. Frozen technical review and the coordinator's integrated gate satisfy `m2-reference-calls.md`. Full M2 remains open. Published implementation 9757382 subsequently passed complete Linux/Windows CI.
 
 ## Reviewed invariants
 
@@ -52,7 +52,7 @@ The coordinator independently observed on the frozen combined source:
 - All 92 class fixtures and fifteen reference-output sets reproduce after the provenance repair; all previous 88 class hashes remain unchanged. The source preflight and six Python regressions pass.
 - The identical 92-class corpus passed 10,000 seeded parser mutations: 158 accepted, 9,842 rejected, ten deterministic rechecks, corpus 250 and zero failures; seed 4851011501752864596.
 
-All 29 hashes were reverified after the gate. A mapped-file copy refusal during integration did not change source: inspection established that types.rs already matched its frozen bytes and remained Admin-owned, so the coordinator skipped the identical destination. No ACL change, escalation workaround or process termination was used. Fresh hosted CI remains unobserved for this increment until publication.
+All 29 hashes were reverified after the gate. A mapped-file copy refusal during integration did not change source: inspection established that types.rs already matched its frozen bytes and remained Admin-owned, so the coordinator skipped the identical destination. No ACL change, escalation workaround or process termination was used. Published implementation `9757382498fdeab72958dd820ffe166d4630a5a9` passed complete [Linux/Windows run 41819049792](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41819049792). Both job logs were inspected: Rust/Cargo 1.99.1 and Temurin JDK 21.0.13; 680 checked-in-fixture tests, 680 freshly compiled-fixture tests and 593 optimized tests pass on each platform. Six Python tests and the 37-source/fifteen-record preflight pass before regeneration. All 92 fixtures and fifteen reference outputs reproduce. Both smoke runs report the same 10,000 cases, 158 accepted, 9,842 rejected, ten rechecks, corpus 250 and zero failures.
 
 ## Boundary and next direction
 

@@ -68,9 +68,11 @@ matching JSON/TSV sets; six Python regressions pass. All compiled class and TSV
 bytes stayed unchanged during repair. This corrects historical CRLF-vs-Git-LF
 metadata, without altering the tested runtime outcomes.
 
-Fresh hosted CI is pending publication. The preceding multidimensional
-implementation a753941 passed [Linux/Windows run 41813463546](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41813463546)
-with Rust/Cargo 1.99.1 and Temurin 21.0.13; that evidence retains its named scope.
+Implementation 9757382 passed complete [Linux/Windows run 41819049792](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41819049792).
+Both inspected logs show Rust/Cargo 1.99.1 and Temurin 21.0.13, both 680-test debug
+passes, all 593 optimized tests, six Python provenance tests and the pre-regeneration
+source preflight. All fixtures/reference outputs reproduce; both 10,000-case parser
+smoke runs have zero failures. Earlier CI rows retain their named-commit scope.
 
 ## Standard attribute coverage
 
