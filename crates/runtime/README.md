@@ -99,7 +99,8 @@ managed handles. It is empty by construction because default-only static slots
 remain null. It does not expose mutable root locations, create a synchronized
 snapshot, trace objects, establish safepoints or implement a collector.
 This standalone container remains read-only. The separate heap-owned static memory
-profile below supplies checked mutation; initialization execution remains later work.
+profile below supplies checked mutation. Initialization scheduling uses a separate
+interpreter-owned session and does not change this standalone container.
 
 ## Managed primitive-array heap
 
@@ -337,7 +338,7 @@ MethodId, argument index or return position, and actual source/declared target
 identities. Wrapped type failures preserve their error source; these host failures
 are not fabricated Java exceptions. Later failure retains consumed work, successful
 bindings and all prior heap effects. Standalone numeric interpreter entry points
-continue rejecting reference signatures. Constructors, native binding, initialization,
+continue rejecting reference signatures. Constructors, native binding, full initialization,
 full verification, cross-loader loading constraints and collection remain open.
 
 ## Reference types and cast services
@@ -565,7 +566,7 @@ source identity before the selected declarer's complete identity-only descriptor
 and assignment; hidden descriptor types add no caller-access restriction. Null
 requires no universe or target resolution. A guarded private commit rechecks
 ownership, field/category/finality/kind/position and source handles before mutation.
-No public raw setter, reset or initializer permission is exposed.
+This body profile exposes no public raw setter, reset or initializer permission.
 
 `static_fields` and `inspect_static` provide read-only owner-qualified inspection.
 `static_roots` validates stored values and borrows each non-null handle in field
@@ -577,6 +578,71 @@ Only direct selector Java categories become StaticJava errors; nested type/conte
 failures preserve their sources. Opt-in engine profiles enable static bytecodes
 and compose with supplied-Throwable dispatch. Existing entry points keep their
 gates. Completed writes survive later symbolic Java outcomes, uncaught supplied
-references and host/fuel failures. Class initialization, ConstantValue/String
-materialization, lifecycle success states, synchronization, general static calls,
-verification, collection and VM exception materialization remain unimplemented.
+references and host/fuel failures. This body profile performs no initialization or
+ConstantValue installation. The separate session services below do not add String
+materialization, synchronization, general static calls, verification, collection
+or VM exception materialization.
+
+## Initialization metadata and checked operations
+
+The interpreter owns opaque `InitializationSession` records, dependency scheduling,
+actual initializer frames, completion, abrupt completion and host-interruption
+cleanup. Runtime provides plans and operation tokens; it has no lifecycle-success
+setter. Existing body APIs retain their host-controlled behavior.
+
+`claim_initialization` validates static and exception profiles, rejects an already
+claimed heap, then checks an explicit bootstrap `java/lang/Error` identity. Error
+must be a public ordinary nonabstract class directly extending the designated
+Throwable. Its one-node/name/edge validation costs seventeen shared lookup steps.
+Publication is the last infallible action. A heap retains its unique claim after
+the session/claim is dropped; there is no release, reset or replay API. Claims and
+plans are opaque non-Clone tokens tied to the registry/heap/profile fingerprints.
+Constant-size claim/class checks add no lookup work or resolution callbacks.
+
+`plan_initialization` validates immutable own fields/attributes, numeric
+ConstantValue entries and at most one exact clinit()V. Static constants apply even
+without FINAL; instance attributes are ignored. B/S sign truncate, C zero truncates,
+Z uses the low bit, I/J remain exact and F/D preserve raw bits. Static String
+constants reject the entire plan. Descriptors use scalar CP keys and atomic full
+UTF-16 charges, without owned nominal trees. Remaining constant/dependency quotas
+are checked before staging entries. Failed preparation retains spent lookup work
+but publishes no plan or value change.
+Historical parameterized initializer descriptors are explicitly unsupported.
+Ignored raw initializer flags do not change its semantic static/no-argument role
+or relax the eligibility rules for ordinary methods.
+
+Class dependencies begin with the direct superclass, followed by declared-order
+interface DFS postorder with identity deduplication. An interface qualifies if it
+declares a nonabstract/nonstatic ordinary method, including private, bridge and
+synthetic declarations; static-only, abstract-only and clinit declarations do not
+qualify. Predicate inspection may stop on its first match, while ancestor traversal
+continues. Interface plans themselves have no dependencies. Traversal is iterative,
+fallibly reserved and charged before nodes, examined methods and edge enqueueing,
+including duplicates. Runtime plans never consult interpreter completion state.
+
+`install_initialization_constants` charges the class's own static range atomically,
+validates every retained attribute/CP index, normalized value and destination, then
+publishes the batch without fallible work after its first write. Private per-class
+ranges keep work linear in own static storage; zero-field ranges and old ranges
+survive extension. A plan without constants requires no slot scan. Installed values
+alone never certify successful initialization.
+
+Resolved-static tokens retain the actual declaring FieldId and scalar immutable
+CP/member fingerprints. Resolution performs normal access/loading/static checks
+and final authorization before initialization scheduling. Resumption rechecks its
+claim, operation kind, scalar metadata, location and value without replaying the
+selector or long names. Non-null assignment retains source-first, identity-only
+descriptor rules. Only the exact supported declaring clinit MethodId can authorize
+a final destination; helpers, other initializers and all old write_static paths
+continue to reject final writes. Runtime's method-context contract is checked, and
+the interpreter creates that origin only for actual scheduler initializer frames.
+
+`is_initialization_error` validates the supplied thrown token and tests class-only
+ancestry against the explicit Error anchor. Only deliberately elevated direct Java
+errors become top-level initialization Java categories; nested Static/Exception/
+Context diagnostics preserve host sources. Numeric constant installation, final
+stores and prior heap effects are not rolled back on later failure. Error wrapping,
+NCDFE materialization, VM-produced exception objects, String interning, constructors,
+concurrent initialization, complete preparation/loading constraints and JVM startup
+remain outside these runtime services. The session separately owns exactly-once,
+recursive-use and erroneous/aborted behavior; no runtime API marks a class completed.

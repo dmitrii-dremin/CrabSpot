@@ -11,6 +11,7 @@ mod field;
 mod handles;
 pub mod heap;
 mod hierarchy;
+mod initialization;
 pub mod instance;
 mod method;
 mod method_values;
@@ -36,6 +37,10 @@ pub use heap::{
 pub use hierarchy::{
     ClassLayout, HierarchyError, HierarchyOptions, HierarchyPlan, HierarchyResolver,
     HierarchyResource, ResolveError, SameLoaderResolver, build_hierarchy,
+};
+pub use initialization::{
+    InitializationAccessError, InitializationClaim, InitializationPlan, InitializationPlanLimits,
+    InitializationPlanResource, InitializationStaticKind, ResolvedInitializationStatic,
 };
 pub use reference::{HeapRef, Reference};
 pub use reference_array::{ArrayAccessError, ArrayJavaError, REFERENCE_ARRAY_ELEMENT_BYTES};

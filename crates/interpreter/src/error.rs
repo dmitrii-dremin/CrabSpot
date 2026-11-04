@@ -1,14 +1,16 @@
-use crate::ValueKind;
+use crate::{InitializationResource, ValueKind};
 use crabspot_bytecode::DecodeError;
 use crabspot_classfile::JavaString;
 use crabspot_runtime::{
     ArrayAccessError, ClassId, ExceptionAccessError, FieldAccessError, HeapError,
-    MethodAccessError, PrimitiveArrayKind, StaticAccessError, TypeAccessError, VmExceptionKind,
+    InitializationAccessError, MethodAccessError, PrimitiveArrayKind, Reference, StaticAccessError,
+    TypeAccessError, VmExceptionKind,
 };
 use std::fmt;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExecutionError {
+    pub initialization_class: Option<ClassId>,
     pub offset: Option<u32>,
     pub kind: ExecutionErrorKind,
     pub method: Option<Box<MethodIdentity>>,
@@ -31,6 +33,29 @@ pub struct CallSite {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExecutionErrorKind {
+    InitializationAccess(Box<InitializationAccessError>),
+    InitializationAborted {
+        class: ClassId,
+    },
+    UnsupportedInitializerWrapping {
+        class: ClassId,
+        thrown: Reference,
+    },
+    UnsupportedNoClassDefFoundError {
+        class: ClassId,
+    },
+    InitializationLimit {
+        resource: InitializationResource,
+        limit: usize,
+        required: usize,
+    },
+    InitializationStepLimit {
+        limit: u64,
+        required: u64,
+    },
+    InitializationAccountingOverflow {
+        resource: &'static str,
+    },
     StaticAccess(Box<StaticAccessError>),
     ExceptionAccess(Box<ExceptionAccessError>),
     UnsupportedVmException(VmExceptionKind),
@@ -133,6 +158,7 @@ pub enum ExecutionErrorKind {
 impl ExecutionError {
     pub(crate) fn new(offset: Option<u32>, kind: ExecutionErrorKind) -> Self {
         Self {
+            initialization_class: None,
             offset,
             kind,
             method: None,
@@ -142,6 +168,9 @@ impl ExecutionError {
 }
 impl fmt::Display for ExecutionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(class) = self.initialization_class {
+            write!(formatter, "initializing {class:?}: ")?;
+        }
         if let Some(method) = &self.method {
             if let Some(owner) = method.owner {
                 write!(formatter, "owner {owner:?} ")?;
@@ -185,6 +214,35 @@ impl fmt::Display for ExecutionError {
                 formatter,
                 "primitive array kind {actual:?} is invalid for instruction 0x{opcode:02x}"
             ),
+            ExecutionErrorKind::InitializationAccess(error) => {
+                write!(formatter, "initialization service failed: {error}")
+            }
+            ExecutionErrorKind::InitializationAborted { class } => {
+                write!(formatter, "initialization was aborted for {class:?}")
+            }
+            ExecutionErrorKind::UnsupportedInitializerWrapping { class, thrown } => write!(
+                formatter,
+                "initializer wrapping is unsupported for {class:?}: {thrown:?}"
+            ),
+            ExecutionErrorKind::UnsupportedNoClassDefFoundError { class } => write!(
+                formatter,
+                "NoClassDefFoundError production is unsupported for {class:?}"
+            ),
+            ExecutionErrorKind::InitializationLimit {
+                resource,
+                limit,
+                required,
+            } => write!(
+                formatter,
+                "initialization {resource:?} limit {limit} exceeded (required {required})"
+            ),
+            ExecutionErrorKind::InitializationStepLimit { limit, required } => write!(
+                formatter,
+                "initialization step limit {limit} exceeded (required {required})"
+            ),
+            ExecutionErrorKind::InitializationAccountingOverflow { resource } => {
+                write!(formatter, "initialization accounting overflow: {resource}")
+            }
             ExecutionErrorKind::StaticAccess(error) => {
                 write!(formatter, "static service failed: {error}")
             }
@@ -313,6 +371,7 @@ impl fmt::Display for ExecutionError {
 impl std::error::Error for ExecutionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.kind {
+            ExecutionErrorKind::InitializationAccess(error) => Some(error.as_ref()),
             ExecutionErrorKind::StaticAccess(error) => Some(error.as_ref()),
             ExecutionErrorKind::ExceptionAccess(error) => Some(error.as_ref()),
             ExecutionErrorKind::Decode(error) => Some(error),

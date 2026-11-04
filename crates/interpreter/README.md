@@ -5,7 +5,8 @@ with computational `Int`, `Long`, `Float` and `Double` arguments. It returns a n
 result or a symbolic uncaught `ArithmeticException`. An explicit heap entry point
 also evaluates primitive arrays with supported symbolic array exceptions. This kernel does not perform Java
 invocation, class loading, class initialization, verification or exception-object
-allocation.
+allocation. An explicit `InitializationSession`, described below, separately opts
+into a bounded single-owner initialization procedure.
 
 The selected standalone method must have exactly one Code attribute, a numeric/void
 descriptor, and no native, abstract or synchronized declaration or exception
@@ -150,8 +151,8 @@ can perform the bounded virtual calls described below.
 
 Instance mode reuses the same decoder, prepared-method cache, explicit frame
 stack and instruction loop. Static helpers still start their arguments
-at local zero and must be declared by their current caller’s class. Every
-frame’s field origin is its declaring ClassId, including when the receiver is a
+at local zero and must be declared by their current callerвЂ™s class. Every
+frameвЂ™s field origin is its declaring ClassId, including when the receiver is a
 subclass or an earlier frame belongs to another class. Cached instance preparation cannot make the root a valid invokestatic
 target. Root and callee limits/fuel have the same meaning as the earlier APIs.
 Interface roots, special initialization names, native/abstract/synchronized
@@ -159,7 +160,7 @@ methods remain excluded. This entry point also rejects Code handlers.
 
 Only this runtime-aware API enables `getfield` and `putfield`. Earlier APIs reject
 them even with a configured instance heap. Field operations delegate symbolic
-resolution, access and receiver relationships to the context’s explicit unnamed
+resolution, access and receiver relationships to the contextвЂ™s explicit unnamed
 module profile. Exact owner-qualified storage preserves inherited hiding, raw
 floating bits and the approved Z/B/C/S store conversions. Final writes fail;
 reference fields retain null defaults and support the checked stores described
@@ -169,8 +170,8 @@ identity branches and all supported primitive-array operations remain available.
 Explicit field Java failures become symbolic `NoSuchFieldError`,
 `IllegalAccessError`, `IncompatibleClassChangeError` or the existing
 `NullPointerException`. Resolution/access, staticness and write finality precede
-bytecode null dereferences. Other context failures—including unsupported nest or
-loading constraints, invalid receivers, changed layouts and resource exhaustion—
+bytecode null dereferences. Other context failuresвЂ”including unsupported nest or
+loading constraints, invalid receivers, changed layouts and resource exhaustionвЂ”
 remain boxed `ExecutionErrorKind::FieldAccess` errors with method, instruction and
 available caller provenance. These outcomes allocate no Java error objects.
 
@@ -675,3 +676,89 @@ category-two push failures. These APIs add checked mutable memory and composable
 body execution; they add no initializer execution, lifecycle-success state,
 complete loading/preparation, String materialization, final-write authority,
 VM exception production, constructor, synchronization, Java startup or GC claim.
+
+
+## Explicit single-owner initialization session
+
+`InitializationSession::new(context, statics, exceptions, error_class, limits)`
+checks the static profile, then the supplied-Throwable profile and admitted-class
+limit, reserves records for the actual admitted classes, and permanently claims
+that heap. The opaque session exclusively borrows the context. Its `initialize`
+method requests a ClassId; `run_static` prepares an ordinary registered static
+root, validates arguments/reservations, initializes its owner, then runs its body.
+Both use the same iterative engine, prepared-method cache and exception dispatcher.
+There is no instance-root session entry point. Dropping a session does not release
+its claim or permit a replacement session to replay initialization.
+
+`initialize` returns Completed or an actual supplied uncaught reference;
+`run_static` returns the existing ExceptionOutcome. `status` is a checked,
+resolution-free view of Uninitialized, InProgress, Completed, Erroneous with its
+original cause, or Aborted. Completed certifies only this profile's supported
+single-session procedure, not complete JVM verification, linking, preparation or
+concurrent initialization. A returned result, host error, or recovered callback
+panic cannot leave an InProgress record: an allocation-free unwind guard marks
+all remaining active records Aborted. Completed and Erroneous records, prior
+static writes, arrays, objects and root identities persist.
+
+A class first installs its own numeric ConstantValue batch, including attributes
+on nonfinal static fields, before initializing its superclass and the runtime's
+ordered postorder of interfaces declaring concrete instance methods. The default
+predicate includes supported private/bridge/synthetic methods and excludes static,
+abstract and initializer declarations. Explicit interface initialization does not
+initialize its parents. Already-completed child interfaces do not prune ancestors
+from a later class plan. Instance ConstantValue attributes are ignored; any static
+String ConstantValue rejects the whole plan before installation or publication.
+B/C/S/Z constants use raw descriptor normalization, and F/D retain their raw bits.
+This service does not materialize a String or execute constructors.
+
+A scheduler-created initializer frame has a distinct preparation/cache role and
+executes the actual `<clinit>()V` body. Historical ignored access flags are treated
+semantically, including no implicit receiver even without ACC_STATIC; historical
+parameterized initializer descriptors remain unsupported. Ordinary roots/helpers
+still reject special names and native/abstract/synchronized bodies. Only the exact
+actual initializer of the selected declaring class may write its final static
+fields. A helper, ordinary body, or another class's initializer has no such authority.
+Recursive C-to-D-to-C requests observe the existing partial values and never reset
+constants or re-enter an already active initializer.
+
+In this session, getstatic/putstatic and supported same-class invokestatic trigger
+initialization of the actual declaring owner. Each active-use instruction consumes
+fuel once. Static operations retain their checked selector token, original PC,
+next PC and optional popped value; b8 retains its checked target and typed mixed
+arguments. Resumption neither resolves nor pops them again. A frame fallibly
+reserves a reusable one-entry token buffer only when needed; legacy frames allocate
+none. Tokens are removed on successful resumption and abrupt transfer; there is no
+additional unbounded pending-token cache. Reference store validation occurs after
+initialization, and a late store failure or read push overflow preserves a target
+that has already completed. Handler searches use the original active-use PC.
+
+An actual supplied Error escaping an initializer becomes that class's Erroneous
+cause. Dependency-waiting parents acquire the same cause before caller handlers
+are searched; an initializer that catches a dependent Error can still complete.
+`retained_roots` enumerates one cause per Erroneous record in insertion order,
+including duplicate aliases. An escaping other Throwable produces the host
+UnsupportedInitializerWrapping result; no wrapper is fabricated. Later uses of
+Erroneous records return UnsupportedNoClassDefFoundError, and Aborted records
+return InitializationAborted without retry. All eleven VM-produced categories
+remain UnsupportedVmException before handler search, including null athrow and
+direct selection failures. Only direct InitializationAccessError::Java maps to
+that policy; nested Static/Exception/Context errors remain structured host errors.
+
+InitializationLimits default to 16,384 admitted classes, 1,048,576 retained plan
+dependencies, 65,536 constant entries, 16,384 pending activations and 1,000,000
+scheduler steps. Retained plan quotas apply across session evaluations; steps
+reset each evaluation, and failed charges do not advance last_initialization_steps.
+Instruction fuel, prepared Code/handler budgets, actual frame/slot reservations and
+exception-dispatch work reset per evaluation; context lookup work remains cumulative.
+No-body classes need scheduler work but can complete with zero instruction fuel
+and zero Java frames. The 10,000-class synthetic chain exercises iterative planning,
+scheduling and drop. Every counter and allocation demand is checked; cleanup does
+not consume another budget. Diagnostics preserve real methods, PCs and invocation
+origins and separately identify a responsible initialization_class, including
+root/no-body errors without fabricated bytecode locations.
+
+Earlier body/static/exception entry points retain their original gates and never
+automatically run initialization, apply constants or gain final-write authority.
+The session adds no threads, wait/notify initialization protocol, VM exception
+construction, class-loader creation, generalized cross-class static invocation,
+Java startup, native binding, monitors or complete lifecycle guarantee.

@@ -1,3 +1,7 @@
+use crate::initialization::{
+    InitializationResource, Phase, Record, RecordStatus, SessionState,
+    allocation as init_allocation, overflow as init_overflow,
+};
 use crate::{
     CallSite, ExecutionError, ExecutionErrorKind as E, MethodIdentity, Value, ValueKind,
     frame::{Locals, Stack},
@@ -13,6 +17,10 @@ use crabspot_runtime::{
     InstanceInvocationKind, ManagedHeap, MethodAccessError, MethodId, MethodJavaError,
     MethodReturnKind, MethodValueShape, PrimitiveArrayKind, Reference, ThrownException,
     TypeAccessError, TypeJavaError, VmExceptionKind,
+};
+use crabspot_runtime::{
+    InitializationAccessError, InitializationClaim, InitializationPlanLimits,
+    InitializationStaticKind, ResolvedInitializationStatic,
 };
 use crabspot_runtime::{StaticAccessError, StaticJavaError, StaticStateProfile};
 use std::collections::HashMap;
@@ -71,6 +79,7 @@ struct ExceptionState<'a> {
     dispatch_steps: u64,
 }
 enum EngineOutcome {
+    InitializationCompleted,
     Legacy(ExecutionOutcome),
     Uncaught(Reference),
 }
@@ -212,12 +221,13 @@ impl Default for CallLimits {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Preparation {
     Static,
+    Initializer,
     DirectInstanceRoot,
     ResolvedInstance,
 }
 impl Preparation {
     fn is_instance(self) -> bool {
-        self != Self::Static
+        matches!(self, Self::DirectInstanceRoot | Self::ResolvedInstance)
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -242,6 +252,7 @@ impl CallKind {
 }
 struct PreparedMethod {
     instance: bool,
+    initializer: bool,
     shape: MethodValueShape,
     // Index of the original Code attribute; rows stay borrowed from immutable metadata.
     handlers: Option<usize>,
@@ -273,8 +284,27 @@ impl MethodKey {
         }
     }
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum FrameRole {
+    Ordinary,
+    Initializer(ClassId),
+}
+enum PendingUse {
+    Static {
+        value: Option<Value>,
+        next: u32,
+    },
+    Call {
+        target: MethodKey,
+        args: Vec<Value>,
+        next: u32,
+    },
+}
 struct Frame {
     method: MethodKey,
+    role: FrameRole,
+    pending: Option<PendingUse>,
+    static_access: Vec<ResolvedInitializationStatic>,
     locals: Locals,
     stack: Stack,
     pc: u32,
@@ -283,8 +313,16 @@ struct Frame {
 }
 enum Action {
     Continue,
+    InitializationStatic {
+        access: ResolvedInitializationStatic,
+        value: Option<Value>,
+        next: u32,
+    },
     Throw(ThrownException),
-    Call { constant_index: u16, kind: CallKind },
+    Call {
+        constant_index: u16,
+        kind: CallKind,
+    },
     Return(Option<Value>),
     ArithmeticException,
     ClassCastException,
@@ -299,13 +337,18 @@ enum Action {
 
 #[derive(Clone, Copy)]
 struct Bodies<'a> {
-    standalone: &'a ClassFile,
+    standalone: Option<&'a ClassFile>,
     registry: Option<&'a DefinitionRegistry>,
 }
 impl<'a> Bodies<'a> {
     fn class(self, method: MethodKey) -> Result<&'a ClassFile, ExecutionError> {
         match method {
-            MethodKey::Standalone(_) => Ok(self.standalone),
+            MethodKey::Standalone(_) => self.standalone.ok_or_else(|| {
+                ExecutionError::new(
+                    None,
+                    E::InvalidMethod("standalone metadata absent from initialization session"),
+                )
+            }),
             MethodKey::Registered(method) => self
                 .registry
                 .ok_or_else(|| {
@@ -479,6 +522,9 @@ fn make_frame(
     }
     Ok(Frame {
         method,
+        role: FrameRole::Ordinary,
+        pending: None,
+        static_access: Vec::new(),
         locals,
         stack: Stack::new(prepared.max_stack),
         pc: 0,
@@ -664,8 +710,8 @@ pub fn execute_instance_method_body(
         limits,
         Services::Fields {
             context,
-            root: method,
-            receiver,
+            root: Some(method),
+            receiver: Some(receiver),
             statics: None,
         },
     )
@@ -696,8 +742,8 @@ pub fn execute_instance_method_body_with_exceptions(
         call_limits,
         Services::Fields {
             context,
-            root: method,
-            receiver,
+            root: Some(method),
+            receiver: Some(receiver),
             statics: None,
         },
         Some(ExceptionState {
@@ -731,8 +777,8 @@ pub fn execute_instance_method_body_with_static_state(
         call_limits,
         Services::Fields {
             context,
-            root: method,
-            receiver,
+            root: Some(method),
+            receiver: Some(receiver),
             statics: Some(statics),
         },
     )
@@ -766,8 +812,8 @@ pub fn execute_instance_method_body_with_static_state_and_exceptions(
         call_limits,
         Services::Fields {
             context,
-            root: method,
-            receiver,
+            root: Some(method),
+            receiver: Some(receiver),
             statics: Some(statics),
         },
         Some(ExceptionState {
@@ -785,10 +831,12 @@ fn exception_outcome(outcome: EngineOutcome) -> Result<ExceptionOutcome, Executi
             Ok(ExceptionOutcome::Returned(value))
         }
         EngineOutcome::Uncaught(reference) => Ok(ExceptionOutcome::Uncaught(reference)),
-        EngineOutcome::Legacy(_) => Err(ExecutionError::new(
-            None,
-            E::InvalidMethod("symbolic completion escaped explicit exception profile"),
-        )),
+        EngineOutcome::Legacy(_) | EngineOutcome::InitializationCompleted => {
+            Err(ExecutionError::new(
+                None,
+                E::InvalidMethod("symbolic completion escaped explicit exception profile"),
+            ))
+        }
     }
 }
 
@@ -797,8 +845,8 @@ enum Services<'a, 'registry> {
     Heap(&'a mut ManagedHeap),
     Fields {
         context: &'a mut FieldResolutionContext<'registry>,
-        root: MethodId,
-        receiver: Reference,
+        root: Option<MethodId>,
+        receiver: Option<Reference>,
         statics: Option<&'a StaticStateProfile>,
     },
 }
@@ -835,11 +883,732 @@ fn execute_with_services(
 ) -> Result<ExecutionOutcome, ExecutionError> {
     match execute_engine(class, method_index, args, options, limits, services, None)? {
         EngineOutcome::Legacy(outcome) => Ok(outcome),
-        EngineOutcome::Uncaught(_) => Err(ExecutionError::new(
+        EngineOutcome::Uncaught(_) | EngineOutcome::InitializationCompleted => {
+            Err(ExecutionError::new(
+                None,
+                E::InvalidMethod("thrown completion escaped legacy body profile"),
+            ))
+        }
+    }
+}
+pub(crate) struct SessionExecution<'a, 'registry> {
+    pub context: &'a mut FieldResolutionContext<'registry>,
+    pub claim: &'a InitializationClaim,
+    pub statics: &'a StaticStateProfile,
+    pub exceptions: &'a ExceptionProfile,
+    pub state: &'a mut SessionState,
+    pub owner: u64,
+}
+pub(crate) enum InitializationRoot<'a> {
+    Class(ClassId),
+    Static {
+        method: MethodId,
+        arguments: &'a [Value],
+    },
+}
+pub(crate) enum InitializationResult {
+    Completed,
+    Returned(Option<Value>),
+    Uncaught(Reference),
+}
+pub(crate) fn execute_initializing(
+    execution: SessionExecution<'_, '_>,
+    root: InitializationRoot<'_>,
+    options: ExecutionOptions,
+    limits: CallLimits,
+    exception_limits: ExceptionLimits,
+) -> Result<InitializationResult, ExecutionError> {
+    let SessionExecution {
+        context,
+        claim,
+        statics,
+        exceptions,
+        state,
+        owner,
+    } = execution;
+    context
+        .check_initialization_claim(claim)
+        .map_err(|error| initialization_failure(error, None))?;
+    let root = match root {
+        InitializationRoot::Class(class) => EngineRoot::Initialize(class),
+        InitializationRoot::Static { method, arguments } => EngineRoot::Static {
+            method,
+            args: arguments,
+        },
+    };
+    let outcome = run_engine(
+        root,
+        options,
+        limits,
+        Services::Fields {
+            context,
+            root: None,
+            receiver: None,
+            statics: Some(statics),
+        },
+        Some(ExceptionState {
+            profile: exceptions,
+            limits: exception_limits,
+            prepared_handlers: 0,
+            dispatch_steps: 0,
+        }),
+        Some(InitExecution {
+            claim,
+            state,
+            owner,
+            activations: Vec::new(),
+        }),
+    )?;
+    match outcome {
+        EngineOutcome::InitializationCompleted => Ok(InitializationResult::Completed),
+        EngineOutcome::Legacy(ExecutionOutcome::Returned(value)) => {
+            Ok(InitializationResult::Returned(value))
+        }
+        EngineOutcome::Uncaught(reference) => Ok(InitializationResult::Uncaught(reference)),
+        EngineOutcome::Legacy(_) => Err(ExecutionError::new(
             None,
-            E::InvalidMethod("thrown completion escaped legacy body profile"),
+            E::InvalidMethod("symbolic outcome escaped initialization session"),
         )),
     }
+}
+enum InitContinuation {
+    RootInitialize,
+    RootStatic {
+        target: MethodKey,
+        args: Vec<Value>,
+    },
+    Instruction {
+        frame: usize,
+        method: MethodKey,
+        pc: u32,
+    },
+    Dependency,
+}
+struct InitRequest {
+    class: ClassId,
+    continuation: InitContinuation,
+    origin: Option<(MethodKey, u32)>,
+}
+struct Activation {
+    class: ClassId,
+    record: usize,
+    next_dependency: usize,
+    phase: Phase,
+    continuation: InitContinuation,
+    origin: Option<(MethodKey, u32)>,
+}
+struct InitExecution<'a> {
+    claim: &'a InitializationClaim,
+    state: &'a mut SessionState,
+    owner: u64,
+    activations: Vec<Activation>,
+}
+impl InitExecution<'_> {
+    fn finish_body(&mut self, class: ClassId) -> Result<(), ExecutionError> {
+        let activation = self.activations.last_mut().ok_or_else(|| {
+            ExecutionError::new(None, E::InvalidMethod("initializer activation absent"))
+        })?;
+        if activation.class != class || activation.phase != Phase::Body {
+            return Err(ExecutionError::new(
+                None,
+                E::InvalidMethod("initializer activation role mismatch"),
+            ));
+        }
+        let record = self
+            .state
+            .records
+            .get_mut(activation.record)
+            .ok_or_else(|| {
+                ExecutionError::new(None, E::InvalidMethod("initializer record absent"))
+            })?;
+        if !matches!(record.status,RecordStatus::InProgress{owner,..} if owner==self.owner) {
+            return Err(ExecutionError::new(
+                None,
+                E::InvalidMethod("initializer record owner mismatch"),
+            ));
+        }
+        activation.phase = Phase::Completing;
+        record.status = RecordStatus::InProgress {
+            owner: self.owner,
+            phase: Phase::Completing,
+        };
+        Ok(())
+    }
+}
+fn initialization_failure(error: InitializationAccessError, pc: Option<u32>) -> ExecutionError {
+    match error {
+        InitializationAccessError::Java(kind) => ExecutionError::new(
+            pc,
+            E::UnsupportedVmException(match kind {
+                StaticJavaError::NoSuchField => VmExceptionKind::NoSuchFieldError,
+                StaticJavaError::IllegalAccess => VmExceptionKind::IllegalAccessError,
+                StaticJavaError::IncompatibleClassChange => {
+                    VmExceptionKind::IncompatibleClassChangeError
+                }
+            }),
+        ),
+        error => ExecutionError::new(pc, E::InitializationAccess(Box::new(error))),
+    }
+}
+fn init_diagnose(
+    mut error: ExecutionError,
+    class: ClassId,
+    origin: Option<(MethodKey, u32)>,
+    bodies: Bodies<'_>,
+    java: &JavaState,
+) -> ExecutionError {
+    error.initialization_class.get_or_insert(class);
+    if error.method.is_none() {
+        if let Some((method, pc)) = origin {
+            error.offset = Some(pc);
+            let ancestor = java
+                .frames
+                .iter()
+                .rev()
+                .find(|frame| frame.method == method)
+                .and_then(|frame| frame.origin);
+            error = contextualize(bodies, error, method, ancestor);
+        }
+    }
+    error
+}
+fn check_static_continuation_empty(frame: &Frame, pc: u32) -> Result<(), ExecutionError> {
+    if frame.pending.is_some() {
+        return Err(ExecutionError::new(
+            Some(pc),
+            E::InvalidMethod("duplicate active-use continuation"),
+        ));
+    }
+    if !frame.static_access.is_empty() {
+        return Err(ExecutionError::new(
+            Some(pc),
+            E::InvalidMethod("static continuation token already retained"),
+        ));
+    }
+    Ok(())
+}
+fn take_static_continuation(
+    frame: &mut Frame,
+    pc: u32,
+) -> Result<ResolvedInitializationStatic, ExecutionError> {
+    if frame.static_access.len() != 1 {
+        return Err(ExecutionError::new(
+            Some(pc),
+            E::InvalidMethod("active-use continuation does not match suspended frame"),
+        ));
+    }
+    frame.static_access.pop().ok_or_else(|| {
+        ExecutionError::new(
+            Some(pc),
+            E::InvalidMethod("active-use continuation does not match suspended frame"),
+        )
+    })
+}
+fn session_totals(
+    current: usize,
+    additional: usize,
+    limit: usize,
+    resource: InitializationResource,
+) -> Result<usize, ExecutionError> {
+    let required = current
+        .checked_add(additional)
+        .ok_or_else(|| init_overflow("retained plan totals"))?;
+    if required > limit {
+        return Err(ExecutionError::new(
+            None,
+            E::InitializationLimit {
+                resource,
+                limit,
+                required,
+            },
+        ));
+    }
+    Ok(required)
+}
+fn prepare_initializer(
+    method: MethodId,
+    bodies: Bodies<'_>,
+    java: &mut JavaState,
+    services: &mut Services<'_, '_>,
+    exceptions: Option<&mut ExceptionState<'_>>,
+    limits: CallLimits,
+    origin: Option<(MethodKey, u32)>,
+) -> Result<(), ExecutionError> {
+    let class = method.owner();
+    let key = MethodKey::Registered(method);
+    if let std::collections::hash_map::Entry::Vacant(entry) = java.cache.entry(key) {
+        let metadata = bodies.class(key)?;
+        let Services::Fields { context, .. } = services else {
+            return Err(ExecutionError::new(
+                None,
+                E::InvalidMethod("initializer context absent"),
+            ));
+        };
+        let prepared = prepare_method_with_context(
+            metadata,
+            method.index(),
+            &mut java.used_code_bytes,
+            limits.max_prepared_code_bytes,
+            Preparation::Initializer,
+            Some((&mut **context, method)),
+            exceptions,
+        )
+        .map_err(|mut error| {
+            error.initialization_class = Some(class);
+            contextualize(bodies, error, key, origin)
+        })?;
+        entry.insert(prepared);
+    }
+    let prepared = java.cache.get(&key).ok_or_else(|| {
+        ExecutionError::new(None, E::InvalidMethod("initializer preparation absent"))
+    })?;
+    if !prepared.initializer || prepared.instance {
+        return Err(ExecutionError::new(
+            None,
+            E::InvalidMethod("ordinary cached body cannot execute as initializer"),
+        ));
+    }
+    Ok(())
+}
+fn request_initialization(
+    request: InitRequest,
+    bodies: Bodies<'_>,
+    java: &mut JavaState,
+    services: &mut Services<'_, '_>,
+    exceptions: Option<&mut ExceptionState<'_>>,
+    init: &mut InitExecution<'_>,
+    limits: CallLimits,
+) -> Result<Option<EngineOutcome>, ExecutionError> {
+    let InitRequest {
+        class,
+        continuation,
+        origin,
+    } = request;
+    let result = (|| {
+        init.state.charge()?;
+        let Services::Fields { context, .. } = services else {
+            return Err(ExecutionError::new(
+                None,
+                E::InvalidMethod("initialization context absent"),
+            ));
+        };
+        context
+            .check_initialization_class(init.claim, class)
+            .map_err(|error| initialization_failure(error, None))?;
+        if let Some(index) = init.state.record(class)? {
+            match init
+                .state
+                .records
+                .get(index)
+                .ok_or_else(|| {
+                    ExecutionError::new(None, E::InvalidMethod("initialization record absent"))
+                })?
+                .status
+            {
+                RecordStatus::Completed => {
+                    return resume_initialization(
+                        continuation,
+                        bodies,
+                        java,
+                        services,
+                        init,
+                        limits,
+                    );
+                }
+                RecordStatus::InProgress { owner, .. } if owner == init.owner => {
+                    return resume_initialization(
+                        continuation,
+                        bodies,
+                        java,
+                        services,
+                        init,
+                        limits,
+                    );
+                }
+                RecordStatus::InProgress { .. } => {
+                    return Err(ExecutionError::new(
+                        None,
+                        E::InvalidMethod("initialization belongs to another evaluation"),
+                    ));
+                }
+                RecordStatus::Erroneous { .. } => {
+                    return Err(ExecutionError::new(
+                        None,
+                        E::UnsupportedNoClassDefFoundError { class },
+                    ));
+                }
+                RecordStatus::Aborted => {
+                    return Err(ExecutionError::new(
+                        None,
+                        E::InitializationAborted { class },
+                    ));
+                }
+            }
+        }
+        let dependency_limit = init
+            .state
+            .limits
+            .max_plan_dependencies
+            .checked_sub(init.state.dependencies)
+            .ok_or_else(|| init_overflow("remaining plan dependencies"))?;
+        let constant_limit = init
+            .state
+            .limits
+            .max_constant_values
+            .checked_sub(init.state.constants)
+            .ok_or_else(|| init_overflow("remaining constants"))?;
+        let plan = context
+            .plan_initialization(
+                init.claim,
+                class,
+                InitializationPlanLimits {
+                    max_dependencies: dependency_limit,
+                    max_constants: constant_limit,
+                },
+            )
+            .map_err(|error| initialization_failure(error, None))?;
+        let dependencies = session_totals(
+            init.state.dependencies,
+            plan.dependencies().len(),
+            init.state.limits.max_plan_dependencies,
+            InitializationResource::PlanDependencies,
+        )?;
+        let constants = session_totals(
+            init.state.constants,
+            plan.constant_count(),
+            init.state.limits.max_constant_values,
+            InitializationResource::ConstantValues,
+        )?;
+        if let Some(method) = plan.initializer() {
+            if method.owner() != class {
+                return Err(ExecutionError::new(
+                    None,
+                    E::InvalidMethod("initializer plan owner mismatch"),
+                ));
+            }
+            prepare_initializer(method, bodies, java, services, exceptions, limits, origin)?;
+        }
+        let pending = init
+            .activations
+            .len()
+            .checked_add(1)
+            .ok_or_else(|| init_overflow("pending activations"))?;
+        if pending > init.state.limits.max_pending {
+            return Err(ExecutionError::new(
+                None,
+                E::InitializationLimit {
+                    resource: InitializationResource::Pending,
+                    limit: init.state.limits.max_pending,
+                    required: pending,
+                },
+            ));
+        }
+        init.activations
+            .try_reserve(1)
+            .map_err(|_| init_allocation("initialization activations"))?;
+        if init.state.records.len() != init.state.indices.len()
+            || init.state.records.len() >= init.state.admitted_count
+            || init.state.records.len() >= init.state.records.capacity()
+            || init.state.indices.len() >= init.state.indices.capacity()
+        {
+            return Err(ExecutionError::new(
+                None,
+                E::InvalidMethod("initialization record reservation invariant"),
+            ));
+        }
+        init.state.charge()?;
+        let index = init.state.records.len();
+        init.state.records.push(Record {
+            class,
+            status: RecordStatus::InProgress {
+                owner: init.owner,
+                phase: Phase::Dependencies,
+            },
+            plan,
+        });
+        init.state.indices.insert(class, index);
+        init.state.dependencies = dependencies;
+        init.state.constants = constants;
+        init.activations.push(Activation {
+            class,
+            record: index,
+            next_dependency: 0,
+            phase: Phase::Dependencies,
+            continuation,
+            origin,
+        });
+        let Services::Fields { context, .. } = services else {
+            return Err(ExecutionError::new(
+                None,
+                E::InvalidMethod("initialization context absent"),
+            ));
+        };
+        let plan = &init
+            .state
+            .records
+            .get(index)
+            .ok_or_else(|| ExecutionError::new(None, E::InvalidMethod("constant plan absent")))?
+            .plan;
+        context
+            .install_initialization_constants(init.claim, plan)
+            .map_err(|error| initialization_failure(error, None))?;
+        Ok(None)
+    })();
+    result.map_err(|error| init_diagnose(error, class, origin, bodies, java))
+}
+fn resume_initialization(
+    continuation: InitContinuation,
+    bodies: Bodies<'_>,
+    java: &mut JavaState,
+    services: &mut Services<'_, '_>,
+    init: &mut InitExecution<'_>,
+    limits: CallLimits,
+) -> Result<Option<EngineOutcome>, ExecutionError> {
+    match continuation {
+        InitContinuation::Dependency => Ok(None),
+        InitContinuation::RootInitialize => {
+            if !java.frames.is_empty() {
+                return Err(ExecutionError::new(
+                    None,
+                    E::InvalidMethod("frames survived root initialization"),
+                ));
+            }
+            Ok(Some(EngineOutcome::InitializationCompleted))
+        }
+        InitContinuation::RootStatic { target, args } => {
+            if !java.frames.is_empty() {
+                return Err(ExecutionError::new(
+                    None,
+                    E::InvalidMethod("frames survived static root initialization"),
+                ));
+            }
+            let prepared = java.cache.get(&target).ok_or_else(|| {
+                ExecutionError::new(None, E::InvalidMethod("deferred root preparation absent"))
+            })?;
+            if prepared.initializer || prepared.instance {
+                return Err(ExecutionError::new(
+                    None,
+                    E::UnsupportedMethod("ordinary static root role mismatch"),
+                ));
+            }
+            let reserved = check_reservation(0, 0, prepared, limits)
+                .map_err(|error| contextualize(bodies, error, target, None))?;
+            java.frames
+                .try_reserve(1)
+                .map_err(|_| init_allocation("static root frame"))?;
+            let frame = make_frame(target, prepared, &args, None, None)
+                .map_err(|error| contextualize(bodies, error, target, None))?;
+            java.frames.push(frame);
+            java.reserved = reserved;
+            Ok(None)
+        }
+        InitContinuation::Instruction { frame, method, pc } => {
+            let invalid = || {
+                ExecutionError::new(
+                    Some(pc),
+                    E::InvalidMethod("active-use continuation does not match suspended frame"),
+                )
+            };
+            if frame.checked_add(1) != Some(java.frames.len()) {
+                return Err(invalid());
+            }
+            let caller = java.frames.get_mut(frame).ok_or_else(invalid)?;
+            if caller.method != method || caller.pc != pc {
+                return Err(invalid());
+            }
+            let origin = caller.origin;
+            let pending = caller.pending.take().ok_or_else(invalid)?;
+            let diagnose = |error| contextualize(bodies, error, method, origin);
+            match pending {
+                PendingUse::Static { value, next } => {
+                    let access = take_static_continuation(caller, pc)?;
+                    let Services::Fields { context, .. } = services else {
+                        return Err(invalid());
+                    };
+                    if let Some(value) = value {
+                        context
+                            .write_initialization_static(init.claim, &access, value)
+                            .map_err(|error| diagnose(initialization_failure(error, Some(pc))))?;
+                    } else {
+                        let value = context
+                            .read_initialization_static(init.claim, &access)
+                            .map_err(|error| diagnose(initialization_failure(error, Some(pc))))?;
+                        caller.stack.push(value, pc).map_err(diagnose)?;
+                    }
+                    caller.pc = next;
+                }
+                PendingUse::Call { target, args, next } => {
+                    let prepared = java.cache.get(&target).ok_or_else(invalid)?;
+                    if prepared.initializer || prepared.instance {
+                        return Err(diagnose(ExecutionError::new(
+                            Some(pc),
+                            E::UnsupportedMethod("ordinary static continuation role mismatch"),
+                        )));
+                    }
+                    let reserved =
+                        check_reservation(java.frames.len(), java.reserved, prepared, limits)
+                            .map_err(|error| {
+                                contextualize(bodies, error, target, Some((method, pc)))
+                            })?;
+                    let callee = make_frame(target, prepared, &args, Some((method, pc)), None)
+                        .map_err(|error| {
+                            contextualize(bodies, error, target, Some((method, pc)))
+                        })?;
+                    java.frames.get_mut(frame).ok_or_else(invalid)?.pc = next;
+                    java.frames
+                        .try_reserve(1)
+                        .map_err(|_| init_allocation("resumed static call frame"))?;
+                    java.frames.push(callee);
+                    java.reserved = reserved;
+                }
+            }
+            Ok(None)
+        }
+    }
+}
+fn advance_initialization(
+    bodies: Bodies<'_>,
+    java: &mut JavaState,
+    services: &mut Services<'_, '_>,
+    mut exceptions: Option<&mut ExceptionState<'_>>,
+    init: &mut InitExecution<'_>,
+    limits: CallLimits,
+) -> Result<Option<EngineOutcome>, ExecutionError> {
+    loop {
+        let Some(activation) = init.activations.last() else {
+            return Ok(None);
+        };
+        if activation.phase == Phase::Body {
+            return Ok(None);
+        }
+        let class = activation.class;
+        let origin = activation.origin;
+        let record_index = activation.record;
+        let phase = activation.phase;
+        let next = activation.next_dependency;
+        let result = (|| {
+            if phase == Phase::Completing {
+                init.state.charge()?;
+                let record = init.state.records.get_mut(record_index).ok_or_else(|| {
+                    ExecutionError::new(None, E::InvalidMethod("completion record absent"))
+                })?;
+                if !matches!(record.status,RecordStatus::InProgress{owner,..} if owner==init.owner)
+                {
+                    return Err(ExecutionError::new(
+                        None,
+                        E::InvalidMethod("completion owner mismatch"),
+                    ));
+                }
+                record.status = RecordStatus::Completed;
+                let completed = init.activations.pop().ok_or_else(|| {
+                    ExecutionError::new(None, E::InvalidMethod("completion activation absent"))
+                })?;
+                return resume_initialization(
+                    completed.continuation,
+                    bodies,
+                    java,
+                    services,
+                    init,
+                    limits,
+                );
+            }
+            let record = init.state.records.get(record_index).ok_or_else(|| {
+                ExecutionError::new(None, E::InvalidMethod("dependency record absent"))
+            })?;
+            if let Some(&dependency) = record.plan.dependencies().get(next) {
+                init.state.charge()?;
+                let activation = init.activations.last_mut().ok_or_else(|| {
+                    ExecutionError::new(None, E::InvalidMethod("dependency activation absent"))
+                })?;
+                activation.next_dependency = activation
+                    .next_dependency
+                    .checked_add(1)
+                    .ok_or_else(|| init_overflow("dependency cursor"))?;
+                return request_initialization(
+                    InitRequest {
+                        class: dependency,
+                        continuation: InitContinuation::Dependency,
+                        origin,
+                    },
+                    bodies,
+                    java,
+                    services,
+                    exceptions.as_deref_mut(),
+                    init,
+                    limits,
+                );
+            }
+            let initializer = record.plan.initializer();
+            init.state.charge()?;
+            let activation = init.activations.last_mut().ok_or_else(|| {
+                ExecutionError::new(None, E::InvalidMethod("body activation absent"))
+            })?;
+            let record =
+                init.state.records.get_mut(record_index).ok_or_else(|| {
+                    ExecutionError::new(None, E::InvalidMethod("body record absent"))
+                })?;
+            if let Some(method) = initializer {
+                let key = MethodKey::Registered(method);
+                let prepared = java.cache.get(&key).ok_or_else(|| {
+                    ExecutionError::new(None, E::InvalidMethod("initializer cache absent"))
+                })?;
+                if !prepared.initializer || prepared.instance {
+                    return Err(ExecutionError::new(
+                        None,
+                        E::InvalidMethod("initializer cache role mismatch"),
+                    ));
+                }
+                let reserved =
+                    check_reservation(java.frames.len(), java.reserved, prepared, limits)
+                        .map_err(|error| contextualize(bodies, error, key, origin))?;
+                java.frames
+                    .try_reserve(1)
+                    .map_err(|_| init_allocation("initializer frames"))?;
+                let mut frame = make_frame(key, prepared, &[], origin, None)
+                    .map_err(|error| contextualize(bodies, error, key, origin))?;
+                frame.role = FrameRole::Initializer(class);
+                activation.phase = Phase::Body;
+                record.status = RecordStatus::InProgress {
+                    owner: init.owner,
+                    phase: Phase::Body,
+                };
+                java.frames.push(frame);
+                java.reserved = reserved;
+            } else {
+                activation.phase = Phase::Completing;
+                record.status = RecordStatus::InProgress {
+                    owner: init.owner,
+                    phase: Phase::Completing,
+                };
+            }
+            Ok(None)
+        })();
+        if let Some(outcome) =
+            result.map_err(|error| init_diagnose(error, class, origin, bodies, java))?
+        {
+            return Ok(Some(outcome));
+        }
+    }
+}
+
+enum EngineRoot<'a> {
+    Body {
+        class: &'a ClassFile,
+        method_index: usize,
+        args: &'a [Value],
+    },
+    Initialize(ClassId),
+    Static {
+        method: MethodId,
+        args: &'a [Value],
+    },
+}
+struct JavaState {
+    cache: HashMap<MethodKey, PreparedMethod>,
+    frames: Vec<Frame>,
+    reserved: usize,
+    used_code_bytes: usize,
+    remaining: u64,
 }
 fn execute_engine(
     class: &ClassFile,
@@ -847,416 +1616,497 @@ fn execute_engine(
     args: &[Value],
     options: ExecutionOptions,
     limits: CallLimits,
+    services: Services<'_, '_>,
+    exceptions: Option<ExceptionState<'_>>,
+) -> Result<EngineOutcome, ExecutionError> {
+    run_engine(
+        EngineRoot::Body {
+            class,
+            method_index,
+            args,
+        },
+        options,
+        limits,
+        services,
+        exceptions,
+        None,
+    )
+}
+fn run_engine(
+    root: EngineRoot<'_>,
+    options: ExecutionOptions,
+    limits: CallLimits,
     mut services: Services<'_, '_>,
     mut exceptions: Option<ExceptionState<'_>>,
+    mut initialization: Option<InitExecution<'_>>,
 ) -> Result<EngineOutcome, ExecutionError> {
-    let bodies = Bodies {
-        standalone: class,
-        registry: services.registry(),
-    };
-    let root_key = match &services {
-        Services::Fields { root, .. } => MethodKey::Registered(*root),
-        _ => MethodKey::Standalone(method_index),
-    };
-    if limits.max_frames == 0 {
-        return Err(contextualize(
-            bodies,
-            ExecutionError::new(
-                None,
-                E::FrameLimit {
-                    limit: 0,
-                    required: 1,
-                },
-            ),
-            root_key,
-            None,
-        ));
-    }
-    let receiver = match &services {
-        Services::Fields { receiver, .. } => Some(*receiver),
-        _ => None,
-    };
-    let mut used_code_bytes = 0;
-    let root = prepare_method_with_context(
-        class,
-        method_index,
-        &mut used_code_bytes,
-        limits.max_prepared_code_bytes,
-        if receiver.is_some() {
-            Preparation::DirectInstanceRoot
-        } else {
-            Preparation::Static
-        },
-        match &mut services {
-            Services::Fields { context, root, .. } => Some((&mut **context, *root)),
-            _ => None,
-        },
-        exceptions.as_mut(),
-    )
-    .map_err(|error| contextualize(bodies, error, root_key, None))?;
-    validate_args(&root, args).map_err(|error| contextualize(bodies, error, root_key, None))?;
-    let mut reserved = check_reservation(0, 0, &root, limits)
-        .map_err(|error| contextualize(bodies, error, root_key, None))?;
-    if let (Some(receiver), Services::Fields { context, root, .. }) = (receiver, &mut services) {
-        context
-            .check_receiver(root.owner(), receiver)
-            .map_err(|error| {
-                contextualize(
-                    bodies,
-                    ExecutionError::new(None, E::FieldAccess(Box::new(error))),
-                    root_key,
-                    None,
-                )
-            })?;
-    }
-    if let Services::Fields { context, root, .. } = &mut services {
-        context
-            .check_method_reference_profile(*root, receiver)
-            .and_then(|()| context.check_method_arguments(*root, args))
-            .map_err(|error| {
-                contextualize(
-                    bodies,
-                    ExecutionError::new(None, E::MethodAccess(Box::new(error))),
-                    root_key,
-                    None,
-                )
-            })?;
-    }
-    let root_frame = make_frame(root_key, &root, args, None, receiver)
-        .map_err(|error| contextualize(bodies, error, root_key, None))?;
-    let mut cache = HashMap::new();
-    cache.insert(root_key, root);
-    let mut frames = vec![root_frame];
-    let mut remaining = options.instruction_budget;
-    loop {
-        let Some(frame) = frames.last() else {
-            return Err(ExecutionError::new(
-                None,
-                E::InvalidMethod("empty engine frame stack"),
-            ));
+    let result = (|| {
+        let bodies = Bodies {
+            standalone: match &root {
+                EngineRoot::Body { class, .. } => Some(*class),
+                _ => None,
+            },
+            registry: services.registry(),
         };
-        let current = frame.method;
-        let pc = frame.pc;
-        let origin = frame.origin;
-        if remaining == 0 {
-            return Err(contextualize(
-                bodies,
-                ExecutionError::new(
-                    Some(pc),
-                    E::InstructionBudgetExhausted {
-                        limit: options.instruction_budget,
-                    },
-                ),
-                current,
-                origin,
-            ));
-        }
-        let prepared = cache.get(&current).ok_or_else(|| {
-            contextualize(
-                bodies,
-                ExecutionError::new(Some(pc), E::InvalidMethod("missing prepared method")),
-                current,
-                origin,
-            )
-        })?;
-        let frame = frames.last_mut().ok_or_else(|| {
-            ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
-        })?;
-        remaining -= 1;
-        let current_class = bodies
-            .class(current)
-            .map_err(|error| contextualize(bodies, error, current, origin))?;
-        let action = step(
-            current_class,
-            prepared,
-            frame,
-            &mut services,
-            exceptions.as_ref().map(|state| state.profile),
-        )
-        .map_err(|error| contextualize(bodies, error, current, origin))?;
-        match action {
-            Action::NoSuchFieldError => {
-                return vm_completion(ExecutionOutcome::NoSuchFieldError, exceptions.is_some(), pc)
-                    .map_err(|error| contextualize(bodies, error, current, origin));
-            }
-            Action::IllegalAccessError => {
-                return vm_completion(
-                    ExecutionOutcome::IllegalAccessError,
-                    exceptions.is_some(),
-                    pc,
-                )
-                .map_err(|error| contextualize(bodies, error, current, origin));
-            }
-            Action::IncompatibleClassChangeError => {
-                return vm_completion(
-                    ExecutionOutcome::IncompatibleClassChangeError,
-                    exceptions.is_some(),
-                    pc,
-                )
-                .map_err(|error| contextualize(bodies, error, current, origin));
-            }
-            Action::ArrayStoreException => {
-                return vm_completion(
-                    ExecutionOutcome::ArrayStoreException,
-                    exceptions.is_some(),
-                    pc,
-                )
-                .map_err(|error| contextualize(bodies, error, current, origin));
-            }
-            Action::ClassCastException => {
-                return vm_completion(
-                    ExecutionOutcome::ClassCastException,
-                    exceptions.is_some(),
-                    pc,
-                )
-                .map_err(|error| contextualize(bodies, error, current, origin));
-            }
-            Action::Throw(thrown) => {
-                let state = exceptions
-                    .as_mut()
-                    .ok_or_else(|| contextualize(bodies, operand_error(pc), current, origin))?;
-                let caught = dispatch_throw(
-                    bodies,
-                    &cache,
-                    ActiveFrames {
-                        frames: &mut frames,
-                        reserved: &mut reserved,
-                    },
-                    &mut services,
-                    state,
-                    &thrown,
-                    pc,
-                )?;
-                if !caught {
-                    return Ok(EngineOutcome::Uncaught(thrown.reference()));
-                }
-            }
-            Action::Continue => {}
-            Action::ArithmeticException => {
-                return vm_completion(
-                    ExecutionOutcome::ArithmeticException,
-                    exceptions.is_some(),
-                    pc,
-                )
-                .map_err(|error| contextualize(bodies, error, current, origin));
-            }
-            Action::NullPointerException => {
-                return vm_completion(
-                    ExecutionOutcome::NullPointerException,
-                    exceptions.is_some(),
-                    pc,
-                )
-                .map_err(|error| contextualize(bodies, error, current, origin));
-            }
-            Action::ArrayIndexOutOfBoundsException => {
-                return vm_completion(
-                    ExecutionOutcome::ArrayIndexOutOfBoundsException,
-                    exceptions.is_some(),
-                    pc,
-                )
-                .map_err(|error| contextualize(bodies, error, current, origin));
-            }
-            Action::NegativeArraySizeException => {
-                return vm_completion(
-                    ExecutionOutcome::NegativeArraySizeException,
-                    exceptions.is_some(),
-                    pc,
-                )
-                .map_err(|error| contextualize(bodies, error, current, origin));
-            }
-            Action::Return(value) => {
-                let completed = frames.pop().ok_or_else(|| {
-                    ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
-                })?;
-                reserved = reserved
-                    .checked_sub(completed.reserved_slots)
-                    .ok_or_else(|| {
-                        ExecutionError::new(
-                            None,
-                            E::InvalidMethod("invalid frame reservation accounting"),
-                        )
-                    })?;
-                if let Some(caller) = frames.last_mut() {
-                    if let Some(value) = value {
-                        let call_offset = completed.origin.map_or(caller.pc, |(_, offset)| offset);
-                        caller.stack.push(value, call_offset).map_err(|error| {
-                            contextualize(bodies, error, caller.method, completed.origin)
-                        })?;
+        let mut java = JavaState {
+            cache: HashMap::new(),
+            frames: Vec::new(),
+            reserved: 0,
+            used_code_bytes: 0,
+            remaining: options.instruction_budget,
+        };
+        let requested = match root {
+            EngineRoot::Initialize(class) => Some((class, InitContinuation::RootInitialize)),
+            root => {
+                let (root_key, args, receiver) = match root {
+                    EngineRoot::Body {
+                        method_index, args, ..
+                    } => {
+                        let key = match &services {
+                            Services::Fields {
+                                root: Some(method), ..
+                            } => MethodKey::Registered(*method),
+                            _ => MethodKey::Standalone(method_index),
+                        };
+                        let receiver = match &services {
+                            Services::Fields { receiver, .. } => *receiver,
+                            _ => None,
+                        };
+                        (key, args, receiver)
                     }
-                } else {
-                    return Ok(EngineOutcome::Legacy(ExecutionOutcome::Returned(value)));
-                }
-            }
-            Action::Call {
-                constant_index,
-                kind,
-            } => {
-                let call_site = Some((current, pc));
-                let (target, mut arguments, receiver) = if kind.is_instance() {
-                    let origin = current.owner().ok_or_else(|| {
-                        ExecutionError::new(Some(pc), E::UnsupportedInstruction(kind.opcode()))
-                    })?;
-                    let Services::Fields { context, .. } = &mut services else {
+                    EngineRoot::Static { method, args } => {
+                        (MethodKey::Registered(method), args, None)
+                    }
+                    EngineRoot::Initialize(_) => {
                         return Err(ExecutionError::new(
-                            Some(pc),
-                            E::UnsupportedInstruction(kind.opcode()),
+                            None,
+                            E::InvalidMethod("invalid initialization root routing"),
                         ));
-                    };
-                    let invocation = match kind {
-                        CallKind::Virtual => InstanceInvocationKind::Virtual,
-                        CallKind::Special => InstanceInvocationKind::Special,
-                        CallKind::Interface { .. } => InstanceInvocationKind::Interface,
-                        CallKind::Static => return Err(operand_error(pc)),
-                    };
-                    let parameters = context
-                        .instance_invocation_shape(origin, constant_index, invocation)
+                    }
+                };
+                let class = bodies
+                    .class(root_key)
+                    .map_err(|error| contextualize(bodies, error, root_key, None))?;
+                if let MethodKey::Registered(method) = root_key {
+                    bodies
+                        .registry
+                        .ok_or_else(|| operand_error(0))?
+                        .method(method)
                         .map_err(|error| {
                             contextualize(
                                 bodies,
-                                ExecutionError::new(Some(pc), E::MethodAccess(Box::new(error))),
-                                current,
-                                call_site,
+                                ExecutionError::new(
+                                    None,
+                                    E::FieldAccess(Box::new(FieldAccessError::Registry(error))),
+                                ),
+                                root_key,
+                                None,
                             )
                         })?;
-                    if let CallKind::Interface { count } = kind {
-                        let expected = usize::from(parameters.parameter_slots)
-                            .checked_add(1)
-                            .ok_or_else(|| {
-                                contextualize(bodies, operand_error(pc), current, call_site)
-                            })?;
-                        if expected > usize::from(u8::MAX) || usize::from(count) != expected {
-                            return Err(contextualize(
-                                bodies,
-                                operand_error(pc),
-                                current,
-                                call_site,
-                            ));
-                        }
-                    }
-                    let kinds = parameters.parameters;
-                    let caller = frames.last_mut().ok_or_else(|| {
-                        ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
-                    })?;
-                    let mut args = Vec::new();
-                    args.try_reserve_exact(kinds.len()).map_err(|_| {
-                        contextualize(
-                            bodies,
-                            ExecutionError::new(
-                                Some(pc),
-                                E::Heap(HeapError::AllocationFailure {
-                                    resource: "call arguments",
-                                }),
-                            ),
-                            current,
-                            call_site,
-                        )
-                    })?;
-                    for kind in kinds.iter().rev() {
-                        args.push(
-                            caller.stack.pop(*kind, pc).map_err(|error| {
-                                contextualize(bodies, error, current, call_site)
-                            })?,
-                        );
-                    }
-                    args.reverse();
-                    let receiver = caller
-                        .stack
-                        .reference(pc)
-                        .map_err(|error| contextualize(bodies, error, current, call_site))?;
-                    let Services::Fields { context, .. } = &mut services else {
-                        return Err(ExecutionError::new(
-                            Some(pc),
-                            E::UnsupportedInstruction(kind.opcode()),
-                        ));
-                    };
-                    let selection = match kind {
-                        CallKind::Virtual => {
-                            context.select_virtual(origin, constant_index, receiver)
-                        }
-                        CallKind::Special => {
-                            context.select_special(origin, constant_index, receiver)
-                        }
-                        CallKind::Interface { .. } => {
-                            context.select_interface(origin, constant_index, receiver)
-                        }
-                        CallKind::Static => return Err(operand_error(pc)),
-                    };
-                    let selected = match selection {
-                        Ok(method) => method,
-                        Err(error) => {
-                            let outcome = method_failure(error, pc).map_err(|error| {
-                                contextualize(bodies, error, current, call_site)
-                            })?;
-                            return vm_completion(outcome, exceptions.is_some(), pc)
-                                .map_err(|error| contextualize(bodies, error, current, call_site));
-                        }
-                    };
-                    (MethodKey::Registered(selected), Some(args), Some(receiver))
-                } else {
-                    let index = resolve_call(
-                        current_class,
-                        constant_index,
-                        pc,
-                        matches!(services, Services::Fields { .. }),
-                    )
-                    .map_err(|error| contextualize(bodies, error, current, call_site))?;
-                    let target = bodies
-                        .static_key(current, index)
-                        .map_err(|error| contextualize(bodies, error, current, call_site))?;
-                    (target, None, None)
-                };
-                let target_class = bodies
-                    .class(target)
-                    .map_err(|error| contextualize(bodies, error, target, call_site))?;
-                if let std::collections::hash_map::Entry::Vacant(entry) = cache.entry(target) {
-                    let prepared = prepare_method_with_context(
-                        target_class,
-                        target.index(),
-                        &mut used_code_bytes,
-                        limits.max_prepared_code_bytes,
-                        if kind.is_instance() {
-                            Preparation::ResolvedInstance
-                        } else {
-                            Preparation::Static
-                        },
-                        match (&mut services, target) {
-                            (Services::Fields { context, .. }, MethodKey::Registered(method)) => {
-                                Some((&mut **context, method))
-                            }
-                            _ => None,
-                        },
-                        exceptions.as_mut(),
-                    )
-                    .map_err(|error| contextualize(bodies, error, target, call_site))?;
-                    entry.insert(prepared);
                 }
-                let prepared = cache.get(&target).ok_or_else(|| {
-                    ExecutionError::new(None, E::InvalidMethod("missing prepared call target"))
-                })?;
-                if prepared.instance != kind.is_instance() {
+                if limits.max_frames == 0 {
                     return Err(contextualize(
                         bodies,
                         ExecutionError::new(
-                            Some(pc),
-                            E::UnsupportedMethod(if kind.is_instance() {
-                                "instance body must be non-static"
-                            } else {
-                                "method must be static"
-                            }),
+                            None,
+                            E::FrameLimit {
+                                limit: 0,
+                                required: 1,
+                            },
                         ),
-                        target,
-                        call_site,
+                        root_key,
+                        None,
                     ));
                 }
-                let next_reserved = check_reservation(frames.len(), reserved, prepared, limits)
-                    .map_err(|error| contextualize(bodies, error, target, call_site))?;
-                if arguments.is_none() {
-                    let caller = frames.last_mut().ok_or_else(|| {
+                let root = prepare_method_with_context(
+                    class,
+                    root_key.index(),
+                    &mut java.used_code_bytes,
+                    limits.max_prepared_code_bytes,
+                    if receiver.is_some() {
+                        Preparation::DirectInstanceRoot
+                    } else {
+                        Preparation::Static
+                    },
+                    match (&mut services, root_key) {
+                        (Services::Fields { context, .. }, MethodKey::Registered(method)) => {
+                            Some((&mut **context, method))
+                        }
+                        _ => None,
+                    },
+                    exceptions.as_mut(),
+                )
+                .map_err(|error| contextualize(bodies, error, root_key, None))?;
+                validate_args(&root, args)
+                    .map_err(|error| contextualize(bodies, error, root_key, None))?;
+                let checked = check_reservation(0, 0, &root, limits)
+                    .map_err(|error| contextualize(bodies, error, root_key, None))?;
+                if let (
+                    Some(receiver),
+                    Services::Fields { context, .. },
+                    MethodKey::Registered(method),
+                ) = (receiver, &mut services, root_key)
+                {
+                    context
+                        .check_receiver(method.owner(), receiver)
+                        .map_err(|error| {
+                            contextualize(
+                                bodies,
+                                ExecutionError::new(None, E::FieldAccess(Box::new(error))),
+                                root_key,
+                                None,
+                            )
+                        })?;
+                }
+                if let (Services::Fields { context, .. }, MethodKey::Registered(method)) =
+                    (&mut services, root_key)
+                {
+                    context
+                        .check_method_reference_profile(method, receiver)
+                        .and_then(|()| context.check_method_arguments(method, args))
+                        .map_err(|error| {
+                            contextualize(
+                                bodies,
+                                ExecutionError::new(None, E::MethodAccess(Box::new(error))),
+                                root_key,
+                                None,
+                            )
+                        })?;
+                }
+                if initialization.is_some() {
+                    let mut arguments = Vec::new();
+                    arguments
+                        .try_reserve_exact(args.len())
+                        .map_err(|_| init_allocation("deferred root arguments"))?;
+                    arguments.extend_from_slice(args);
+                    java.cache.insert(root_key, root);
+                    let MethodKey::Registered(method) = root_key else {
+                        return Err(ExecutionError::new(
+                            None,
+                            E::InvalidMethod("initialization root is not registered"),
+                        ));
+                    };
+                    Some((
+                        method.owner(),
+                        InitContinuation::RootStatic {
+                            target: root_key,
+                            args: arguments,
+                        },
+                    ))
+                } else {
+                    let frame = make_frame(root_key, &root, args, None, receiver)
+                        .map_err(|error| contextualize(bodies, error, root_key, None))?;
+                    java.cache.insert(root_key, root);
+                    java.frames.push(frame);
+                    java.reserved = checked;
+                    None
+                }
+            }
+        };
+        if let Some((class, continuation)) = requested {
+            let init = initialization.as_mut().ok_or_else(|| {
+                ExecutionError::new(None, E::InvalidMethod("initialization state absent"))
+            })?;
+            if let Some(outcome) = request_initialization(
+                InitRequest {
+                    class,
+                    continuation,
+                    origin: None,
+                },
+                bodies,
+                &mut java,
+                &mut services,
+                exceptions.as_mut(),
+                init,
+                limits,
+            )? {
+                return Ok(outcome);
+            }
+        }
+        loop {
+            if let Some(init) = initialization.as_mut() {
+                if let Some(outcome) = advance_initialization(
+                    bodies,
+                    &mut java,
+                    &mut services,
+                    exceptions.as_mut(),
+                    init,
+                    limits,
+                )? {
+                    return Ok(outcome);
+                }
+            }
+            let Some(frame) = java.frames.last() else {
+                return Err(ExecutionError::new(
+                    None,
+                    E::InvalidMethod("empty engine frame stack"),
+                ));
+            };
+            let current = frame.method;
+            let pc = frame.pc;
+            let origin = frame.origin;
+            if java.remaining == 0 {
+                return Err(contextualize(
+                    bodies,
+                    ExecutionError::new(
+                        Some(pc),
+                        E::InstructionBudgetExhausted {
+                            limit: options.instruction_budget,
+                        },
+                    ),
+                    current,
+                    origin,
+                ));
+            }
+            let prepared = java.cache.get(&current).ok_or_else(|| {
+                contextualize(
+                    bodies,
+                    ExecutionError::new(Some(pc), E::InvalidMethod("missing prepared method")),
+                    current,
+                    origin,
+                )
+            })?;
+            let frame = java.frames.last_mut().ok_or_else(|| {
+                ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
+            })?;
+            java.remaining -= 1;
+            let current_class = bodies
+                .class(current)
+                .map_err(|error| contextualize(bodies, error, current, origin))?;
+            let action = step(
+                current_class,
+                prepared,
+                frame,
+                &mut services,
+                exceptions.as_ref().map(|state| state.profile),
+                initialization.as_ref().map(|init| init.claim),
+            )
+            .map_err(|error| contextualize(bodies, error, current, origin))?;
+            match action {
+                Action::InitializationStatic {
+                    access,
+                    value,
+                    next,
+                } => {
+                    let class = access.field().owner();
+                    let index = java
+                        .frames
+                        .len()
+                        .checked_sub(1)
+                        .ok_or_else(|| operand_error(pc))?;
+                    let frame = java.frames.last_mut().ok_or_else(|| operand_error(pc))?;
+                    check_static_continuation_empty(frame, pc)
+                        .map_err(|error| contextualize(bodies, error, current, origin))?;
+                    frame.static_access.try_reserve_exact(1).map_err(|_| {
+                        contextualize(
+                            bodies,
+                            init_allocation("static continuation token"),
+                            current,
+                            origin,
+                        )
+                    })?;
+                    frame.static_access.push(access);
+                    frame.pending = Some(PendingUse::Static { value, next });
+                    let init = initialization.as_mut().ok_or_else(|| operand_error(pc))?;
+                    if let Some(outcome) = request_initialization(
+                        InitRequest {
+                            class,
+                            continuation: InitContinuation::Instruction {
+                                frame: index,
+                                method: current,
+                                pc,
+                            },
+                            origin: Some((current, pc)),
+                        },
+                        bodies,
+                        &mut java,
+                        &mut services,
+                        exceptions.as_mut(),
+                        init,
+                        limits,
+                    )? {
+                        return Ok(outcome);
+                    }
+                }
+                Action::NoSuchFieldError => {
+                    return vm_completion(
+                        ExecutionOutcome::NoSuchFieldError,
+                        exceptions.is_some(),
+                        pc,
+                    )
+                    .map_err(|error| contextualize(bodies, error, current, origin));
+                }
+                Action::IllegalAccessError => {
+                    return vm_completion(
+                        ExecutionOutcome::IllegalAccessError,
+                        exceptions.is_some(),
+                        pc,
+                    )
+                    .map_err(|error| contextualize(bodies, error, current, origin));
+                }
+                Action::IncompatibleClassChangeError => {
+                    return vm_completion(
+                        ExecutionOutcome::IncompatibleClassChangeError,
+                        exceptions.is_some(),
+                        pc,
+                    )
+                    .map_err(|error| contextualize(bodies, error, current, origin));
+                }
+                Action::ArrayStoreException => {
+                    return vm_completion(
+                        ExecutionOutcome::ArrayStoreException,
+                        exceptions.is_some(),
+                        pc,
+                    )
+                    .map_err(|error| contextualize(bodies, error, current, origin));
+                }
+                Action::ClassCastException => {
+                    return vm_completion(
+                        ExecutionOutcome::ClassCastException,
+                        exceptions.is_some(),
+                        pc,
+                    )
+                    .map_err(|error| contextualize(bodies, error, current, origin));
+                }
+                Action::Throw(thrown) => {
+                    let exception_state = exceptions
+                        .as_mut()
+                        .ok_or_else(|| contextualize(bodies, operand_error(pc), current, origin))?;
+                    if let Some(outcome) = handle_throw(
+                        &thrown,
+                        pc,
+                        bodies,
+                        &mut java,
+                        &mut services,
+                        exception_state,
+                        initialization.as_mut(),
+                    )? {
+                        return Ok(outcome);
+                    }
+                }
+                Action::Continue => {}
+                Action::ArithmeticException => {
+                    return vm_completion(
+                        ExecutionOutcome::ArithmeticException,
+                        exceptions.is_some(),
+                        pc,
+                    )
+                    .map_err(|error| contextualize(bodies, error, current, origin));
+                }
+                Action::NullPointerException => {
+                    return vm_completion(
+                        ExecutionOutcome::NullPointerException,
+                        exceptions.is_some(),
+                        pc,
+                    )
+                    .map_err(|error| contextualize(bodies, error, current, origin));
+                }
+                Action::ArrayIndexOutOfBoundsException => {
+                    return vm_completion(
+                        ExecutionOutcome::ArrayIndexOutOfBoundsException,
+                        exceptions.is_some(),
+                        pc,
+                    )
+                    .map_err(|error| contextualize(bodies, error, current, origin));
+                }
+                Action::NegativeArraySizeException => {
+                    return vm_completion(
+                        ExecutionOutcome::NegativeArraySizeException,
+                        exceptions.is_some(),
+                        pc,
+                    )
+                    .map_err(|error| contextualize(bodies, error, current, origin));
+                }
+                Action::Return(value) => {
+                    let completed = java.frames.pop().ok_or_else(|| {
                         ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
                     })?;
-                    let mut args = Vec::new();
-                    args.try_reserve_exact(prepared.shape.parameters.len())
-                        .map_err(|_| {
+                    java.reserved = java
+                        .reserved
+                        .checked_sub(completed.reserved_slots)
+                        .ok_or_else(|| {
+                            ExecutionError::new(
+                                None,
+                                E::InvalidMethod("invalid frame reservation accounting"),
+                            )
+                        })?;
+                    if let FrameRole::Initializer(class) = completed.role {
+                        if value.is_some() {
+                            return Err(contextualize(
+                                bodies,
+                                ExecutionError::new(Some(pc), E::ReturnTypeMismatch),
+                                current,
+                                origin,
+                            ));
+                        }
+                        let init = initialization.as_mut().ok_or_else(|| operand_error(pc))?;
+                        init.finish_body(class)?;
+                        continue;
+                    }
+                    if let Some(caller) = java.frames.last_mut() {
+                        if let Some(value) = value {
+                            let call_offset =
+                                completed.origin.map_or(caller.pc, |(_, offset)| offset);
+                            caller.stack.push(value, call_offset).map_err(|error| {
+                                contextualize(bodies, error, caller.method, completed.origin)
+                            })?;
+                        }
+                    } else {
+                        return Ok(EngineOutcome::Legacy(ExecutionOutcome::Returned(value)));
+                    }
+                }
+                Action::Call {
+                    constant_index,
+                    kind,
+                } => {
+                    let call_site = Some((current, pc));
+                    let (target, mut arguments, receiver) = if kind.is_instance() {
+                        let origin = current.owner().ok_or_else(|| {
+                            ExecutionError::new(Some(pc), E::UnsupportedInstruction(kind.opcode()))
+                        })?;
+                        let Services::Fields { context, .. } = &mut services else {
+                            return Err(ExecutionError::new(
+                                Some(pc),
+                                E::UnsupportedInstruction(kind.opcode()),
+                            ));
+                        };
+                        let invocation = match kind {
+                            CallKind::Virtual => InstanceInvocationKind::Virtual,
+                            CallKind::Special => InstanceInvocationKind::Special,
+                            CallKind::Interface { .. } => InstanceInvocationKind::Interface,
+                            CallKind::Static => return Err(operand_error(pc)),
+                        };
+                        let parameters = context
+                            .instance_invocation_shape(origin, constant_index, invocation)
+                            .map_err(|error| {
+                                contextualize(
+                                    bodies,
+                                    ExecutionError::new(Some(pc), E::MethodAccess(Box::new(error))),
+                                    current,
+                                    call_site,
+                                )
+                            })?;
+                        if let CallKind::Interface { count } = kind {
+                            let expected = usize::from(parameters.parameter_slots)
+                                .checked_add(1)
+                                .ok_or_else(|| {
+                                contextualize(bodies, operand_error(pc), current, call_site)
+                            })?;
+                            if expected > usize::from(u8::MAX) || usize::from(count) != expected {
+                                return Err(contextualize(
+                                    bodies,
+                                    operand_error(pc),
+                                    current,
+                                    call_site,
+                                ));
+                            }
+                        }
+                        let kinds = parameters.parameters;
+                        let caller = java.frames.last_mut().ok_or_else(|| {
+                            ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
+                        })?;
+                        let mut args = Vec::new();
+                        args.try_reserve_exact(kinds.len()).map_err(|_| {
                             contextualize(
                                 bodies,
                                 ExecutionError::new(
@@ -1269,27 +2119,173 @@ fn execute_engine(
                                 call_site,
                             )
                         })?;
-                    for kind in prepared.shape.parameters.iter().rev() {
-                        args.push(
-                            caller.stack.pop(*kind, pc).map_err(|error| {
+                        for kind in kinds.iter().rev() {
+                            args.push(caller.stack.pop(*kind, pc).map_err(|error| {
                                 contextualize(bodies, error, current, call_site)
-                            })?,
-                        );
+                            })?);
+                        }
+                        args.reverse();
+                        let receiver = caller
+                            .stack
+                            .reference(pc)
+                            .map_err(|error| contextualize(bodies, error, current, call_site))?;
+                        let Services::Fields { context, .. } = &mut services else {
+                            return Err(ExecutionError::new(
+                                Some(pc),
+                                E::UnsupportedInstruction(kind.opcode()),
+                            ));
+                        };
+                        let selection = match kind {
+                            CallKind::Virtual => {
+                                context.select_virtual(origin, constant_index, receiver)
+                            }
+                            CallKind::Special => {
+                                context.select_special(origin, constant_index, receiver)
+                            }
+                            CallKind::Interface { .. } => {
+                                context.select_interface(origin, constant_index, receiver)
+                            }
+                            CallKind::Static => return Err(operand_error(pc)),
+                        };
+                        let selected = match selection {
+                            Ok(method) => method,
+                            Err(error) => {
+                                let outcome = method_failure(error, pc).map_err(|error| {
+                                    contextualize(bodies, error, current, call_site)
+                                })?;
+                                return vm_completion(outcome, exceptions.is_some(), pc).map_err(
+                                    |error| contextualize(bodies, error, current, call_site),
+                                );
+                            }
+                        };
+                        (MethodKey::Registered(selected), Some(args), Some(receiver))
+                    } else {
+                        let index = resolve_call(
+                            current_class,
+                            constant_index,
+                            pc,
+                            matches!(services, Services::Fields { .. }),
+                        )
+                        .map_err(|error| contextualize(bodies, error, current, call_site))?;
+                        let target = bodies
+                            .static_key(current, index)
+                            .map_err(|error| contextualize(bodies, error, current, call_site))?;
+                        (target, None, None)
+                    };
+                    let target_class = bodies
+                        .class(target)
+                        .map_err(|error| contextualize(bodies, error, target, call_site))?;
+                    if let std::collections::hash_map::Entry::Vacant(entry) =
+                        java.cache.entry(target)
+                    {
+                        let prepared = prepare_method_with_context(
+                            target_class,
+                            target.index(),
+                            &mut java.used_code_bytes,
+                            limits.max_prepared_code_bytes,
+                            if kind.is_instance() {
+                                Preparation::ResolvedInstance
+                            } else {
+                                Preparation::Static
+                            },
+                            match (&mut services, target) {
+                                (
+                                    Services::Fields { context, .. },
+                                    MethodKey::Registered(method),
+                                ) => Some((&mut **context, method)),
+                                _ => None,
+                            },
+                            exceptions.as_mut(),
+                        )
+                        .map_err(|error| contextualize(bodies, error, target, call_site))?;
+                        entry.insert(prepared);
                     }
-                    args.reverse();
-                    arguments = Some(args);
-                }
-                let args = arguments
-                    .as_deref()
-                    .ok_or_else(|| ExecutionError::new(None, E::InvalidOperands))?;
-                validate_args(prepared, args)
-                    .map_err(|error| contextualize(bodies, error, target, call_site))?;
-                if let (Services::Fields { context, .. }, MethodKey::Registered(method)) =
-                    (&mut services, target)
-                {
-                    if !kind.is_instance() {
+                    let prepared = java.cache.get(&target).ok_or_else(|| {
+                        ExecutionError::new(None, E::InvalidMethod("missing prepared call target"))
+                    })?;
+                    if prepared.initializer {
+                        return Err(contextualize(
+                            bodies,
+                            ExecutionError::new(
+                                Some(pc),
+                                E::UnsupportedMethod(
+                                    "initializer bodies are not ordinary call targets",
+                                ),
+                            ),
+                            target,
+                            call_site,
+                        ));
+                    }
+                    if prepared.instance != kind.is_instance() {
+                        return Err(contextualize(
+                            bodies,
+                            ExecutionError::new(
+                                Some(pc),
+                                E::UnsupportedMethod(if kind.is_instance() {
+                                    "instance body must be non-static"
+                                } else {
+                                    "method must be static"
+                                }),
+                            ),
+                            target,
+                            call_site,
+                        ));
+                    }
+                    let next_reserved =
+                        check_reservation(java.frames.len(), java.reserved, prepared, limits)
+                            .map_err(|error| contextualize(bodies, error, target, call_site))?;
+                    if arguments.is_none() {
+                        let caller = java.frames.last_mut().ok_or_else(|| {
+                            ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
+                        })?;
+                        let mut args = Vec::new();
+                        args.try_reserve_exact(prepared.shape.parameters.len())
+                            .map_err(|_| {
+                                contextualize(
+                                    bodies,
+                                    ExecutionError::new(
+                                        Some(pc),
+                                        E::Heap(HeapError::AllocationFailure {
+                                            resource: "call arguments",
+                                        }),
+                                    ),
+                                    current,
+                                    call_site,
+                                )
+                            })?;
+                        for kind in prepared.shape.parameters.iter().rev() {
+                            args.push(caller.stack.pop(*kind, pc).map_err(|error| {
+                                contextualize(bodies, error, current, call_site)
+                            })?);
+                        }
+                        args.reverse();
+                        arguments = Some(args);
+                    }
+                    let args = arguments
+                        .as_deref()
+                        .ok_or_else(|| ExecutionError::new(None, E::InvalidOperands))?;
+                    validate_args(prepared, args)
+                        .map_err(|error| contextualize(bodies, error, target, call_site))?;
+                    if let (Services::Fields { context, .. }, MethodKey::Registered(method)) =
+                        (&mut services, target)
+                    {
+                        if !kind.is_instance() {
+                            context
+                                .check_method_reference_profile(method, None)
+                                .map_err(|error| {
+                                    contextualize(
+                                        bodies,
+                                        ExecutionError::new(
+                                            Some(pc),
+                                            E::MethodAccess(Box::new(error)),
+                                        ),
+                                        target,
+                                        call_site,
+                                    )
+                                })?;
+                        }
                         context
-                            .check_method_reference_profile(method, None)
+                            .check_method_arguments(method, args)
                             .map_err(|error| {
                                 contextualize(
                                     bodies,
@@ -1299,21 +2295,276 @@ fn execute_engine(
                                 )
                             })?;
                     }
-                    context
-                        .check_method_arguments(method, args)
-                        .map_err(|error| {
-                            contextualize(
-                                bodies,
-                                ExecutionError::new(Some(pc), E::MethodAccess(Box::new(error))),
+                    if !kind.is_instance() {
+                        if let Some(init) = initialization.as_mut() {
+                            let MethodKey::Registered(method) = target else {
+                                return Err(operand_error(pc));
+                            };
+                            let saved = arguments.take().ok_or_else(|| operand_error(pc))?;
+                            let index = java
+                                .frames
+                                .len()
+                                .checked_sub(1)
+                                .ok_or_else(|| operand_error(pc))?;
+                            let frame = java.frames.last_mut().ok_or_else(|| operand_error(pc))?;
+                            if frame.pending.is_some() {
+                                return Err(operand_error(pc));
+                            }
+                            let next = frame.pc;
+                            frame.pc = pc;
+                            frame.pending = Some(PendingUse::Call {
                                 target,
-                                call_site,
-                            )
-                        })?;
+                                args: saved,
+                                next,
+                            });
+                            if let Some(outcome) = request_initialization(
+                                InitRequest {
+                                    class: method.owner(),
+                                    continuation: InitContinuation::Instruction {
+                                        frame: index,
+                                        method: current,
+                                        pc,
+                                    },
+                                    origin: call_site,
+                                },
+                                bodies,
+                                &mut java,
+                                &mut services,
+                                exceptions.as_mut(),
+                                init,
+                                limits,
+                            )? {
+                                return Ok(outcome);
+                            }
+                            continue;
+                        }
+                    }
+                    let callee = make_frame(target, prepared, args, call_site, receiver)
+                        .map_err(|error| contextualize(bodies, error, target, call_site))?;
+                    java.frames.push(callee);
+                    java.reserved = next_reserved;
                 }
-                let callee = make_frame(target, prepared, args, call_site, receiver)
-                    .map_err(|error| contextualize(bodies, error, target, call_site))?;
-                frames.push(callee);
-                reserved = next_reserved;
+            }
+        }
+    })();
+    result.map_err(|mut error: ExecutionError| {
+        if let Some(init) = initialization.as_ref() {
+            if let Some(active) = init.activations.last() {
+                error.initialization_class.get_or_insert(active.class);
+            }
+        }
+        error
+    })
+}
+
+enum AbruptResume {
+    Root,
+    Caller(u32),
+}
+fn handle_initializer_escape(
+    thrown: &ThrownException,
+    class: ClassId,
+    pc: u32,
+    bodies: Bodies<'_>,
+    java: &mut JavaState,
+    services: &mut Services<'_, '_>,
+    init: &mut InitExecution<'_>,
+) -> Result<AbruptResume, ExecutionError> {
+    let frame = java.frames.last().ok_or_else(|| {
+        ExecutionError::new(None, E::InvalidMethod("escaping initializer frame absent"))
+    })?;
+    let current = frame.method;
+    let origin = frame.origin;
+    let diagnose = |mut error: ExecutionError| {
+        error.initialization_class.get_or_insert(class);
+        error.offset = Some(pc);
+        contextualize(bodies, error, current, origin)
+    };
+    if frame.role != FrameRole::Initializer(class) {
+        return Err(diagnose(ExecutionError::new(
+            None,
+            E::InvalidMethod("escaping initializer role mismatch"),
+        )));
+    }
+    init.state.charge().map_err(diagnose)?;
+    let Services::Fields { context, .. } = services else {
+        return Err(diagnose(operand_error(pc)));
+    };
+    let is_error = context
+        .is_initialization_error(init.claim, thrown)
+        .map_err(|error| diagnose(initialization_failure(error, Some(pc))))?;
+    if !is_error {
+        return Err(diagnose(ExecutionError::new(
+            Some(pc),
+            E::UnsupportedInitializerWrapping {
+                class,
+                thrown: thrown.reference(),
+            },
+        )));
+    }
+    let activation = init.activations.last().ok_or_else(|| {
+        diagnose(ExecutionError::new(
+            None,
+            E::InvalidMethod("escaping activation absent"),
+        ))
+    })?;
+    if activation.class != class || activation.phase != Phase::Body {
+        return Err(diagnose(ExecutionError::new(
+            None,
+            E::InvalidMethod("escaping activation phase mismatch"),
+        )));
+    }
+    let record = init.state.records.get(activation.record).ok_or_else(|| {
+        diagnose(ExecutionError::new(
+            None,
+            E::InvalidMethod("escaping record absent"),
+        ))
+    })?;
+    if !matches!(record.status,RecordStatus::InProgress{owner,..} if owner==init.owner) {
+        return Err(diagnose(ExecutionError::new(
+            None,
+            E::InvalidMethod("escaping owner mismatch"),
+        )));
+    }
+    let caller_pc = unwind_frame(&mut ActiveFrames {
+        frames: &mut java.frames,
+        reserved: &mut java.reserved,
+    })
+    .map_err(diagnose)?;
+    let activation = init
+        .activations
+        .pop()
+        .ok_or_else(|| diagnose(operand_error(pc)))?;
+    init.state
+        .records
+        .get_mut(activation.record)
+        .ok_or_else(|| diagnose(operand_error(pc)))?
+        .status = RecordStatus::Erroneous {
+        cause: thrown.reference(),
+    };
+    let mut continuation = activation.continuation;
+    loop {
+        match continuation {
+            InitContinuation::Dependency => {
+                let parent = init.activations.last().ok_or_else(|| {
+                    diagnose(ExecutionError::new(
+                        None,
+                        E::InvalidMethod("failing dependency parent absent"),
+                    ))
+                })?;
+                let parent_class = parent.class;
+                let parent_origin = parent.origin;
+                if parent.phase != Phase::Dependencies {
+                    return Err(diagnose(ExecutionError::new(
+                        None,
+                        E::InvalidMethod("failing parent is not awaiting dependency"),
+                    )));
+                }
+                init.state.charge().map_err(|error| {
+                    init_diagnose(error, parent_class, parent_origin, bodies, java)
+                })?;
+                let parent = init
+                    .activations
+                    .pop()
+                    .ok_or_else(|| diagnose(operand_error(pc)))?;
+                let record = init
+                    .state
+                    .records
+                    .get_mut(parent.record)
+                    .ok_or_else(|| diagnose(operand_error(pc)))?;
+                if !matches!(record.status,RecordStatus::InProgress{owner,..} if owner==init.owner)
+                {
+                    return Err(diagnose(ExecutionError::new(
+                        None,
+                        E::InvalidMethod("failing dependency owner mismatch"),
+                    )));
+                }
+                record.status = RecordStatus::Erroneous {
+                    cause: thrown.reference(),
+                };
+                continuation = parent.continuation;
+            }
+            InitContinuation::RootInitialize | InitContinuation::RootStatic { .. } => {
+                if !java.frames.is_empty() || caller_pc.is_some() {
+                    return Err(diagnose(ExecutionError::new(
+                        None,
+                        E::InvalidMethod("root initializer retained a Java caller"),
+                    )));
+                }
+                return Ok(AbruptResume::Root);
+            }
+            InitContinuation::Instruction {
+                frame,
+                method,
+                pc: invoke,
+            } => {
+                if frame.checked_add(1) != Some(java.frames.len()) || caller_pc != Some(invoke) {
+                    return Err(diagnose(ExecutionError::new(
+                        None,
+                        E::InvalidMethod("abrupt active-use caller mismatch"),
+                    )));
+                }
+                let caller = java
+                    .frames
+                    .get_mut(frame)
+                    .ok_or_else(|| diagnose(operand_error(pc)))?;
+                if caller.method != method || caller.pc != invoke || caller.pending.take().is_none()
+                {
+                    return Err(diagnose(ExecutionError::new(
+                        None,
+                        E::InvalidMethod("abrupt active-use continuation absent"),
+                    )));
+                }
+                caller.static_access.clear();
+                return Ok(AbruptResume::Caller(invoke));
+            }
+        }
+    }
+}
+fn handle_throw(
+    thrown: &ThrownException,
+    mut pc: u32,
+    bodies: Bodies<'_>,
+    java: &mut JavaState,
+    services: &mut Services<'_, '_>,
+    exceptions: &mut ExceptionState<'_>,
+    mut initialization: Option<&mut InitExecution<'_>>,
+) -> Result<Option<EngineOutcome>, ExecutionError> {
+    loop {
+        match dispatch_throw(
+            bodies,
+            &java.cache,
+            ActiveFrames {
+                frames: &mut java.frames,
+                reserved: &mut java.reserved,
+            },
+            services,
+            exceptions,
+            thrown,
+            pc,
+        )? {
+            DispatchResult::Caught => return Ok(None),
+            DispatchResult::Uncaught => {
+                return Ok(Some(EngineOutcome::Uncaught(thrown.reference())));
+            }
+            DispatchResult::InitializerBoundary {
+                class,
+                pc: search_pc,
+            } => {
+                let init = initialization.as_deref_mut().ok_or_else(|| {
+                    ExecutionError::new(
+                        Some(search_pc),
+                        E::InvalidMethod("initializer escaped outside session"),
+                    )
+                })?;
+                match handle_initializer_escape(
+                    thrown, class, search_pc, bodies, java, services, init,
+                )? {
+                    AbruptResume::Root => {
+                        return Ok(Some(EngineOutcome::Uncaught(thrown.reference())));
+                    }
+                    AbruptResume::Caller(invoke) => pc = invoke,
+                }
             }
         }
     }
@@ -1458,6 +2709,11 @@ fn unwind_frame(active: &mut ActiveFrames<'_>) -> Result<Option<u32>, ExecutionE
     *active.reserved = released;
     Ok(origin.map(|(_, pc)| pc))
 }
+enum DispatchResult {
+    Caught,
+    Uncaught,
+    InitializerBoundary { class: ClassId, pc: u32 },
+}
 fn dispatch_throw(
     bodies: Bodies<'_>,
     cache: &HashMap<MethodKey, PreparedMethod>,
@@ -1466,7 +2722,7 @@ fn dispatch_throw(
     state: &mut ExceptionState<'_>,
     thrown: &ThrownException,
     mut search_pc: u32,
-) -> Result<bool, ExecutionError> {
+) -> Result<DispatchResult, ExecutionError> {
     loop {
         let frame = active.frames.last().ok_or_else(|| {
             ExecutionError::new(None, E::InvalidMethod("empty exception frame stack"))
@@ -1511,14 +2767,20 @@ fn dispatch_throw(
                     .install_exception(thrown.reference(), search_pc)
                     .map_err(diagnose)?;
                 frame.pc = u32::from(row.handler_pc);
-                return Ok(true);
+                return Ok(DispatchResult::Caught);
             }
         }
         charge_dispatch(&mut state.dispatch_steps, state.limits.max_dispatch_steps)
             .map_err(diagnose)?;
+        if let FrameRole::Initializer(class) = frame.role {
+            return Ok(DispatchResult::InitializerBoundary {
+                class,
+                pc: search_pc,
+            });
+        }
         match unwind_frame(&mut active).map_err(diagnose)? {
             Some(pc) => search_pc = pc,
-            None => return Ok(false),
+            None => return Ok(DispatchResult::Uncaught),
         }
     }
 }
@@ -1551,6 +2813,7 @@ fn prepare_method_with_context(
     mut exceptions: Option<&mut ExceptionState<'_>>,
 ) -> Result<PreparedMethod, ExecutionError> {
     let instance = mode.is_instance();
+    let initializer = mode == Preparation::Initializer;
     let method = class.methods.get(method_index).ok_or_else(|| {
         ExecutionError::new(
             None,
@@ -1563,7 +2826,9 @@ fn prepare_method_with_context(
     let name = class.constant_pool.utf8(method.name_index).map_err(|_| {
         ExecutionError::new(None, E::InvalidMethod("invalid method name reference"))
     })?;
-    if name.equals_ascii("<init>") || name.equals_ascii("<clinit>") {
+    if (initializer && !name.equals_ascii("<clinit>"))
+        || (!initializer && (name.equals_ascii("<init>") || name.equals_ascii("<clinit>")))
+    {
         return Err(ExecutionError::new(
             None,
             E::UnsupportedMethod("special initialization methods are not ordinary method bodies"),
@@ -1581,31 +2846,44 @@ fn prepare_method_with_context(
             E::UnsupportedMethod("instance body must be non-static"),
         ));
     }
-    if !instance && method.access_flags & 0x0008 == 0 {
+    if !instance && !initializer && method.access_flags & 0x0008 == 0 {
         return Err(ExecutionError::new(
             None,
             E::UnsupportedMethod("method must be static"),
         ));
     }
-    if method.access_flags & 0x0100 != 0 {
+    if !initializer && method.access_flags & 0x0100 != 0 {
         return Err(ExecutionError::new(
             None,
             E::UnsupportedMethod("native methods require runtime services"),
         ));
     }
-    if method.access_flags & 0x0400 != 0 {
+    if !initializer && method.access_flags & 0x0400 != 0 {
         return Err(ExecutionError::new(
             None,
             E::UnsupportedMethod("abstract methods have no executable body"),
         ));
     }
-    if method.access_flags & 0x0020 != 0 {
+    if !initializer && method.access_flags & 0x0020 != 0 {
         return Err(ExecutionError::new(
             None,
             E::UnsupportedMethod("synchronized methods require monitor services"),
         ));
     }
-    let shape = if let Some((context, method)) = runtime {
+    let shape = if initializer {
+        let descriptor = class
+            .constant_pool
+            .utf8(method.descriptor_index)
+            .map_err(|_| ExecutionError::new(None, E::InvalidDescriptor))?;
+        if !descriptor.equals_ascii("()V") {
+            return Err(ExecutionError::new(None, E::UnsupportedDescriptor));
+        }
+        MethodValueShape {
+            parameters: Vec::new(),
+            parameter_slots: 0,
+            result: MethodReturnKind::Void,
+        }
+    } else if let Some((context, method)) = runtime {
         context
             .method_value_shape(method)
             .map_err(|error| ExecutionError::new(None, E::MethodAccess(Box::new(error))))?
@@ -1701,6 +2979,7 @@ fn prepare_method_with_context(
     *used_code_bytes = required;
     Ok(PreparedMethod {
         instance,
+        initializer,
         shape,
         handlers: exceptions.is_some().then_some(code_index),
         decoded,
@@ -1715,6 +2994,7 @@ fn step(
     frame: &mut Frame,
     services: &mut Services<'_, '_>,
     exception_profile: Option<&ExceptionProfile>,
+    initialization_claim: Option<&InitializationClaim>,
 ) -> Result<Action, ExecutionError> {
     let pc = frame.pc;
     let locals = &mut frame.locals;
@@ -1784,6 +3064,28 @@ fn step(
                 return Err(operand_error(pc));
             };
             let origin = frame.method.owner().ok_or_else(|| operand_error(pc))?;
+            if let Some(claim) = initialization_claim {
+                let MethodKey::Registered(method) = frame.method else {
+                    return Err(operand_error(pc));
+                };
+                let access = context
+                    .resolve_initialization_static(
+                        claim,
+                        method,
+                        *index,
+                        if opcode == 0xb2 {
+                            InitializationStaticKind::Read
+                        } else {
+                            InitializationStaticKind::Write
+                        },
+                    )
+                    .map_err(|error| initialization_failure(error, Some(pc)))?;
+                return Ok(Action::InitializationStatic {
+                    access,
+                    value,
+                    next,
+                });
+            }
             if let Some(value) = value {
                 if let Err(error) = context.write_static(profile, origin, *index, value) {
                     return static_failure(error, pc);
@@ -2669,6 +3971,7 @@ mod resource_tests {
                 &mut frame,
                 &mut Services::Heap(&mut heap),
                 None,
+                None,
             ) {
                 Err(error) => error,
                 Ok(_) => panic!("foreign reference accepted"),
@@ -3042,6 +4345,9 @@ mod resource_tests {
         fn frame(method: usize, origin: Option<(MethodKey, u32)>) -> Frame {
             Frame {
                 method: MethodKey::Standalone(method),
+                role: FrameRole::Ordinary,
+                pending: None,
+                static_access: Vec::new(),
                 locals: Locals::new(0),
                 stack: Stack::new(0),
                 pc: 90,
@@ -3175,6 +4481,102 @@ mod resource_tests {
             assert_eq!(error.kind, E::StaticAccess(Box::new(host)));
             assert_eq!(error.offset, Some(17));
             assert!(std::error::Error::source(&error).is_some());
+        }
+    }
+    #[test]
+    fn initialization_plan_total_overflow_and_limits_are_checked_independently() {
+        assert_eq!(
+            session_totals(
+                usize::MAX,
+                1,
+                usize::MAX,
+                InitializationResource::PlanDependencies
+            )
+            .unwrap_err()
+            .kind,
+            E::InitializationAccountingOverflow {
+                resource: "retained plan totals"
+            }
+        );
+        assert_eq!(
+            session_totals(2, 3, 4, InitializationResource::ConstantValues)
+                .unwrap_err()
+                .kind,
+            E::InitializationLimit {
+                resource: InitializationResource::ConstantValues,
+                limit: 4,
+                required: 5
+            }
+        );
+        assert_eq!(
+            session_totals(
+                usize::MAX,
+                0,
+                usize::MAX,
+                InitializationResource::PlanDependencies
+            )
+            .unwrap(),
+            usize::MAX
+        );
+    }
+    #[test]
+    fn static_pending_token_guards_reject_missing_and_duplicate_uses_without_mutation() {
+        let class = crate::tests::synthetic(&[0xb1], "()V", 1, 0);
+        let prepared = prepare_method(&class, 0, &mut 0, usize::MAX, Preparation::Static).unwrap();
+        let mut frame = make_frame(MethodKey::Standalone(0), &prepared, &[], None, None).unwrap();
+        assert_eq!(
+            frame.static_access.capacity(),
+            0,
+            "legacy frames allocate no token buffer"
+        );
+        check_static_continuation_empty(&frame, 7).unwrap();
+        let error = take_static_continuation(&mut frame, 7).unwrap_err();
+        assert_eq!(error.offset, Some(7));
+        assert!(matches!(error.kind, E::InvalidMethod(_)));
+        frame.pending = Some(PendingUse::Static {
+            value: Some(Value::Int(3)),
+            next: 10,
+        });
+        assert!(matches!(
+            check_static_continuation_empty(&frame, 7).unwrap_err().kind,
+            E::InvalidMethod("duplicate active-use continuation")
+        ));
+        assert!(matches!(
+            frame.pending,
+            Some(PendingUse::Static {
+                value: Some(Value::Int(3)),
+                next: 10
+            })
+        ));
+        assert_eq!(frame.static_access.len(), 0);
+        frame.pending.take();
+        check_static_continuation_empty(&frame, 7).unwrap();
+    }
+    #[test]
+    fn initialization_failure_maps_only_explicit_java_variants() {
+        for (java, kind) in [
+            (
+                StaticJavaError::NoSuchField,
+                VmExceptionKind::NoSuchFieldError,
+            ),
+            (
+                StaticJavaError::IllegalAccess,
+                VmExceptionKind::IllegalAccessError,
+            ),
+            (
+                StaticJavaError::IncompatibleClassChange,
+                VmExceptionKind::IncompatibleClassChangeError,
+            ),
+        ] {
+            assert_eq!(
+                initialization_failure(InitializationAccessError::Java(java), Some(8)).kind,
+                E::UnsupportedVmException(kind)
+            );
+            let nested = InitializationAccessError::Static(Box::new(StaticAccessError::Java(java)));
+            let error = initialization_failure(nested.clone(), Some(8));
+            assert_eq!(error.kind, E::InitializationAccess(Box::new(nested)));
+            assert_eq!(error.offset, Some(8));
+            assert_eq!(error.initialization_class, None);
         }
     }
 }

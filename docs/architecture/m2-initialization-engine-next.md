@@ -1,6 +1,6 @@
 # Next: initialization scheduling and failure protocol
 
-Status: proposed direction on 2026-11-04 after `m2-static-state-review.md`. This note does not authorize production changes. An exact bounded contract must settle the protocol and unsupported dependencies before implementation. Full M2 and complete linking/initialization remain open.
+Status: historical proposal fulfilled by the bounded contract `m2-initialization-session.md` and its approved implementation review `m2-initialization-session-review.md` on 2026-11-04. The proposal below records the design questions that led to that increment; the exact contract governs implemented APIs and responsibilities. Full M2 and complete linking/initialization remain open.
 
 Checked static locations and supplied-Throwable dispatch now provide the storage and abrupt-completion mechanisms for actual initializer execution. The next useful increment should establish a bounded initialization scheduler over explicitly admitted metadata, with real clinit bodies executed through the same engine. Preserve the existing host-controlled body profiles; do not silently turn their static reads/writes into initialization triggers.
 

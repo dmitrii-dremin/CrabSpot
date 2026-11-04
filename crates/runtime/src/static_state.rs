@@ -247,6 +247,7 @@ pub(crate) struct StaticState {
     heap: u64,
     options: StaticStateOptions,
     classes: HashSet<ClassId>,
+    ranges: HashMap<ClassId, (usize, usize)>,
     fields: Vec<FieldId>,
     slots: Vec<Slot>,
     positions: HashMap<FieldId, usize>,
@@ -259,6 +260,7 @@ impl StaticState {
             heap,
             options,
             classes: HashSet::new(),
+            ranges: HashMap::new(),
             fields: Vec::new(),
             slots: Vec::new(),
             positions: HashMap::new(),
@@ -275,7 +277,10 @@ impl StaticState {
         }
     }
     fn counts(&self) -> Result<(), StaticAccessError> {
-        if self.fields.len() != self.slots.len() || self.bytes != payload_bytes(self.slots.len())? {
+        if self.ranges.len() != self.classes.len()
+            || self.fields.len() != self.slots.len()
+            || self.bytes != payload_bytes(self.slots.len())?
+        {
             return Err(StaticAccessError::InvalidState(
                 "field/value/payload counts differ",
             ));
@@ -289,6 +294,7 @@ fn reserve_destinations(
     slots: usize,
 ) -> Result<(), StaticAccessError> {
     reserve_set(&mut state.classes, classes)?;
+    reserve_map(&mut state.ranges, classes)?;
     reserve(&mut state.fields, slots)?;
     reserve(&mut state.slots, slots)?;
     reserve_map(&mut state.positions, slots)
@@ -383,7 +389,7 @@ impl FieldResolutionContext<'_> {
             {
                 continue;
             }
-            new_classes.push(class);
+            let range_start = total_slots;
             let definition = self.registry().class(class)?;
             for (index, member) in definition.fields.iter().enumerate() {
                 self.step()?;
@@ -426,14 +432,16 @@ impl FieldResolutionContext<'_> {
                     value: kind.default_value(),
                 });
             }
+            new_classes.push((class, (range_start, total_slots)));
         }
         let bytes = payload_bytes(total_slots)?;
         // All retained invariants and every reservation precede the first
         // published membership/location. No callback or fallible work follows.
         if let Some(state) = self.heap_mut().static_state.as_mut() {
             reserve_destinations(state, new_classes.len(), fields.len())?;
-            for class in new_classes {
+            for (class, range) in new_classes {
                 state.classes.insert(class);
+                state.ranges.insert(class, range);
             }
             for (field, slot) in fields.into_iter().zip(slots) {
                 state.positions.insert(field, state.fields.len());
@@ -445,9 +453,11 @@ impl FieldResolutionContext<'_> {
         } else {
             let mut state = StaticState::empty(registry, heap_identity, options);
             reserve_set(&mut state.classes, new_classes.len())?;
+            reserve_map(&mut state.ranges, new_classes.len())?;
             reserve_map(&mut state.positions, fields.len())?;
-            for class in new_classes {
+            for (class, range) in new_classes {
                 state.classes.insert(class);
+                state.ranges.insert(class, range);
             }
             for (index, field) in fields.iter().copied().enumerate() {
                 state.positions.insert(field, index);
@@ -591,6 +601,118 @@ impl FieldResolutionContext<'_> {
                 ));
             }
             self.read_static_location(*field)?;
+            let &(start, end) =
+                state
+                    .ranges
+                    .get(&field.owner())
+                    .ok_or(StaticAccessError::InvalidState(
+                        "static owner range is missing",
+                    ))?;
+            if index < start || index >= end {
+                return Err(StaticAccessError::InvalidState(
+                    "static field is outside its owner range",
+                ));
+            }
+        }
+        for class in &state.classes {
+            let &(start, end) = state
+                .ranges
+                .get(class)
+                .ok_or(StaticAccessError::InvalidState(
+                    "static class range is missing",
+                ))?;
+            if start > end
+                || end > state.fields.len()
+                || state.fields[start..end]
+                    .iter()
+                    .any(|field| field.owner() != *class)
+            {
+                return Err(StaticAccessError::InvalidState(
+                    "static class range is invalid",
+                ));
+            }
+        }
+        Ok(())
+    }
+    pub(crate) fn initialization_location(
+        &self,
+        field: FieldId,
+    ) -> Result<(usize, FieldKind), StaticAccessError> {
+        let (index, slot) = self.static_location(field)?;
+        Ok((index, slot.kind))
+    }
+    pub(crate) fn initialization_own_fields(
+        &self,
+        class: ClassId,
+    ) -> Result<&[FieldId], StaticAccessError> {
+        self.registry().class(class)?;
+        self.heap().instance_graph_node(class)?;
+        let state = self
+            .heap()
+            .static_state
+            .as_ref()
+            .ok_or(StaticAccessError::ProfileMismatch)?;
+        let &(start, end) = state
+            .ranges
+            .get(&class)
+            .ok_or(StaticAccessError::InvalidState(
+                "static class range is missing",
+            ))?;
+        let fields = state
+            .fields
+            .get(start..end)
+            .ok_or(StaticAccessError::InvalidState(
+                "static class range is outside storage",
+            ))?;
+        if start
+            .checked_sub(1)
+            .and_then(|index| state.fields.get(index))
+            .is_some_and(|field| field.owner() == class)
+            || state
+                .fields
+                .get(end)
+                .is_some_and(|field| field.owner() == class)
+        {
+            return Err(StaticAccessError::InvalidState(
+                "static class range is incomplete",
+            ));
+        }
+        Ok(fields)
+    }
+    pub(crate) fn publish_initialization_constants(
+        &mut self,
+        class: ClassId,
+        entries: &[crate::initialization::InitializationConstant],
+    ) -> Result<(), StaticAccessError> {
+        // The sole caller validated every entry/destination under this exclusive
+        // context borrow. All fallible indexing precedes the first mutation.
+        let state = self
+            .heap_mut()
+            .static_state
+            .as_mut()
+            .ok_or(StaticAccessError::ProfileMismatch)?;
+        let &(start, end) = state
+            .ranges
+            .get(&class)
+            .ok_or(StaticAccessError::InvalidState(
+                "static class range is missing",
+            ))?;
+        let slots = state
+            .slots
+            .get_mut(start..end)
+            .ok_or(StaticAccessError::InvalidState(
+                "static class range is outside values",
+            ))?;
+        let mut next = entries.iter().peekable();
+        for (offset, slot) in slots.iter_mut().enumerate() {
+            if next
+                .peek()
+                .is_some_and(|entry| entry.location.checked_sub(start) == Some(offset))
+            {
+                if let Some(entry) = next.next() {
+                    slot.value = entry.value;
+                }
+            }
         }
         Ok(())
     }
@@ -660,6 +782,59 @@ impl FieldResolutionContext<'_> {
         if flags & 16 != 0 {
             return Err(StaticAccessError::Java(StaticJavaError::IllegalAccess));
         }
+        self.write_static_value(profile, field, value, None)
+    }
+    pub(crate) fn declaring_initializer(
+        &self,
+        origin: crate::MethodId,
+        owner: ClassId,
+    ) -> Result<bool, StaticAccessError> {
+        let definition = self.registry().class(origin.owner())?;
+        let member = self.registry().method(origin)?;
+        self.heap().instance_graph_node(origin.owner())?;
+        Ok(origin.owner() == owner
+            && definition
+                .constant_pool
+                .utf8(member.name_index)
+                .map_err(RegistryError::Parse)?
+                .equals_ascii("<clinit>")
+            && definition
+                .constant_pool
+                .utf8(member.descriptor_index)
+                .map_err(RegistryError::Parse)?
+                .equals_ascii("()V"))
+    }
+    pub(crate) fn write_initialization_value(
+        &mut self,
+        profile: &StaticStateProfile,
+        field: FieldId,
+        value: Value,
+        origin: crate::MethodId,
+    ) -> Result<(), StaticAccessError> {
+        self.write_static_value(profile, field, value, Some(origin))
+    }
+    fn write_static_value(
+        &mut self,
+        profile: &StaticStateProfile,
+        field: FieldId,
+        value: Value,
+        origin: Option<crate::MethodId>,
+    ) -> Result<(), StaticAccessError> {
+        self.validate_static_profile(profile)?;
+        let member = self.registry().field(field)?;
+        if member.access_flags & 8 == 0 {
+            return Err(StaticAccessError::Java(
+                StaticJavaError::IncompatibleClassChange,
+            ));
+        }
+        if member.access_flags & 16 != 0
+            && !origin
+                .map(|method| self.declaring_initializer(method, field.owner()))
+                .transpose()?
+                .unwrap_or(false)
+        {
+            return Err(StaticAccessError::Java(StaticJavaError::IllegalAccess));
+        }
         let (_, slot) = self.static_location(field)?;
         let expected = slot.kind.default_value().kind();
         if value.kind() != expected {
@@ -688,7 +863,11 @@ impl FieldResolutionContext<'_> {
                 }
             }
         }
-        self.commit_static(profile, field, value)
+        if origin.is_none() {
+            self.commit_static(profile, field, value)
+        } else {
+            self.commit_static_origin(profile, field, value, origin)
+        }
     }
     fn commit_static(
         &mut self,
@@ -696,9 +875,23 @@ impl FieldResolutionContext<'_> {
         field: FieldId,
         value: Value,
     ) -> Result<(), StaticAccessError> {
+        self.commit_static_origin(profile, field, value, None)
+    }
+    fn commit_static_origin(
+        &mut self,
+        profile: &StaticStateProfile,
+        field: FieldId,
+        value: Value,
+        origin: Option<crate::MethodId>,
+    ) -> Result<(), StaticAccessError> {
         self.validate_static_profile(profile)?;
         let (index, slot) = self.static_location(field)?;
-        if slot.is_final {
+        if slot.is_final
+            && !origin
+                .map(|method| self.declaring_initializer(method, field.owner()))
+                .transpose()?
+                .unwrap_or(false)
+        {
             return Err(StaticAccessError::Java(StaticJavaError::IllegalAccess));
         }
         let expected = slot.kind.default_value().kind();
@@ -735,6 +928,74 @@ impl FieldResolutionContext<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    mod rt {
+        pub use crate::*;
+    }
+    #[allow(dead_code)]
+    mod init_fixtures {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/support/initialization.rs"
+        ));
+    }
+
+    #[test]
+    fn a_late_foreign_field_in_a_corrupt_constant_owner_range_cannot_partially_publish() {
+        use init_fixtures as f;
+        let mut w = f::world();
+        let own = f::define(
+            &mut w.registry,
+            w.u.bootstrap_loader,
+            "Constants",
+            Some("java/lang/Object"),
+            &[],
+            0x21,
+            &[
+                f::Field::new("a", "I", 9, Some(f::Cv::Int(41))),
+                f::Field::new("b", "I", 25, Some(f::Cv::Int(79))),
+            ],
+            &[],
+            &[],
+            65,
+        );
+        let other = f::define(
+            &mut w.registry,
+            w.u.bootstrap_loader,
+            "Other",
+            Some("java/lang/Object"),
+            &[],
+            0x21,
+            &[f::Field::new("later", "J", 9, None)],
+            &[],
+            &[],
+            65,
+        );
+        let mut heap = f::heap(
+            &w,
+            &[w.error, own.class, other.class],
+            &mut SameLoaderResolver,
+        );
+        let mut resolver = SameLoaderResolver;
+        let mut ctx = f::context(&w, &mut heap, &mut resolver);
+        let (s, e) = f::profiles(&mut ctx, w.throwable);
+        let claim = ctx.claim_initialization(&s, &e, w.error).unwrap();
+        let plan = ctx
+            .plan_initialization(&claim, own.class, f::limits())
+            .unwrap();
+        let a = f::field(&w, own.class, "a", "I");
+        ctx.commit_static(&s, a, Value::Int(13)).unwrap();
+        let before = snapshot(ctx.heap());
+        let original = state(&mut ctx).ranges[&own.class];
+        state(&mut ctx)
+            .ranges
+            .insert(own.class, (original.0, original.1 + 1));
+        let corrupt = snapshot(ctx.heap());
+        assert!(ctx.install_initialization_constants(&claim, &plan).is_err());
+        assert_eq!(snapshot(ctx.heap()), corrupt);
+        assert_eq!(ctx.inspect_static(&s, a), Ok(Value::Int(13)));
+        state(&mut ctx).ranges.insert(own.class, original);
+        assert_eq!(snapshot(ctx.heap()), before);
+    }
     use crate::{
         DefinitionRegistry, FieldResolutionOptions, HeapOptions, HierarchyOptions, InstanceOptions,
         ManagedHeap, Reference, ReferenceTypeUniverse, RegistryOptions, SameLoaderResolver,
@@ -885,6 +1146,7 @@ mod tests {
         profile: StaticStateProfile,
         options: StaticStateOptions,
         classes: HashSet<ClassId>,
+        ranges: HashMap<ClassId, (usize, usize)>,
         fields: Vec<FieldId>,
         slots: Vec<(FieldKind, bool, Value)>,
         positions: HashMap<FieldId, usize>,
@@ -895,6 +1157,7 @@ mod tests {
             profile: state.profile(),
             options: state.options,
             classes: state.classes.clone(),
+            ranges: state.ranges.clone(),
             fields: state.fields.clone(),
             slots: state
                 .slots
@@ -1339,5 +1602,72 @@ mod tests {
         let error = StaticAccessError::from(HeapError::ForeignHeap);
         assert!(error.source().is_some());
         assert!(error.to_string().contains("heap"));
+    }
+
+    #[test]
+    fn initialization_owner_ranges_reject_corruption_and_extend_without_changing_old_or_zero_ranges()
+     {
+        let mut f = fixture();
+        let extra = build_hierarchy(
+            &f.registry,
+            f.extra,
+            &mut SameLoaderResolver,
+            HierarchyOptions::default(),
+        )
+        .unwrap();
+        let mut resolver = SameLoaderResolver;
+        let before = {
+            let mut ctx = FieldResolutionContext::new_unnamed_modules(
+                &f.registry,
+                &mut f.heap,
+                &mut resolver,
+                FieldResolutionOptions::default(),
+            )
+            .unwrap();
+            ctx.allocate_static_state(StaticStateOptions::default())
+                .unwrap();
+            let original = state(&mut ctx).ranges[&f.owner];
+            assert_eq!(
+                ctx.initialization_own_fields(f.owner).unwrap(),
+                &f.fields[..4]
+            );
+            for range in [
+                (0, usize::MAX),
+                (2, 1),
+                (original.0, original.1 - 1),
+                (original.0 + 1, original.1),
+            ] {
+                state(&mut ctx).ranges.insert(f.owner, range);
+                assert!(ctx.initialization_own_fields(f.owner).is_err());
+            }
+            state(&mut ctx).ranges.insert(f.owner, original);
+            state(&mut ctx).ranges.clone()
+        };
+        f.heap
+            .admit_instance_layouts(&f.registry, &[&extra])
+            .unwrap();
+        let mut ctx = FieldResolutionContext::new_unnamed_modules(
+            &f.registry,
+            &mut f.heap,
+            &mut resolver,
+            FieldResolutionOptions::default(),
+        )
+        .unwrap();
+        ctx.allocate_static_state(StaticStateOptions::default())
+            .unwrap();
+        for (class, range) in before {
+            assert_eq!(state(&mut ctx).ranges.get(&class), Some(&range));
+        }
+        assert_eq!(
+            ctx.initialization_own_fields(f.owner).unwrap(),
+            &f.fields[..4]
+        );
+        assert_eq!(
+            ctx.initialization_own_fields(f.extra).unwrap(),
+            [FieldId {
+                owner: f.extra,
+                index: 0
+            }]
+        );
     }
 }

@@ -3,13 +3,14 @@
 An independent JVM implementation in Rust. It parses Java 21 class files, decodes
 JVM instructions, and executes supported primitive/reference method bodies independently in
 Rust, including bounded virtual/interface/super calls across bodies, primitive/reference arrays,
-instance fields, explicit static-memory access, casts, type tests and supplied-Throwable handlers. The long-term goal is a complete
+instance fields, static access, single-session class initialization, casts, type tests
+and supplied-Throwable handlers. The long-term goal is a complete
 JVM specification implementation with the required observable behavior of
 conforming JVMs, using HotSpot as the primary reference, and demonstrated
 performance superiority over HotSpot on representative workloads. Java SE 21 is
 the first complete conformance target; later specification versions need explicit
-support and validation. Application startup, class loading and initialization are
-not implemented yet.
+support and validation. Application startup, class loading and concurrent class
+initialization are not implemented yet.
 
 Kotlin and Spring Boot are integration milestones toward that goal. Correctness
 remains mandatory: performance claims require reproducible comparisons covering
@@ -52,6 +53,7 @@ python tools/multidimensional_reference.py --check
 python tools/reference_call_reference.py --check
 python tools/exception_reference.py --check
 python tools/static_reference.py --check
+python tools/initialization_reference.py --check
 cargo test -p crabspot-interpreter --test numeric_reference
 cargo test -p crabspot-interpreter --test floating_reference --release
 ```
@@ -82,11 +84,13 @@ The differential tests compare 616 integral, 7,263 floating-point, 126 static-ca
 280 primitive-array, 553 instance-field, 494 virtual-call, 1,337 interface/default,
 450 ordinary special-call, 1,276 cast/type-test, 690 reference-field, 3,948
 reference-array, 7,388 multidimensional-array, 904 reference-call, 336
-supplied-exception and 364 static-memory OpenJDK 21 outcomes with Rust execution,
+supplied-exception, 364 static-memory and 145 initialization OpenJDK 21 outcomes
+with Rust execution,
 including arithmetic exceptions, signed zero,
 subnormals and NaN classification. The kernel supports bounded same-class static
 helpers, ordinary virtual calls and interface/default dispatch across registered
-bodies; it does not load or initialize classes, perform general method resolution,
+bodies. An opt-in session initializes admitted classes through actual clinit bodies
+and numeric constants. It does not load classes, perform general method resolution,
 run native methods, or call Java. Runtime registration preserves defining-loader
 identity and immutable metadata, with resource limits and cached source reads;
 registered definitions remain unverified and unlinked. Hierarchy planning checks
@@ -98,14 +102,22 @@ per heap, preserves values across atomic storage extension, checks typed writes
 and enumerates reference roots. Its body API adds getstatic/putstatic for 193
 opcodes, or 194 when combined with supplied-Throwable dispatch. These explicit
 memory APIs do not perform Java active-use initialization; final writes remain
-rejected. A bounded noncollecting heap owns primitive arrays of all
+rejected. The separate initialization session adds superclass/default-interface
+ordering, recursive use, once-only completion and suspended active-use operations
+without replaying fuel or popped operands. Actual initializer frames can write
+their own final statics. Supplied Error identity survives dependency failure; host
+interruption permanently aborts affected activations. String constants, VM-created
+wrappers and later NoClassDefFoundError production remain explicit unsupported
+cases. One session permanently claims its heap; this is not concurrent Java
+initialization or application startup.
+A bounded noncollecting heap owns primitive arrays of all
 eight kinds through checked opaque references. Heap-service tests additionally
 match 151 OpenJDK array store/load outcomes. The opt-in instance service admits
 shared, owner-qualified layouts atomically and allocates typed default fields.
 Raw heap writes support numeric/null values with final-field protection and
 explicit quotas;
-151 raw-putfield JDK reference cases test its storage conversions. Constructors and
-class initialization remain unimplemented. Checked context writes additionally
+151 raw-putfield JDK reference cases test its storage conversions. Constructors
+remain unimplemented. Checked context writes additionally
 store compatible non-null instance and array references, preserving loader
 identities and per-location child edges without implementing collection.
 Typed reference arrays retain actual component identity, use checked covariant

@@ -146,3 +146,23 @@ StaticUnapplied supplies separately labeled ConstantValue/clinit metadata whose
 values remain unapplied in this memory profile. The final integrated debug
 and optimized oracle tests and combined verification gate pass; bounded technical
 review is complete. Full JVM initialization remains outside this profile.
+
+
+InitializationCases and 27 companions add 145 initialization reference rows:
+90 genuine scenarios and 55 original raw nonfinal ConstantValue encodings. Each
+scenario uses a fresh JDK loader identity; successful repeatable roots execute
+again in that identity. The Rust oracle compares results and independently checks
+all static slots, lifecycle states, exact supplied Error identities, retained-root
+order and allocation counts. Cases cover superclass/default-interface order,
+private concrete interface methods, diamonds, direct interface use, previously
+completed interfaces, recursive initialization, declaring versus symbolic field
+owners, root initialization, retained stores, once-only completion, caught and
+uncaught Error and dependency failure. Raw Z/B/C/S/I constants exercise low-bit
+masking and truncation without javac folding or return narrowing.
+
+Reference-only reflection, constructors and loaders run in the JDK driver. Rust
+uses explicit core metadata and two host-supplied Error instances; this does not
+claim initialized Java library objects. The final combined implementation passes
+all 145 rows in debug and optimized builds, with the complete integrated validation
+gate passing and bounded technical review approved. All 104 pre-existing class hashes
+remain unchanged; the expanded corpus has 132 classes and 40 Java sources.

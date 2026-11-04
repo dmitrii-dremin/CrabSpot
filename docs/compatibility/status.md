@@ -22,7 +22,7 @@ completion of that goal.
 | Unknown attributes (4.7.1) | Implemented and tested | Payload preservation, including standard-looking names outside applicable version/location |
 | Resource bounds | Implemented and tested | Default 16 MiB class input, annotation depth 64, one million annotation/value nodes shared across the whole class; depth hard-capped at 64 even if caller requests more |
 | Inspection CLI | Implemented and tested | Escaped metadata, bounded reads, preview opt-in and nonzero argument/input failures; no bytecode execution |
-| Genuine Java 21 fixtures | Implemented and tested | 104 classes including primitive/reference/multidimensional-array and instance/reference-field bodies, class/interface/special dispatch and cast hierarchies and raw-field oracle metadata; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
+| Genuine Java 21 fixtures | Implemented and tested | 132 classes including initialization and primitive/reference/multidimensional-array and instance/reference-field bodies, class/interface/special dispatch and cast hierarchies and raw-field oracle metadata; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
 | Parser fuzzing | Implemented and tested | 108,907,980 seeded cases over 300 seconds, zero failures, exact-source fingerprint; no coverage metrics or proof of panic freedom |
 | Linux/Windows hosted CI | Passed for e29b74f | [run 41828535972](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41828535972) completed all checks on both platforms with Rust/Cargo 1.99.1 and JDK 21.0.13, 104 regenerated fixtures/seventeen reference sets, strict lint, debug/optimized tests and fuzz smoke |
 | Rust 1.85 minimum version | Not tested | Manifest declaration; actual local toolchain is Rust 1.98.1 |
@@ -47,6 +47,7 @@ completion of that goal.
 | Reference method arguments/results | Implemented and tested within body-kernel scope | Runtime-aware areturn brings coverage to 191; compact charged shapes, selected-declarer identity checks, null shortcuts, all call forms and exact handle transfer; conservative nominal loader/override boundary; all 904 new JDK outcomes pass in debug/release; full loading constraints and lifecycle remain unsupported |
 | Supplied-Throwable dispatch | Implemented and tested in opt-in body-kernel profile | Explicit checked Throwable identity, lazy ordered catches, catch-all/finally/rethrow and iterative invocation-PC unwind; athrow gives 192 opt-in opcodes while existing runtime mode stays 191; all 336 JDK outcomes pass in debug/release; all eleven unmaterialized VM categories fail explicitly, existing APIs unchanged |
 | Checked static state and body access (5.4.2, 6.5.b2/b3 memory behavior) | Implemented and tested in explicit memory profile | Unique heap-owned locations, defaults, atomic value-preserving extension, typed checked stores, final protection and alias-preserving roots; static-only/composed profiles support 193/194 opcodes; 364 JDK outcomes plus retained-state assertions pass debug/release; ConstantValue, clinit and Java active-use initialization remain unapplied |
+| Single-session initialization (5.5, 4.7.2) | Implemented, tested and approved within the single-session profile | Actual clinit, numeric constants, ordered dependencies, once-only state and supplied Error propagation; 145 JDK outcomes and independent state checks pass locally in debug/release; combined gate passes 838 debug and 751 optimized tests. String constants, VM exception production, threads and startup remain unsupported |
 | Full linkage, bytecode verifier and initialization | Not implemented | Subsequent increments; registration and layout planning are not full linkage |
 | Class loading, GC, threads, Java libraries, JNI, Kotlin, Spring Boot, JIT | Not implemented | Subsequent milestones |
 
@@ -75,6 +76,30 @@ reference sets. Both platforms passed 768 workspace tests against checked-in
 fixtures and again after regeneration, 681 optimized tests, strict formatting/lint
 and parser smoke: 121 accepted, 9,879 rejected, ten rechecks, corpus 225 and zero
 failures over 10,000 cases. Earlier evidence retains its named scope.
+
+## Single-session initialization evidence
+
+The frozen combined gate passes formatting, strict workspace/all-target Clippy,
+838 debug workspace tests and 751 optimized runtime/interpreter tests. All 26,170
+execution outcomes match, including 145 new initialization rows. The new 70 tests
+cover numeric constants, superclass/default ordering, recursive partial state,
+actual initializer authority, retained active-use operations, exact Error causes,
+all eleven VM-exception routes, host panic cleanup, quota boundaries and a
+10,000-class iterative scheduler chain. The independent oracle checks complete
+static state/status and retained identities, not only returned integers.
+
+All 132 fixture classes and 18 reference sets reproduce with Zulu JDK 21.0.7;
+40 source hashes and six provenance regressions pass. All 104 prior class hashes
+are unchanged. Parser smoke reports 134 accepted, 9,866 rejected, ten rechecks,
+corpus 256 and zero failures over 10,000 cases at seed 4851011501752864596.
+All 48 integrated implementation/fixture/config hashes were rechecked after the
+gate. Local checks used Windows and Rust/Cargo 1.98.1; new hosted evidence is
+pending. Previous hosted records above retain their original scope.
+
+[Bounded technical approval](../architecture/m2-initialization-session-review.md)
+is recorded. This remains a single-session subset. String constants, generated wrappers and
+NCDFE, constructors, general static-method resolution, concurrent initialization,
+loading and Java startup are unsupported. Full M2 and conformance remain open.
 
 ## Standard attribute coverage
 
