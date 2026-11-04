@@ -24,7 +24,7 @@ completion of that goal.
 | Inspection CLI | Implemented and tested | Escaped metadata, bounded reads, preview opt-in and nonzero argument/input failures; no bytecode execution |
 | Genuine Java 21 fixtures | Implemented and tested | 168 javac classes, with three new validation-driver definitions; nine construction and eighteen Code-validation original encodings are separately marked synthetic. Source/artifact digest manifests and compiler/encoding regeneration preserve all prior 165 class hashes (M1 acceptance used 17); oracle data alone does not establish execution support |
 | Parser fuzzing | Implemented and tested | 108,907,980 seeded cases over 300 seconds, zero failures, exact-source fingerprint; no coverage metrics or proof of panic freedom |
-| Linux/Windows hosted CI | Passed for ea7dc01 | [Linux/Windows run 41859897401](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41859897401) passes every step on both platforms with Rust/Cargo 1.99.1 and Temurin 21.0.13: 947 workspace tests before and after regeneration, 860 optimized tests, 165 javac + 9 original fixtures, 20 references, provenance, strict lint and parser smoke |
+| Linux/Windows hosted CI | Passed for 08386b3 | [Linux/Windows run 41867714340](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41867714340) passes every step on both platforms with Rust/Cargo 1.99.1 and Temurin 21.0.13: 998 workspace tests before and after regeneration, 911 optimized tests, 168 javac + 27 original fixtures, 21 references, provenance, strict lint and parser smoke |
 | Rust 1.85 minimum version | Not tested | Manifest declaration; actual local toolchain is Rust 1.98.1 |
 | Performance superiority over HotSpot | Not demonstrated | Long-term objective; no comparative performance benchmark results are claimed |
 | Bytecode decoder | Implemented and tested | All defined JVM instruction formats, version/operand constraints and static branch destinations; 10 focused tests and malformed-input corpus |
@@ -78,8 +78,19 @@ validator. No Java error object or full-verification certificate is fabricated.
 The native Zulu 21.0.7 parser smoke uses 195 inputs and seed 4851011501752864596:
 10,000 cases, 138 accepted, 9,862 rejected, ten rechecks, corpus 256, zero failures.
 Rust/Cargo is 1.98.1 on Windows x86-64. All 45 frozen source/configuration/fixture
-hashes were reverified after the gate. Hosted evidence for this increment is still
-pending; the previous construction CI record remains scoped to ea7dc01.
+hashes were reverified after the gate. Hosted evidence for this increment also passes.
+
+Implementation `08386b361be4992e4c02ef0931aff46185c809e3` passed complete
+[Linux/Windows run 41867714340](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41867714340).
+Inspected Linux job 126706186206 and Windows job 126706186887 each passed every
+step on Rust/Cargo 1.99.1 and Temurin 21.0.13: 998 checked-in and 998 regenerated
+workspace tests, 424 optimized interpreter, 436 runtime and 51 verifier tests
+(2,907 Rust executions per platform). Eight Python tests, 43-source/21-record
+provenance, 168 javac and 27 original encodings, twenty execution-reference sets
+and the eighteen-case stage-aware oracle all pass. Hosted parser smoke on each
+platform matches 138 accepted/9,862 rejected over 10,000 cases at the same seed,
+with 195 initial inputs, ten rechecks, corpus 256 and zero failures. Earlier hosted
+records remain scoped to their named implementation commits.
 
 ## Construction validation
 

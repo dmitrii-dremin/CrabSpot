@@ -87,7 +87,24 @@ Local platform: Windows x86-64, Rust/Cargo 1.98.1, Zulu 21.0.7. Parser smoke use
 195 initial classfiles, seed 4851011501752864596 and 10,000 cases: 138 accepted,
 9,862 rejected, ten deterministic rechecks and final corpus 256. This is seeded
 parser mutation evidence, not a full verifier fuzzing campaign. Hosted CI for this
-increment is not yet observed; previous records retain their named commit scope.
+increment also passes as recorded below; previous records retain their named commit scope.
+
+## Hosted verification
+
+Implementation `08386b361be4992e4c02ef0931aff46185c809e3` passed complete
+[Linux/Windows run 41867714340](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41867714340).
+The coordinator inspected Linux job 126706186206 and Windows job 126706186887.
+Both used Rust/Cargo 1.99.1 and Temurin 21.0.13. Each passed 998 tests against
+checked-in fixtures, 998 after regeneration, and 911 optimized tests (424
+interpreter, 436 runtime, 51 verifier), totaling 2,907 Rust executions per platform.
+
+Both passed all workflow steps: formatting/strict lint, eight Python regressions,
+43-source/21-record provenance, reproduction of 168 javac classes and 27 original
+encodings, all twenty execution-reference sets and the new eighteen-case
+verification-stage set. Parser smoke on both platforms used 195 inputs and seed
+4851011501752864596: 10,000 cases, 138 accepted, 9,862 rejected, ten rechecks,
+corpus 256 and zero failures. These hosted results independently match the native
+smoke counts; they do not imply full-verifier or JVM acceptance.
 
 ## Decisions and remaining work
 

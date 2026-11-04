@@ -1,6 +1,6 @@
 # Whole-method Code validation foundation
 
-Status: implemented and approved by the technical director on 2026-11-04 after frozen source review and the independent fresh-target gate: 998 workspace tests and 911 optimized verifier/runtime/interpreter tests pass. See `m2-code-validation-review.md` for exact source/evidence and resolved review points. Publication is authorized; new hosted CI remains pending. The bounded contract was dispatched from construction evidence commit c23d18d. No NanoSpec. Full M2 and full verification remain open.
+Status: implemented and approved by the technical director on 2026-11-04 after frozen source review and the independent fresh-target gate: 998 workspace tests and 911 optimized verifier/runtime/interpreter tests pass. Implementation 08386b361be4992e4c02ef0931aff46185c809e3 is published; inspected Linux/Windows CI run 41867714340 passed. See `m2-code-validation-review.md` for exact source/evidence and resolved review points. The bounded contract was dispatched from construction evidence commit c23d18d. No NanoSpec. Full M2 and full verification remain open.
 
 ## Purpose and scope
 

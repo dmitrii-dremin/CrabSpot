@@ -1,6 +1,6 @@
 # Whole-method Code validation review
 
-Status: approved by the technical director on 2026-11-04 for the bounded standalone service in `m2-code-validation.md`. Frozen production, independent tests, coordinator fixtures and the fresh-target combined gate pass. Publication is authorized. Hosted Linux/Windows CI for this increment remains pending publication; earlier construction CI is not evidence for these changes. Full type-state verification, full M2 and the complete JVM target remain open.
+Status: approved by the technical director on 2026-11-04 for the bounded standalone service in `m2-code-validation.md`. Frozen production, independent tests, coordinator fixtures and the fresh-target combined gate pass. Implementation 08386b361be4992e4c02ef0931aff46185c809e3 is published and its Linux/Windows CI passed with inspected coordinator evidence below. Full type-state verification, full M2 and the complete JVM target remain open.
 
 ## Reviewed source and result boundary
 
@@ -45,3 +45,9 @@ The accepted build directory is `target/verification-code-validation-final-abde6
 The earlier target `verification-code-validation-final-dac35057f160` ran before the final public boundary matrix and is preliminary only (997/910). Approval uses the later fresh target and final test bytes. No stale-cache result is substituted for the accepted gate.
 
 No blocking source finding remains. This approval authorizes publication of the bounded increment, not a claim of full JVM verification, application startup or performance superiority. The next direction is `m2-type-state-verification-next.md`; it authorizes exact-contract planning only.
+
+## Hosted confirmation
+
+The coordinator inspected both complete job logs in run [41867714340](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41867714340) for implementation `08386b361be4992e4c02ef0931aff46185c809e3`: Linux job 126706186206 and Windows job 126706186887. Both passed on Rust/Cargo 1.99.1 and Temurin JDK 21.0.13. Each ran 998 checked-in tests, 998 regenerated-fixture tests, and 911 optimized tests (424 interpreter, 436 runtime, 51 verifier): 2,907 Rust test executions.
+
+Both jobs passed formatting, strict linting, eight Python tests, 43-source/21-record preflight, all 168 genuine and 27 original artifact reproduction checks, twenty execution-reference sets and the eighteen-case stage-aware validation set. Both smoke runs used 195 inputs and seed `4851011501752864596`: 10,000 cases, 138 accepted, 9,862 rejected, ten rechecks, final corpus 256, zero failures. Derived evidence is retained at `target/coordinator/code-validation-hosted-evidence.json`; raw job logs were inspected by the coordinator. This confirms the bounded checkpoint, without enlarging its proof or execution scope.
