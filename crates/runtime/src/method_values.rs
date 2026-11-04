@@ -80,7 +80,7 @@ pub(crate) struct Signature<'a> {
     parameters: [Option<Span<'a>>; 255],
     len: usize,
     slots: u16,
-    result: MethodReturnKind,
+    pub(crate) result: MethodReturnKind,
     result_span: Option<Span<'a>>,
     pub(crate) nominal: bool,
 }

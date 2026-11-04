@@ -289,9 +289,9 @@ struct Symbol<'a> {
     name: &'a JavaString,
     descriptor: &'a JavaString,
 }
-struct Selected {
-    symbolic_owner: ClassId,
-    field: FieldId,
+pub(crate) struct Selected {
+    pub(crate) symbolic_owner: ClassId,
+    pub(crate) field: FieldId,
     protected_receiver: Option<ClassId>,
 }
 
@@ -661,7 +661,11 @@ impl<'a> FieldResolutionContext<'a> {
         }
         Err(FieldAccessError::Java(FieldJavaError::NoSuchField))
     }
-    fn select(&mut self, origin: ClassId, index: u16) -> Result<Selected, FieldAccessError> {
+    pub(crate) fn select(
+        &mut self,
+        origin: ClassId,
+        index: u16,
+    ) -> Result<Selected, FieldAccessError> {
         self.unchanged()?;
         self.registry.class(origin)?;
         self.heap.instance_graph_node(origin)?;
@@ -725,7 +729,7 @@ impl<'a> FieldResolutionContext<'a> {
     ) -> Result<FieldId, FieldAccessError> {
         Ok(self.select(origin, index)?.field)
     }
-    fn field_receiver(
+    pub(crate) fn field_receiver(
         &mut self,
         selected: &Selected,
         receiver: Reference,
@@ -798,10 +802,28 @@ impl<'a> FieldResolutionContext<'a> {
             return Err(FieldAccessError::Java(FieldJavaError::IllegalAccess));
         }
         self.field_receiver(&selected, receiver)?;
-        let definition = self.registry.class(selected.field.owner())?;
+        if self.check_field_assignment(selected.field, value)? {
+            if let Value::Reference(reference) = value {
+                return Ok(self.heap.commit_reference_field(
+                    receiver,
+                    selected.field,
+                    reference,
+                )?);
+            }
+        }
+        Ok(self.heap.put_field(receiver, selected.field, value)?)
+    }
+    // Returns true only for a checked nonnull reference destination. Callers
+    // retain their own final/receiver authority and guarded publication boundary.
+    pub(crate) fn check_field_assignment(
+        &mut self,
+        field: FieldId,
+        value: Value,
+    ) -> Result<bool, FieldAccessError> {
+        let definition = self.registry.class(field.owner())?;
         let descriptor = definition
             .constant_pool
-            .utf8(self.registry.field(selected.field)?.descriptor_index)
+            .utf8(self.registry.field(field)?.descriptor_index)
             .map_err(RegistryError::Parse)?;
         if let Value::Reference(reference) = value {
             if !reference.is_null() && matches!(descriptor.units().first(), Some(76 | 91)) {
@@ -814,7 +836,7 @@ impl<'a> FieldResolutionContext<'a> {
                         )))
                     })?;
                 let target = self
-                    .resolve_reference_field_type(selected.field)
+                    .resolve_reference_field_type(field)
                     .map_err(|error| FieldAccessError::ReferenceType(Box::new(error)))?;
                 if !self
                     .is_assignable(source, target)
@@ -822,20 +844,16 @@ impl<'a> FieldResolutionContext<'a> {
                 {
                     return Err(FieldAccessError::IncompatibleReference(Box::new(
                         ReferenceFieldMismatch {
-                            field: selected.field,
+                            field,
                             source,
                             target,
                         },
                     )));
                 }
-                return Ok(self.heap.commit_reference_field(
-                    receiver,
-                    selected.field,
-                    reference,
-                )?);
+                return Ok(true);
             }
         }
-        Ok(self.heap.put_field(receiver, selected.field, value)?)
+        Ok(false)
     }
 }
 

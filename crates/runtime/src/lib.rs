@@ -5,6 +5,7 @@
 //! This crate does not execute code, perform complete Java linkage, initialize
 //! classes, or open files.
 //! Default static allocation does not perform full preparation or initialization.
+mod construction;
 mod error;
 mod exception;
 mod field;
@@ -24,6 +25,10 @@ mod storage;
 mod types;
 mod values;
 
+pub use construction::{
+    ConstructionAccessError, ConstructionJavaError, ConstructorFieldReceiverKind,
+    ConstructorReceiverKind, ResolvedConstructor, ResolvedNew,
+};
 pub use error::{HandleKind, RegistryError, RegistryResource};
 pub use exception::{ExceptionAccessError, ExceptionProfile, ThrownException, VmExceptionKind};
 pub use field::{

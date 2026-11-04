@@ -391,6 +391,19 @@ pub(crate) struct InstancePayload {
     class: ClassId,
     values: Vec<Value>,
 }
+// Exclusive, short-lived publication proof. Only the checked construction
+// service can supply an opaque constructor authority; no public final bypass.
+pub(crate) struct ConstructorWrite {
+    heap: u64,
+    receiver: Reference,
+    constructor: crate::MethodId,
+    constructor_key: (u16, u16, u16),
+    field: FieldId,
+    field_key: (u16, u16, u16),
+    slot: usize,
+    kind: FieldKind,
+    is_final: bool,
+}
 fn instance(payload: &EntryPayload) -> Result<&InstancePayload, HeapError> {
     match payload {
         EntryPayload::Instance(value) => Ok(value),
@@ -410,6 +423,156 @@ fn same_layout(left: &ClassLayout, right: &ClassLayout) -> bool {
         && left.declared_instance_fields() == right.declared_instance_fields()
         && left.inherited_instance_slots() == right.inherited_instance_slots()
         && left.instance_slots() == right.instance_slots()
+}
+
+#[cfg(test)]
+mod construction_guards {
+    use super::*;
+    mod rt {
+        pub use crate::*;
+    }
+    #[allow(dead_code)]
+    mod support {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/support/construction.rs"
+        ));
+    }
+    use crate::{ConstructorReceiverKind, SameLoaderResolver};
+    use support::*;
+
+    #[test]
+    fn damaged_constructor_publication_proofs_and_sources_leave_nonempty_fields_unchanged() {
+        let mut w = world();
+        let own = define(
+            &mut w.registry,
+            w.u.bootstrap_loader,
+            "C",
+            Some("java/lang/Object"),
+            &[],
+            0x21,
+            &[
+                Field::new("x", "I", 17, None),
+                Field::new("r", "LC;", 17, None),
+            ],
+            &[
+                Method::new("<init>", "()V", 1),
+                Method::new("helper", "()V", 1),
+            ],
+            &[("C", "<init>", "()V", 10)],
+            &[],
+            65,
+        );
+        let mut resolver = SameLoaderResolver;
+        let mut heap = heap(&w, &[own.class, w.error], &mut resolver);
+        let receiver = heap.allocate_instance(own.class).unwrap();
+        let source = heap.allocate_instance(own.class).unwrap();
+        let mut foreign = ManagedHeap::new_with_instances(
+            crate::HeapOptions::default(),
+            InstanceOptions::default(),
+        )
+        .unwrap();
+        let foreign_source = foreign
+            .allocate_primitive_array(crate::PrimitiveArrayKind::Int, 0)
+            .unwrap();
+        let mut ctx = context(&w, &mut heap, &mut resolver);
+        let (s, e) = profiles(&mut ctx, w.throwable);
+        let claim = ctx.claim_initialization(&s, &e, w.error).unwrap();
+        let ctor = ctx
+            .resolve_constructor(
+                &claim,
+                own.methods[0],
+                own.refs[0],
+                receiver,
+                ConstructorReceiverKind::Allocation,
+            )
+            .unwrap();
+        drop(ctx);
+        let x = field(&w, own.class, "x", "I");
+        let r = field(&w, own.class, "r", "LC;");
+        let proof = heap
+            .constructor_field_proof(&w.registry, &ctor, receiver, x)
+            .unwrap();
+        heap.commit_constructor_field(&w.registry, proof, Value::Int(41))
+            .unwrap();
+        let proof = heap
+            .constructor_field_proof(&w.registry, &ctor, receiver, r)
+            .unwrap();
+        heap.commit_constructor_field(&w.registry, proof, Value::Reference(source))
+            .unwrap();
+        let counts = (heap.allocated_instances(), heap.total_instance_slots());
+        for variant in 0..8 {
+            let mut proof = heap
+                .constructor_field_proof(&w.registry, &ctor, receiver, x)
+                .unwrap();
+            match variant {
+                0 => proof.heap = 0,
+                1 => proof.slot = usize::MAX,
+                2 => proof.kind = FieldKind::Long,
+                3 => proof.is_final = false,
+                4 => proof.field_key.1 = u16::MAX,
+                5 => {
+                    proof.constructor = own.methods[1];
+                    let m = w.registry.method(proof.constructor).unwrap();
+                    proof.constructor_key = (m.name_index, m.descriptor_index, m.access_flags);
+                }
+                6 => proof.constructor.index = usize::MAX,
+                _ => proof.receiver = Reference::null(),
+            }
+            assert!(
+                heap.commit_constructor_field(&w.registry, proof, Value::Int(99))
+                    .is_err()
+            );
+            assert_eq!(heap.get_field(receiver, x), Ok(Value::Int(41)));
+            assert_eq!(
+                heap.children(receiver).unwrap().collect::<Vec<_>>(),
+                [source.heap_ref().unwrap()]
+            );
+        }
+        let (_, index, generation) = source.heap_ref().unwrap().components();
+        let stale = Reference::issued(heap.identity, index, generation + 1);
+        for value in [
+            Value::Int(3),
+            Value::Reference(foreign_source),
+            Value::Reference(stale),
+        ] {
+            let proof = heap
+                .constructor_field_proof(&w.registry, &ctor, receiver, r)
+                .unwrap();
+            assert!(
+                heap.commit_constructor_field(&w.registry, proof, value)
+                    .is_err()
+            );
+            assert_eq!(heap.get_field(receiver, r), Ok(Value::Reference(source)));
+            assert_eq!(
+                heap.children(receiver).unwrap().collect::<Vec<_>>(),
+                [source.heap_ref().unwrap()]
+            );
+        }
+        let proof = heap
+            .constructor_field_proof(&w.registry, &ctor, receiver, r)
+            .unwrap();
+        let handle = receiver.heap_ref().unwrap();
+        let index = heap.checked_handle(handle).unwrap();
+        let EntryPayload::Instance(payload) = &mut heap.entries.get_mut(index).unwrap().payload
+        else {
+            panic!("instance")
+        };
+        payload.values.truncate(1);
+        let before = payload.values.clone();
+        assert!(
+            heap.commit_constructor_field(&w.registry, proof, Value::Reference(source))
+                .is_err()
+        );
+        let EntryPayload::Instance(payload) = &heap.entries.get(index).unwrap().payload else {
+            panic!("instance")
+        };
+        assert_eq!(payload.values, before);
+        assert_eq!(
+            (heap.allocated_instances(), heap.total_instance_slots()),
+            counts
+        );
+    }
 }
 fn parse_error(error: ParseError) -> InstanceError {
     RegistryError::Parse(error).into()
@@ -697,6 +860,17 @@ impl ManagedHeap {
         state.fields = fields;
         Ok(())
     }
+    pub(crate) fn instance_allocation_shape(
+        &self,
+        class: ClassId,
+    ) -> Result<(Option<ClassId>, usize), InstanceError> {
+        let shape = self
+            .instances
+            .as_ref()
+            .ok_or(InstanceError::Disabled)?
+            .shape(class)?;
+        Ok((shape.superclass, shape.fields.len()))
+    }
     pub fn allocate_instance(&mut self, class: ClassId) -> Result<Reference, InstanceError> {
         let state = self.instances.as_ref().ok_or(InstanceError::Disabled)?;
         let shape = state.shape(class)?;
@@ -904,6 +1078,141 @@ impl ManagedHeap {
             .ok_or(InstanceError::InvalidMetadata(
                 "reference field slot is outside instance payload",
             ))? = Value::Reference(value);
+        Ok(())
+    }
+    pub(crate) fn constructor_field_proof(
+        &self,
+        registry: &DefinitionRegistry,
+        authority: &crate::ResolvedConstructor,
+        receiver: Reference,
+        field: FieldId,
+    ) -> Result<ConstructorWrite, InstanceError> {
+        let state = self.instances.as_ref().ok_or(InstanceError::Disabled)?;
+        let object = instance(&self.entry(receiver)?.payload)?;
+        let (slot, own) = state.field(object.class, field)?;
+        let member = registry.field(field)?;
+        let constructor = registry.method(authority.method())?;
+        let definition = registry.class(authority.method().owner())?;
+        if constructor.access_flags & 8 != 0
+            || !definition
+                .constant_pool
+                .utf8(constructor.name_index)
+                .map_err(parse_error)?
+                .equals_ascii("<init>")
+        {
+            return Err(InstanceError::InvalidMetadata(
+                "constructor proof requires an instance initializer",
+            ));
+        }
+        if own.is_final != (member.access_flags & 16 != 0) || member.access_flags & 8 != 0 {
+            return Err(InstanceError::InvalidMetadata(
+                "constructor field metadata differs from layout",
+            ));
+        }
+        if own.is_final && authority.method().owner() != field.owner() {
+            return Err(InstanceError::FinalField { field });
+        }
+        Ok(ConstructorWrite {
+            heap: self.identity,
+            receiver,
+            constructor: authority.method(),
+            field,
+            constructor_key: (
+                constructor.name_index,
+                constructor.descriptor_index,
+                constructor.access_flags,
+            ),
+            field_key: (
+                member.name_index,
+                member.descriptor_index,
+                member.access_flags,
+            ),
+            slot,
+            kind: own.kind,
+            is_final: own.is_final,
+        })
+    }
+    pub(crate) fn commit_constructor_field(
+        &mut self,
+        registry: &DefinitionRegistry,
+        proof: ConstructorWrite,
+        value: Value,
+    ) -> Result<(), InstanceError> {
+        if proof.heap != self.identity {
+            return Err(InstanceError::InvalidMetadata(
+                "constructor proof belongs to another heap",
+            ));
+        }
+        let handle = proof.receiver.heap_ref().ok_or(HeapError::NullReference)?;
+        let index = self.checked_handle(handle)?;
+        let state = self.instances.as_ref().ok_or(InstanceError::Disabled)?;
+        let object = instance(&self.entry(proof.receiver)?.payload)?;
+        let (slot, own) = state.field(object.class, proof.field)?;
+        let member = registry.field(proof.field)?;
+        let constructor = registry.method(proof.constructor)?;
+        let definition = registry.class(proof.constructor.owner())?;
+        if constructor.access_flags & 8 != 0
+            || !definition
+                .constant_pool
+                .utf8(constructor.name_index)
+                .map_err(parse_error)?
+                .equals_ascii("<init>")
+            || member.access_flags & 8 != 0
+            || own.is_final != (member.access_flags & 16 != 0)
+        {
+            return Err(InstanceError::InvalidMetadata(
+                "constructor proof has invalid role or final metadata",
+            ));
+        }
+        if (
+            member.name_index,
+            member.descriptor_index,
+            member.access_flags,
+        ) != proof.field_key
+            || (
+                constructor.name_index,
+                constructor.descriptor_index,
+                constructor.access_flags,
+            ) != proof.constructor_key
+        {
+            return Err(InstanceError::InvalidMetadata(
+                "constructor proof metadata fingerprint differs",
+            ));
+        }
+        if slot != proof.slot || own.kind != proof.kind || own.is_final != proof.is_final {
+            return Err(InstanceError::InvalidMetadata(
+                "constructor field proof no longer matches layout",
+            ));
+        }
+        if own.is_final && proof.constructor.owner() != proof.field.owner() {
+            return Err(InstanceError::FinalField { field: proof.field });
+        }
+        let value = match (own.kind, value) {
+            (FieldKind::Reference, Value::Reference(reference)) if !reference.is_null() => {
+                self.entry(reference)?;
+                value
+            }
+            _ => own.kind.store(proof.field, value)?,
+        };
+        // All checks, including source handle and destination bounds, precede
+        // this single write; neither proof creation nor commit invokes callbacks.
+        let EntryPayload::Instance(object) = &mut self
+            .entries
+            .get_mut(index)
+            .ok_or(HeapError::MissingEntry { index })?
+            .payload
+        else {
+            return Err(InstanceError::InvalidMetadata(
+                "constructor receiver changed kind",
+            ));
+        };
+        let destination = object
+            .values
+            .get_mut(slot)
+            .ok_or(InstanceError::InvalidMetadata(
+                "constructor field slot is outside instance payload",
+            ))?;
+        *destination = value;
         Ok(())
     }
     pub fn children(

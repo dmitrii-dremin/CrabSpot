@@ -24,6 +24,11 @@ pub(crate) struct InitializationFingerprint {
 pub struct InitializationClaim {
     fingerprint: InitializationFingerprint,
 }
+impl InitializationClaim {
+    pub(crate) fn fingerprint(&self) -> InitializationFingerprint {
+        self.fingerprint
+    }
+}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum InitializationStaticKind {
     Read,

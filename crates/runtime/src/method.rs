@@ -265,6 +265,16 @@ impl<'a> FieldResolutionContext<'a> {
         interface: bool,
         shape_only: bool,
     ) -> Result<(Symbol<'a>, crate::method_values::Signature<'a>), MethodAccessError> {
+        self.read_method_symbol(origin, index, interface, shape_only, false)
+    }
+    fn read_method_symbol(
+        &mut self,
+        origin: ClassId,
+        index: u16,
+        interface: bool,
+        shape_only: bool,
+        constructor: bool,
+    ) -> Result<(Symbol<'a>, crate::method_values::Signature<'a>), MethodAccessError> {
         let invalid = || MethodAccessError::InvalidConstant { origin, index };
         let pool = &self.registry().class(origin)?.constant_pool;
         let (class_index, name_and_type_index) = match pool.get(index).map_err(|_| invalid())? {
@@ -291,7 +301,10 @@ impl<'a> FieldResolutionContext<'a> {
         };
         let name = pool.utf8(*name_index).map_err(|_| invalid())?;
         let descriptor = pool.utf8(*descriptor_index).map_err(|_| invalid())?;
-        if name.equals_ascii("<init>") || name.equals_ascii("<clinit>") {
+        if constructor && !name.equals_ascii("<init>") {
+            return Err(invalid());
+        }
+        if !constructor && (name.equals_ascii("<init>") || name.equals_ascii("<clinit>")) {
             return Err(MethodAccessError::UnsupportedSpecialMethod);
         }
         let signature =
@@ -300,6 +313,9 @@ impl<'a> FieldResolutionContext<'a> {
                     MethodAccessError::Context(FieldAccessError::InvalidState(_)) => invalid(),
                     error => error,
                 })?;
+        if constructor && signature.result != crate::MethodReturnKind::Void {
+            return Err(invalid());
+        }
         Ok((
             Symbol {
                 owner,
@@ -309,6 +325,29 @@ impl<'a> FieldResolutionContext<'a> {
             },
             signature,
         ))
+    }
+    pub(crate) fn constructor_shape(
+        &mut self,
+        origin: ClassId,
+        index: u16,
+    ) -> Result<crate::MethodValueShape, MethodAccessError> {
+        self.unchanged()?;
+        self.registry().class(origin)?;
+        self.heap().instance_graph_node(origin)?;
+        self.read_method_symbol(origin, index, false, true, true)?
+            .1
+            .shape()
+    }
+    pub(crate) fn constructor_declaration(
+        &mut self,
+        origin: ClassId,
+        index: u16,
+    ) -> Result<(ClassId, MethodId), MethodAccessError> {
+        let symbol = self
+            .read_method_symbol(origin, index, false, false, true)?
+            .0;
+        let resolved = self.resolve_method_common(origin, &symbol, false)?;
+        Ok((resolved.owner, resolved.method))
     }
     pub fn instance_invocation_shape(
         &mut self,

@@ -33,6 +33,15 @@ def verify(root):
             raise ValueError(f"{path}: unknown or missing reference source identity")
         if record.get("source_sha256") != hashes[source]:
             raise ValueError(f"{path}: reference source hash differs from {source}")
+    construction = root / "tests" / "fixtures" / "construction"
+    if construction.exists() or "ConstructionCases.java" in hashes:
+        synthetic = read_object(construction / "manifest.json")
+        source = synthetic.get("source")
+        if not isinstance(source, str) or source not in hashes or synthetic.get("source_sha256") != hashes[source]:
+            raise ValueError("construction fixture source provenance differs")
+        actual = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in construction.glob("*.class")}
+        if not actual or synthetic.get("files") != actual:
+            raise ValueError("construction fixture hashes/set differ")
     return len(hashes), len(records)
 
 

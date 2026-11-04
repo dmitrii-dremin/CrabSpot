@@ -4,7 +4,7 @@ use crate::initialization::{
 };
 use crate::{
     CallSite, ExecutionError, ExecutionErrorKind as E, MethodIdentity, Value, ValueKind,
-    frame::{Locals, Stack},
+    frame::{AliasKey, FrameValue, Locals, Stack, Uninitialized, protocol},
 };
 use crabspot_bytecode::{DecodedCode, Operands, decode};
 use crabspot_classfile::{
@@ -17,6 +17,10 @@ use crabspot_runtime::{
     InstanceInvocationKind, ManagedHeap, MethodAccessError, MethodId, MethodJavaError,
     MethodReturnKind, MethodValueShape, PrimitiveArrayKind, Reference, ThrownException,
     TypeAccessError, TypeJavaError, VmExceptionKind,
+};
+use crabspot_runtime::{
+    ConstructionAccessError, ConstructionJavaError, ConstructorFieldReceiverKind,
+    ConstructorReceiverKind, ResolvedConstructor, ResolvedNew,
 };
 use crabspot_runtime::{
     InitializationAccessError, InitializationClaim, InitializationPlanLimits,
@@ -222,12 +226,16 @@ impl Default for CallLimits {
 enum Preparation {
     Static,
     Initializer,
+    Constructor,
     DirectInstanceRoot,
     ResolvedInstance,
 }
 impl Preparation {
     fn is_instance(self) -> bool {
-        matches!(self, Self::DirectInstanceRoot | Self::ResolvedInstance)
+        matches!(
+            self,
+            Self::DirectInstanceRoot | Self::ResolvedInstance | Self::Constructor
+        )
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -253,6 +261,7 @@ impl CallKind {
 struct PreparedMethod {
     instance: bool,
     initializer: bool,
+    constructor: bool,
     shape: MethodValueShape,
     // Index of the original Code attribute; rows stay borrowed from immutable metadata.
     handlers: Option<usize>,
@@ -288,8 +297,163 @@ impl MethodKey {
 enum FrameRole {
     Ordinary,
     Initializer(ClassId),
+    Constructor,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Chain {
+    Pending,
+    Complete,
+    Failed,
+}
+struct ConstructorActivation {
+    access: ResolvedConstructor,
+    this: Uninitialized,
+    caller: Uninitialized,
+    chain: Chain,
+}
+fn constructor_activation(
+    frame: &Frame,
+    pc: u32,
+) -> Result<&ConstructorActivation, ExecutionError> {
+    let activation = frame
+        .constructor
+        .last()
+        .ok_or_else(|| protocol(pc, "constructor activation absent"))?;
+    if frame.role != FrameRole::Constructor
+        || frame.constructor.len() != 1
+        || frame.method != MethodKey::Registered(activation.access.method())
+    {
+        return Err(protocol(
+            pc,
+            "constructor authority does not match executing declaration",
+        ));
+    }
+    Ok(activation)
+}
+fn pending_this(frame: &Frame, alias: Uninitialized, pc: u32) -> Result<(), ExecutionError> {
+    let activation = constructor_activation(frame, pc)?;
+    if activation.this != alias || activation.chain != Chain::Pending {
+        return Err(protocol(
+            pc,
+            "constructor this is not the current pending activation",
+        ));
+    }
+    Ok(())
+}
+fn finish_constructor_boundary(
+    java: &mut JavaState,
+    init: &mut InitExecution<'_>,
+    promote: bool,
+    pc: u32,
+) -> Result<u32, ExecutionError> {
+    let index = java
+        .frames
+        .len()
+        .checked_sub(1)
+        .ok_or_else(|| protocol(pc, "constructor frame absent"))?;
+    let callee = java
+        .frames
+        .get(index)
+        .ok_or_else(|| protocol(pc, "constructor frame absent"))?;
+    let activation = constructor_activation(callee, pc)?;
+    if promote && activation.chain != Chain::Complete {
+        return Err(protocol(
+            pc,
+            "constructor returned before its chain completed",
+        ));
+    }
+    let alias = activation.caller;
+    let (method, invoke) = callee
+        .origin
+        .ok_or_else(|| protocol(pc, "constructor has no invoking frame"))?;
+    let released = java
+        .reserved
+        .checked_sub(callee.reserved_slots)
+        .ok_or_else(|| {
+            ExecutionError::new(
+                Some(pc),
+                E::ConstructionAccountingOverflow {
+                    resource: "constructor frame slots",
+                },
+            )
+        })?;
+    let parent = index
+        .checked_sub(1)
+        .ok_or_else(|| protocol(pc, "constructor cannot be a host root"))?;
+    let caller = java
+        .frames
+        .get(parent)
+        .ok_or_else(|| protocol(pc, "constructor caller absent"))?;
+    if caller.method != method {
+        return Err(protocol(pc, "constructor invocation origin mismatch"));
+    }
+    if matches!(alias.key, AliasKey::This(_)) {
+        pending_this(caller, alias, pc)?;
+    }
+    init.state
+        .construction
+        .charge(caller.locals.len(), caller.stack.len(), pc)?;
+    let caller = java
+        .frames
+        .get_mut(parent)
+        .ok_or_else(|| protocol(pc, "constructor caller absent"))?;
+    if matches!(alias.key, AliasKey::This(_)) {
+        let own = caller
+            .constructor
+            .last_mut()
+            .ok_or_else(|| protocol(pc, "constructor caller activation absent"))?;
+        own.chain = if promote {
+            Chain::Complete
+        } else {
+            Chain::Failed
+        };
+    }
+    caller.locals.rewrite_alias(alias, promote);
+    caller.stack.rewrite_alias(alias, promote);
+    java.frames.pop();
+    java.reserved = released;
+    Ok(invoke)
+}
+fn construction_failure(error: ConstructionAccessError, pc: u32) -> ExecutionError {
+    match error {
+        ConstructionAccessError::Java(kind) => ExecutionError::new(
+            Some(pc),
+            E::UnsupportedVmException(match kind {
+                ConstructionJavaError::NoSuchMethod => VmExceptionKind::NoSuchMethodError,
+                ConstructionJavaError::NoSuchField => VmExceptionKind::NoSuchFieldError,
+                ConstructionJavaError::IllegalAccess => VmExceptionKind::IllegalAccessError,
+                ConstructionJavaError::IncompatibleClassChange => {
+                    VmExceptionKind::IncompatibleClassChangeError
+                }
+                ConstructionJavaError::NullPointer => VmExceptionKind::NullPointerException,
+                ConstructionJavaError::Instantiation => VmExceptionKind::InstantiationError,
+            }),
+        ),
+        error => ExecutionError::new(Some(pc), E::ConstructionAccess(Box::new(error))),
+    }
+}
+fn constructor_reference(class: &ClassFile, index: u16) -> bool {
+    let Ok(Constant::Methodref {
+        name_and_type_index,
+        ..
+    }) = class.constant_pool.get(index)
+    else {
+        return false;
+    };
+    let Ok(Constant::NameAndType { name_index, .. }) =
+        class.constant_pool.get(*name_and_type_index)
+    else {
+        return false;
+    };
+    class
+        .constant_pool
+        .utf8(*name_index)
+        .is_ok_and(|name| name.equals_ascii("<init>"))
 }
 enum PendingUse {
+    New {
+        next: u32,
+    },
     Static {
         value: Option<Value>,
         next: u32,
@@ -305,6 +469,8 @@ struct Frame {
     role: FrameRole,
     pending: Option<PendingUse>,
     static_access: Vec<ResolvedInitializationStatic>,
+    new_access: Vec<ResolvedNew>,
+    constructor: Vec<ConstructorActivation>,
     locals: Locals,
     stack: Stack,
     pc: u32,
@@ -313,6 +479,13 @@ struct Frame {
 }
 enum Action {
     Continue,
+    New {
+        access: ResolvedNew,
+        next: u32,
+    },
+    ConstructorCall {
+        constant_index: u16,
+    },
     InitializationStatic {
         access: ResolvedInitializationStatic,
         value: Option<Value>,
@@ -525,6 +698,8 @@ fn make_frame(
         role: FrameRole::Ordinary,
         pending: None,
         static_access: Vec::new(),
+        new_access: Vec::new(),
+        constructor: Vec::new(),
         locals,
         stack: Stack::new(prepared.max_stack),
         pc: 0,
@@ -1162,7 +1337,7 @@ fn prepare_initializer(
     let prepared = java.cache.get(&key).ok_or_else(|| {
         ExecutionError::new(None, E::InvalidMethod("initializer preparation absent"))
     })?;
-    if !prepared.initializer || prepared.instance {
+    if !prepared.initializer || prepared.constructor || prepared.instance {
         return Err(ExecutionError::new(
             None,
             E::InvalidMethod("ordinary cached body cannot execute as initializer"),
@@ -1385,7 +1560,7 @@ fn resume_initialization(
             let prepared = java.cache.get(&target).ok_or_else(|| {
                 ExecutionError::new(None, E::InvalidMethod("deferred root preparation absent"))
             })?;
-            if prepared.initializer || prepared.instance {
+            if prepared.initializer || prepared.constructor || prepared.instance {
                 return Err(ExecutionError::new(
                     None,
                     E::UnsupportedMethod("ordinary static root role mismatch"),
@@ -1420,6 +1595,27 @@ fn resume_initialization(
             let pending = caller.pending.take().ok_or_else(invalid)?;
             let diagnose = |error| contextualize(bodies, error, method, origin);
             match pending {
+                PendingUse::New { next } => {
+                    if caller.new_access.len() != 1 {
+                        return Err(invalid());
+                    }
+                    let access = caller.new_access.pop().ok_or_else(invalid)?;
+                    let Services::Fields { context, .. } = services else {
+                        return Err(invalid());
+                    };
+                    let MethodKey::Registered(method) = method else {
+                        return Err(invalid());
+                    };
+                    let reference = context
+                        .allocate_new(init.claim, &access)
+                        .map_err(|e| diagnose(construction_failure(e, pc)))?;
+                    caller.locals.invalidate_site(method, pc);
+                    caller.stack.publish(Uninitialized {
+                        reference,
+                        key: AliasKey::Allocation { method, offset: pc },
+                    });
+                    caller.pc = next;
+                }
                 PendingUse::Static { value, next } => {
                     let access = take_static_continuation(caller, pc)?;
                     let Services::Fields { context, .. } = services else {
@@ -1439,7 +1635,7 @@ fn resume_initialization(
                 }
                 PendingUse::Call { target, args, next } => {
                     let prepared = java.cache.get(&target).ok_or_else(invalid)?;
-                    if prepared.initializer || prepared.instance {
+                    if prepared.initializer || prepared.constructor || prepared.instance {
                         return Err(diagnose(ExecutionError::new(
                             Some(pc),
                             E::UnsupportedMethod("ordinary static continuation role mismatch"),
@@ -1552,7 +1748,7 @@ fn advance_initialization(
                 let prepared = java.cache.get(&key).ok_or_else(|| {
                     ExecutionError::new(None, E::InvalidMethod("initializer cache absent"))
                 })?;
-                if !prepared.initializer || prepared.instance {
+                if !prepared.initializer || prepared.constructor || prepared.instance {
                     return Err(ExecutionError::new(
                         None,
                         E::InvalidMethod("initializer cache role mismatch"),
@@ -1883,6 +2079,204 @@ fn run_engine(
             )
             .map_err(|error| contextualize(bodies, error, current, origin))?;
             match action {
+                Action::New { access, next } => {
+                    let class = access.class();
+                    let index = java
+                        .frames
+                        .len()
+                        .checked_sub(1)
+                        .ok_or_else(|| operand_error(pc))?;
+                    let frame = java.frames.last_mut().ok_or_else(|| operand_error(pc))?;
+                    let MethodKey::Registered(method) = current else {
+                        return Err(operand_error(pc));
+                    };
+                    if frame.pending.is_some() || !frame.new_access.is_empty() {
+                        return Err(protocol(pc, "duplicate new continuation"));
+                    }
+                    frame
+                        .stack
+                        .reserve_one(pc)
+                        .map_err(|e| contextualize(bodies, e, current, origin))?;
+                    frame
+                        .new_access
+                        .try_reserve_exact(1)
+                        .map_err(|_| init_allocation("new continuation token"))?;
+                    let init = initialization.as_mut().ok_or_else(|| operand_error(pc))?;
+                    init.state
+                        .construction
+                        .charge(frame.locals.len(), frame.stack.len(), pc)
+                        .map_err(|e| contextualize(bodies, e, current, origin))?;
+                    if frame.stack.contains_site(method, pc) {
+                        return Err(contextualize(
+                            bodies,
+                            protocol(pc, "unfinished stack reference from repeated new site"),
+                            current,
+                            origin,
+                        ));
+                    }
+                    frame.new_access.push(access);
+                    frame.pending = Some(PendingUse::New { next });
+                    if let Some(outcome) = request_initialization(
+                        InitRequest {
+                            class,
+                            continuation: InitContinuation::Instruction {
+                                frame: index,
+                                method: current,
+                                pc,
+                            },
+                            origin: Some((current, pc)),
+                        },
+                        bodies,
+                        &mut java,
+                        &mut services,
+                        exceptions.as_mut(),
+                        init,
+                        limits,
+                    )? {
+                        return Ok(outcome);
+                    }
+                }
+                Action::ConstructorCall { constant_index } => {
+                    let site = Some((current, pc));
+                    let MethodKey::Registered(method) = current else {
+                        return Err(operand_error(pc));
+                    };
+                    let Services::Fields { context, .. } = &mut services else {
+                        return Err(operand_error(pc));
+                    };
+                    let init = initialization.as_mut().ok_or_else(|| operand_error(pc))?;
+                    let shape = context
+                        .constructor_invocation_shape(method.owner(), constant_index)
+                        .map_err(|e| {
+                            contextualize(bodies, construction_failure(e, pc), current, site)
+                        })?;
+                    let caller = java.frames.last_mut().ok_or_else(|| operand_error(pc))?;
+                    let mut args = Vec::new();
+                    args.try_reserve_exact(shape.parameters.len())
+                        .map_err(|_| init_allocation("constructor arguments"))?;
+                    for kind in shape.parameters.iter().rev() {
+                        args.push(
+                            caller
+                                .stack
+                                .pop(*kind, pc)
+                                .map_err(|e| contextualize(bodies, e, current, site))?,
+                        );
+                    }
+                    args.reverse();
+                    let receiver = caller
+                        .stack
+                        .pop_reference(pc)
+                        .map_err(|e| contextualize(bodies, e, current, site))?;
+                    let FrameValue::Uninitialized(alias) = receiver else {
+                        return Err(contextualize(
+                            bodies,
+                            protocol(pc, "constructor receiver is not unfinished"),
+                            current,
+                            site,
+                        ));
+                    };
+                    let kind = match alias.key {
+                        AliasKey::Allocation { .. } => ConstructorReceiverKind::Allocation,
+                        AliasKey::This(_) => {
+                            pending_this(caller, alias, pc)
+                                .map_err(|e| contextualize(bodies, e, current, site))?;
+                            ConstructorReceiverKind::This
+                        }
+                    };
+                    let access = context
+                        .resolve_constructor(
+                            init.claim,
+                            method,
+                            constant_index,
+                            alias.reference,
+                            kind,
+                        )
+                        .map_err(|e| {
+                            contextualize(bodies, construction_failure(e, pc), current, site)
+                        })?;
+                    let target = MethodKey::Registered(access.method());
+                    let metadata = bodies.class(target)?;
+                    if let std::collections::hash_map::Entry::Vacant(entry) =
+                        java.cache.entry(target)
+                    {
+                        let prepared = prepare_method_with_context(
+                            metadata,
+                            target.index(),
+                            &mut java.used_code_bytes,
+                            limits.max_prepared_code_bytes,
+                            Preparation::Constructor,
+                            Some((&mut **context, access.method())),
+                            exceptions.as_mut(),
+                        )
+                        .map_err(|e| contextualize(bodies, e, target, site))?;
+                        entry.insert(prepared);
+                    }
+                    let prepared = java.cache.get(&target).ok_or_else(|| operand_error(pc))?;
+                    if !prepared.constructor || !prepared.instance || prepared.initializer {
+                        return Err(contextualize(
+                            bodies,
+                            protocol(pc, "constructor cache role mismatch"),
+                            target,
+                            site,
+                        ));
+                    }
+                    let reserved =
+                        check_reservation(java.frames.len(), java.reserved, prepared, limits)
+                            .map_err(|e| contextualize(bodies, e, target, site))?;
+                    validate_args(prepared, &args)
+                        .map_err(|e| contextualize(bodies, e, target, site))?;
+                    context
+                        .check_method_arguments(access.method(), &args)
+                        .map_err(|e| {
+                            contextualize(
+                                bodies,
+                                ExecutionError::new(Some(pc), E::MethodAccess(Box::new(e))),
+                                target,
+                                site,
+                            )
+                        })?;
+                    let activation = init
+                        .state
+                        .construction
+                        .next_activation(pc)
+                        .map_err(|e| contextualize(bodies, e, target, site))?;
+                    let base = context
+                        .heap()
+                        .reference_type_universe()
+                        .is_some_and(|u| u.object == access.method().owner());
+                    let this = Uninitialized {
+                        reference: alias.reference,
+                        key: AliasKey::This(activation),
+                    };
+                    let mut frame =
+                        make_frame(target, prepared, &args, site, Some(alias.reference))
+                            .map_err(|e| contextualize(bodies, e, target, site))?;
+                    frame
+                        .constructor
+                        .try_reserve_exact(1)
+                        .map_err(|_| init_allocation("constructor activation"))?;
+                    if !base {
+                        frame
+                            .locals
+                            .store_frame(0, FrameValue::Uninitialized(this), 0)?;
+                    }
+                    frame.role = FrameRole::Constructor;
+                    frame.constructor.push(ConstructorActivation {
+                        access,
+                        this,
+                        caller: alias,
+                        chain: if base {
+                            Chain::Complete
+                        } else {
+                            Chain::Pending
+                        },
+                    });
+                    java.frames
+                        .try_reserve(1)
+                        .map_err(|_| init_allocation("constructor frame"))?;
+                    java.frames.push(frame);
+                    java.reserved = reserved;
+                }
                 Action::InitializationStatic {
                     access,
                     value,
@@ -2018,6 +2412,39 @@ fn run_engine(
                     .map_err(|error| contextualize(bodies, error, current, origin));
                 }
                 Action::Return(value) => {
+                    if java
+                        .frames
+                        .last()
+                        .is_some_and(|frame| frame.role == FrameRole::Constructor)
+                    {
+                        let frame = java.frames.last().ok_or_else(|| operand_error(pc))?;
+                        let activation = constructor_activation(frame, pc)?;
+                        if value.is_some() || activation.chain != Chain::Complete {
+                            return Err(contextualize(
+                                bodies,
+                                protocol(pc, "constructor returned before its chain completed"),
+                                current,
+                                origin,
+                            ));
+                        }
+                        let Services::Fields { context, .. } = &mut services else {
+                            return Err(operand_error(pc));
+                        };
+                        context
+                            .check_method_return(activation.access.method(), None)
+                            .map_err(|e| {
+                                contextualize(
+                                    bodies,
+                                    ExecutionError::new(Some(pc), E::MethodAccess(Box::new(e))),
+                                    current,
+                                    origin,
+                                )
+                            })?;
+                        let init = initialization.as_mut().ok_or_else(|| operand_error(pc))?;
+                        finish_constructor_boundary(&mut java, init, true, pc)
+                            .map_err(|e| contextualize(bodies, e, current, origin))?;
+                        continue;
+                    }
                     let completed = java.frames.pop().ok_or_else(|| {
                         ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
                     })?;
@@ -2212,7 +2639,7 @@ fn run_engine(
                     let prepared = java.cache.get(&target).ok_or_else(|| {
                         ExecutionError::new(None, E::InvalidMethod("missing prepared call target"))
                     })?;
-                    if prepared.initializer {
+                    if prepared.initializer || prepared.constructor {
                         return Err(contextualize(
                             bodies,
                             ExecutionError::new(
@@ -2525,6 +2952,7 @@ fn handle_initializer_escape(
                     )));
                 }
                 caller.static_access.clear();
+                caller.new_access.clear();
                 return Ok(AbruptResume::Caller(invoke));
             }
         }
@@ -2555,6 +2983,16 @@ fn handle_throw(
             DispatchResult::Caught => return Ok(None),
             DispatchResult::Uncaught => {
                 return Ok(Some(EngineOutcome::Uncaught(thrown.reference())));
+            }
+            DispatchResult::ConstructorBoundary { pc: boundary } => {
+                let frame = java.frames.last().ok_or_else(|| operand_error(boundary))?;
+                let method = frame.method;
+                let origin = frame.origin;
+                let init = initialization
+                    .as_deref_mut()
+                    .ok_or_else(|| protocol(boundary, "constructor escaped outside session"))?;
+                pc = finish_constructor_boundary(java, init, false, boundary)
+                    .map_err(|e| contextualize(bodies, e, method, origin))?;
             }
             DispatchResult::InitializerBoundary {
                 class,
@@ -2722,6 +3160,7 @@ enum DispatchResult {
     Caught,
     Uncaught,
     InitializerBoundary { class: ClassId, pc: u32 },
+    ConstructorBoundary { pc: u32 },
 }
 fn dispatch_throw(
     bodies: Bodies<'_>,
@@ -2781,6 +3220,9 @@ fn dispatch_throw(
         }
         charge_dispatch(&mut state.dispatch_steps, state.limits.max_dispatch_steps)
             .map_err(diagnose)?;
+        if frame.role == FrameRole::Constructor {
+            return Ok(DispatchResult::ConstructorBoundary { pc: search_pc });
+        }
         if let FrameRole::Initializer(class) = frame.role {
             return Ok(DispatchResult::InitializerBoundary {
                 class,
@@ -2823,6 +3265,7 @@ fn prepare_method_with_context(
 ) -> Result<PreparedMethod, ExecutionError> {
     let instance = mode.is_instance();
     let initializer = mode == Preparation::Initializer;
+    let constructor = mode == Preparation::Constructor;
     let method = class.methods.get(method_index).ok_or_else(|| {
         ExecutionError::new(
             None,
@@ -2836,7 +3279,10 @@ fn prepare_method_with_context(
         ExecutionError::new(None, E::InvalidMethod("invalid method name reference"))
     })?;
     if (initializer && !name.equals_ascii("<clinit>"))
-        || (!initializer && (name.equals_ascii("<init>") || name.equals_ascii("<clinit>")))
+        || (constructor && !name.equals_ascii("<init>"))
+        || (!initializer
+            && !constructor
+            && (name.equals_ascii("<init>") || name.equals_ascii("<clinit>")))
     {
         return Err(ExecutionError::new(
             None,
@@ -2989,6 +3435,7 @@ fn prepare_method_with_context(
     Ok(PreparedMethod {
         instance,
         initializer,
+        constructor,
         shape,
         handlers: exceptions.is_some().then_some(code_index),
         decoded,
@@ -3055,6 +3502,25 @@ fn step(
         .checked_add(instruction.length)
         .ok_or_else(|| ExecutionError::new(Some(pc), E::InstructionPointerOutsideCode))?;
     match opcode {
+        0xbb => {
+            let Some(claim) = initialization_claim else {
+                return Err(ExecutionError::new(
+                    Some(pc),
+                    E::UnsupportedInstruction(opcode),
+                ));
+            };
+            let Operands::Constant(index) = operands else {
+                return Err(operand_error(pc));
+            };
+            let Services::Fields { context, .. } = services else {
+                return Err(operand_error(pc));
+            };
+            let origin = frame.method.owner().ok_or_else(|| operand_error(pc))?;
+            let access = context
+                .resolve_new(claim, origin, *index)
+                .map_err(|error| construction_failure(error, pc))?;
+            return Ok(Action::New { access, next });
+        }
         0xb2 | 0xb3 => {
             let Operands::Constant(index) = operands else {
                 return Err(operand_error(pc));
@@ -3215,6 +3681,42 @@ fn step(
             } else {
                 None
             };
+            if opcode == 0xb5 && frame.role == FrameRole::Constructor {
+                let receiver = stack.pop_reference(pc)?;
+                let activation = constructor_activation(frame, pc)?;
+                let (reference, kind) = match receiver {
+                    FrameValue::Ordinary(Value::Reference(reference)) => {
+                        (reference, ConstructorFieldReceiverKind::Ordinary)
+                    }
+                    FrameValue::Uninitialized(alias)
+                        if alias == activation.this && activation.chain == Chain::Pending =>
+                    {
+                        (
+                            alias.reference,
+                            ConstructorFieldReceiverKind::UninitializedThis,
+                        )
+                    }
+                    _ => return Err(protocol(pc, "field receiver is not current pending this")),
+                };
+                let Some(claim) = initialization_claim else {
+                    return Err(operand_error(pc));
+                };
+                let Services::Fields { context, .. } = services else {
+                    return Err(operand_error(pc));
+                };
+                context
+                    .write_constructor_field(
+                        claim,
+                        &activation.access,
+                        *index,
+                        reference,
+                        value.ok_or_else(|| operand_error(pc))?,
+                        kind,
+                    )
+                    .map_err(|e| construction_failure(e, pc))?;
+                frame.pc = next;
+                return Ok(Action::Continue);
+            }
             let receiver = stack.reference(pc)?;
             let Services::Fields { context, .. } = services else {
                 return Err(operand_error(pc));
@@ -3267,20 +3769,14 @@ fn step(
             stack.push(locals.load(index, expected, pc)?, pc)?;
         }
         0x19 => {
-            let value = locals.load(local(operands, pc)?, ValueKind::Reference, pc)?;
-            let Value::Reference(reference) = value else {
-                return Err(operand_error(pc));
-            };
-            validate_reference(services.heap(), reference, pc)?;
-            stack.push(value, pc)?;
+            let value = locals.load_reference(local(operands, pc)?, pc)?;
+            validate_frame_reference(services.heap(), value, pc)?;
+            stack.push_frame(value, pc)?;
         }
         0x2a..=0x2d => {
-            let value = locals.load(usize::from(opcode - 0x2a), ValueKind::Reference, pc)?;
-            let Value::Reference(reference) = value else {
-                return Err(operand_error(pc));
-            };
-            validate_reference(services.heap(), reference, pc)?;
-            stack.push(value, pc)?;
+            let value = locals.load_reference(usize::from(opcode - 0x2a), pc)?;
+            validate_frame_reference(services.heap(), value, pc)?;
+            stack.push_frame(value, pc)?;
         }
         0x2e..=0x31 | 0x33..=0x35 => {
             let index = stack.int(pc)?;
@@ -3324,14 +3820,14 @@ fn step(
             locals.store(index, stack.pop(expected, pc)?, pc)?;
         }
         0x3a => {
-            let reference = stack.reference(pc)?;
-            validate_reference(services.heap(), reference, pc)?;
-            locals.store(local(operands, pc)?, Value::Reference(reference), pc)?;
+            let value = stack.pop_reference(pc)?;
+            validate_frame_reference(services.heap(), value, pc)?;
+            locals.store_frame(local(operands, pc)?, value, pc)?;
         }
         0x4b..=0x4e => {
-            let reference = stack.reference(pc)?;
-            validate_reference(services.heap(), reference, pc)?;
-            locals.store(usize::from(opcode - 0x4b), Value::Reference(reference), pc)?;
+            let value = stack.pop_reference(pc)?;
+            validate_frame_reference(services.heap(), value, pc)?;
+            locals.store_frame(usize::from(opcode - 0x4b), value, pc)?;
         }
         0x4f..=0x52 | 0x54..=0x56 => {
             let value_kind = match opcode {
@@ -3621,10 +4117,10 @@ fn step(
             next = branch(decoded, pc, *displacement)?;
         }
         0xa5 | 0xa6 => {
-            let right = stack.reference(pc)?;
-            let left = stack.reference(pc)?;
-            validate_reference(services.heap(), right, pc)?;
-            validate_reference(services.heap(), left, pc)?;
+            let right = stack.pop_reference(pc)?;
+            let left = stack.pop_reference(pc)?;
+            let right = validate_frame_reference(services.heap(), right, pc)?;
+            let left = validate_frame_reference(services.heap(), left, pc)?;
             let Operands::Branch(displacement) = operands else {
                 return Err(operand_error(pc));
             };
@@ -3633,8 +4129,8 @@ fn step(
             }
         }
         0xc6 | 0xc7 => {
-            let reference = stack.reference(pc)?;
-            validate_reference(services.heap(), reference, pc)?;
+            let reference =
+                validate_frame_reference(services.heap(), stack.pop_reference(pc)?, pc)?;
             let Operands::Branch(displacement) = operands else {
                 return Err(operand_error(pc));
             };
@@ -3769,6 +4265,14 @@ fn step(
                 return Err(operand_error(pc));
             };
             frame.pc = next;
+            if opcode == 0xb7
+                && initialization_claim.is_some()
+                && constructor_reference(class, *index)
+            {
+                return Ok(Action::ConstructorCall {
+                    constant_index: *index,
+                });
+            }
             return Ok(Action::Call {
                 constant_index: *index,
                 kind: match opcode {
@@ -3887,6 +4391,23 @@ fn heap_failure(error: HeapError, pc: u32) -> Result<Action, ExecutionError> {
         HeapError::NegativeLength { .. } => Ok(Action::NegativeArraySizeException),
         error => Err(ExecutionError::new(Some(pc), E::Heap(error))),
     }
+}
+fn validate_frame_reference(
+    heap: Option<&ManagedHeap>,
+    value: FrameValue,
+    pc: u32,
+) -> Result<Reference, ExecutionError> {
+    let reference = value.reference(pc)?;
+    if matches!(value, FrameValue::Uninitialized(_)) {
+        heap.ok_or_else(|| operand_error(pc))?
+            .instance_class(reference)
+            .map_err(|error| {
+                construction_failure(ConstructionAccessError::Instance(Box::new(error)), pc)
+            })?;
+    } else {
+        validate_reference(heap, reference, pc)?;
+    }
+    Ok(reference)
 }
 fn validate_reference(
     heap: Option<&ManagedHeap>,
@@ -4357,6 +4878,8 @@ mod resource_tests {
                 role: FrameRole::Ordinary,
                 pending: None,
                 static_access: Vec::new(),
+                new_access: Vec::new(),
+                constructor: Vec::new(),
                 locals: Locals::new(0),
                 stack: Stack::new(0),
                 pc: 90,
@@ -4589,3 +5112,7 @@ mod resource_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "construction_tests.rs"]
+mod construction_tests;

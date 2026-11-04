@@ -54,6 +54,7 @@ pub enum VmExceptionKind {
     IncompatibleClassChangeError,
     NoSuchMethodError,
     AbstractMethodError,
+    InstantiationError,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -610,6 +611,7 @@ mod tests {
             VmExceptionKind::IncompatibleClassChangeError,
             VmExceptionKind::NoSuchMethodError,
             VmExceptionKind::AbstractMethodError,
+            VmExceptionKind::InstantiationError,
         ];
         for category in categories {
             let error = ExceptionAccessError::Java(category);

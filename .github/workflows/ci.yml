@@ -39,6 +39,10 @@ jobs:
         run: python tools/compile_fixtures.py
       - name: Verify fixture reproducibility with this compiler
         run: python tools/compile_fixtures.py --check
+      - name: Reproduce original construction encodings
+        run: |
+          python tools/construction_fixtures.py
+          python tools/construction_fixtures.py --check
       - name: Generate and verify numeric reference output with this JDK
         run: |
           python tools/numeric_reference.py
@@ -77,6 +81,8 @@ jobs:
           python tools/initialization_reference.py --check
           python tools/cross_static_reference.py
           python tools/cross_static_reference.py --check
+          python tools/construction_reference.py
+          python tools/construction_reference.py --check
       - name: Format
         run: cargo fmt --check
       - name: Lint
@@ -88,4 +94,4 @@ jobs:
       - name: Runtime invariants in optimized builds
         run: cargo test -p crabspot-runtime --release --locked
       - name: Seeded parser fuzz smoke test
-        run: cargo run -p crabspot-classfile --example fuzz_parser --locked -- tests/fixtures/classes --iterations 10000
+        run: cargo run -p crabspot-classfile --example fuzz_parser --locked -- tests/fixtures --iterations 10000

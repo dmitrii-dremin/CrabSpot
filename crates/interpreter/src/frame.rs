@@ -1,9 +1,74 @@
 use crate::{ExecutionError, ExecutionErrorKind as E, Value, ValueKind};
 
+use crabspot_runtime::{MethodId, Reference};
+pub(crate) fn protocol(offset: u32, reason: &'static str) -> ExecutionError {
+    ExecutionError::new(Some(offset), E::ConstructionProtocol { reason })
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AliasKey {
+    Allocation { method: MethodId, offset: u32 },
+    This(u64),
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Uninitialized {
+    pub reference: Reference,
+    pub key: AliasKey,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum FrameValue {
+    Ordinary(Value),
+    Uninitialized(Uninitialized),
+}
+impl FrameValue {
+    fn slots(self) -> usize {
+        match self {
+            Self::Ordinary(v) => v.slots(),
+            Self::Uninitialized(_) => 1,
+        }
+    }
+    fn kind(self) -> ValueKind {
+        match self {
+            Self::Ordinary(v) => v.kind(),
+            Self::Uninitialized(_) => ValueKind::Reference,
+        }
+    }
+    fn ordinary(self, pc: u32) -> Result<Value, ExecutionError> {
+        match self {
+            Self::Ordinary(v) => Ok(v),
+            _ => Err(protocol(
+                pc,
+                "unfinished reference used as an ordinary value",
+            )),
+        }
+    }
+    pub fn reference(self, pc: u32) -> Result<Reference, ExecutionError> {
+        match self {
+            Self::Ordinary(Value::Reference(r)) => Ok(r),
+            Self::Uninitialized(v) if !v.reference.is_null() => Ok(v.reference),
+            Self::Uninitialized(_) => Err(protocol(pc, "unfinished token has a null identity")),
+            Self::Ordinary(v) => Err(ExecutionError::new(
+                Some(pc),
+                E::WrongValueType {
+                    expected: ValueKind::Reference,
+                    actual: v.kind(),
+                },
+            )),
+        }
+    }
+    fn site(self, method: MethodId, pc: u32) -> bool {
+        matches!(self,Self::Uninitialized(Uninitialized { key: AliasKey::Allocation { method: site,offset }, .. }) if method==site && offset==pc)
+    }
+}
+#[cfg(test)]
+impl PartialEq<Value> for FrameValue {
+    fn eq(&self, v: &Value) -> bool {
+        matches!(self,Self::Ordinary(value) if value==v)
+    }
+}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum LocalSlot {
     Empty,
-    Value(Value),
+    Value(FrameValue),
     Continuation { head: usize },
 }
 
@@ -52,6 +117,14 @@ impl Locals {
         }
     }
     pub fn store(&mut self, index: usize, value: Value, offset: u32) -> Result<(), ExecutionError> {
+        self.store_frame(index, FrameValue::Ordinary(value), offset)
+    }
+    pub fn store_frame(
+        &mut self,
+        index: usize,
+        value: FrameValue,
+        offset: u32,
+    ) -> Result<(), ExecutionError> {
         let width = value.slots();
         self.bounds(index, width, offset)?;
         self.invalidate(index);
@@ -70,6 +143,17 @@ impl Locals {
         expected: ValueKind,
         offset: u32,
     ) -> Result<Value, ExecutionError> {
+        self.load_frame(index, expected, offset)?.ordinary(offset)
+    }
+    pub fn load_reference(&self, index: usize, offset: u32) -> Result<FrameValue, ExecutionError> {
+        self.load_frame(index, ValueKind::Reference, offset)
+    }
+    fn load_frame(
+        &self,
+        index: usize,
+        expected: ValueKind,
+        offset: u32,
+    ) -> Result<FrameValue, ExecutionError> {
         self.bounds(index, expected.slots(), offset)?;
         let Some(LocalSlot::Value(value)) = self.slots.get(index).copied() else {
             return Err(ExecutionError::new(
@@ -96,10 +180,31 @@ impl Locals {
         }
         Ok(value)
     }
+    pub fn len(&self) -> usize {
+        self.slots.len()
+    }
+    pub fn rewrite_alias(&mut self, alias: Uninitialized, promote: bool) {
+        for slot in &mut self.slots {
+            if *slot == LocalSlot::Value(FrameValue::Uninitialized(alias)) {
+                *slot = if promote {
+                    LocalSlot::Value(FrameValue::Ordinary(Value::Reference(alias.reference)))
+                } else {
+                    LocalSlot::Empty
+                };
+            }
+        }
+    }
+    pub fn invalidate_site(&mut self, method: MethodId, pc: u32) {
+        for slot in &mut self.slots {
+            if matches!(slot,LocalSlot::Value(v) if v.site(method,pc)) {
+                *slot = LocalSlot::Empty;
+            }
+        }
+    }
 }
 
 pub(crate) struct Stack {
-    values: Vec<Value>,
+    values: Vec<FrameValue>,
     slots: usize,
     capacity: usize,
 }
@@ -112,6 +217,9 @@ impl Stack {
         }
     }
     pub fn push(&mut self, value: Value, offset: u32) -> Result<(), ExecutionError> {
+        self.push_frame(FrameValue::Ordinary(value), offset)
+    }
+    pub fn push_frame(&mut self, value: FrameValue, offset: u32) -> Result<(), ExecutionError> {
         let required = self.slots + value.slots();
         if required > self.capacity {
             return Err(ExecutionError::new(
@@ -151,11 +259,12 @@ impl Stack {
             })?;
         }
         self.values.clear();
-        self.values.push(Value::Reference(reference));
+        self.values
+            .push(FrameValue::Ordinary(Value::Reference(reference)));
         self.slots = 1;
         Ok(())
     }
-    fn peek(&self, depth: usize, offset: u32) -> Result<Value, ExecutionError> {
+    fn peek(&self, depth: usize, offset: u32) -> Result<FrameValue, ExecutionError> {
         self.values
             .len()
             .checked_sub(depth + 1)
@@ -164,7 +273,7 @@ impl Stack {
             .ok_or_else(|| ExecutionError::new(Some(offset), E::StackUnderflow))
     }
     pub fn pop_any(&mut self, offset: u32) -> Result<Value, ExecutionError> {
-        let value = self.peek(0, offset)?;
+        let value = self.peek(0, offset)?.ordinary(offset)?;
         self.values.pop();
         self.slots -= value.slots();
         Ok(value)
@@ -180,9 +289,10 @@ impl Stack {
                 },
             ));
         }
+        let ordinary = value.ordinary(offset)?;
         self.values.pop();
         self.slots -= value.slots();
-        Ok(value)
+        Ok(ordinary)
     }
     pub fn int(&mut self, offset: u32) -> Result<i32, ExecutionError> {
         match self.pop(ValueKind::Int, offset)? {
@@ -217,10 +327,79 @@ impl Stack {
             _ => Err(ExecutionError::new(Some(offset), E::InvalidOperands)),
         }
     }
+
+    pub fn pop_reference(&mut self, pc: u32) -> Result<FrameValue, ExecutionError> {
+        let v = self.peek(0, pc)?;
+        if v.kind() != ValueKind::Reference {
+            return Err(ExecutionError::new(
+                Some(pc),
+                E::WrongValueType {
+                    expected: ValueKind::Reference,
+                    actual: v.kind(),
+                },
+            ));
+        }
+        self.values.pop();
+        self.slots -= 1;
+        Ok(v)
+    }
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+    pub fn reserve_one(&mut self, pc: u32) -> Result<(), ExecutionError> {
+        let required = self
+            .slots
+            .checked_add(1)
+            .ok_or_else(|| protocol(pc, "operand slot arithmetic overflow"))?;
+        if required > self.capacity {
+            return Err(ExecutionError::new(
+                Some(pc),
+                E::StackOverflow {
+                    required,
+                    capacity: self.capacity,
+                },
+            ));
+        }
+        self.values.try_reserve(1).map_err(|_| {
+            ExecutionError::new(
+                Some(pc),
+                E::Heap(crabspot_runtime::HeapError::AllocationFailure {
+                    resource: "construction operand stack",
+                }),
+            )
+        })
+    }
+    pub fn publish(&mut self, v: Uninitialized) {
+        self.values.push(FrameValue::Uninitialized(v));
+        self.slots += 1;
+    }
+    pub fn contains_site(&self, method: MethodId, pc: u32) -> bool {
+        self.values.iter().any(|v| v.site(method, pc))
+    }
+    pub fn rewrite_alias(&mut self, alias: Uninitialized, promote: bool) {
+        if promote {
+            for v in &mut self.values {
+                if *v == FrameValue::Uninitialized(alias) {
+                    *v = FrameValue::Ordinary(Value::Reference(alias.reference));
+                }
+            }
+        } else {
+            let mut removed = 0;
+            self.values.retain(|value| {
+                if *value == FrameValue::Uninitialized(alias) {
+                    removed += 1;
+                    false
+                } else {
+                    true
+                }
+            });
+            self.slots -= removed;
+        }
+    }
     fn replace(
         &mut self,
         count: usize,
-        values: &[Value],
+        values: &[FrameValue],
         offset: u32,
     ) -> Result<(), ExecutionError> {
         let Some(start) = self.values.len().checked_sub(count) else {
@@ -497,6 +676,23 @@ mod tests {
             (0x5f, vec![I(2), I(1)], vec![I(1), I(2)]),
         ];
         for (opcode, before, after) in cases {
+            let token = |value: Value| match value {
+                Value::Int(value) => FrameValue::Uninitialized(Uninitialized {
+                    reference: Reference::null(),
+                    key: AliasKey::This(value as u64),
+                }),
+                value => FrameValue::Ordinary(value),
+            };
+            let mut private = Stack::new(16);
+            for value in before.iter().copied() {
+                private.push_frame(token(value), 0).unwrap();
+            }
+            private.manipulate(opcode, 0).unwrap();
+            assert_eq!(
+                private.values,
+                after.iter().copied().map(token).collect::<Vec<_>>(),
+                "private {opcode:x}"
+            );
             let mut stack = Stack::new(16);
             for value in before {
                 stack.push(value, 0).unwrap();
@@ -564,5 +760,44 @@ mod tests {
             vec![Value::Reference(crabspot_runtime::Reference::null())]
         );
         assert_eq!(stack.slots, 1);
+    }
+    #[test]
+    fn failed_alias_rewrite_keeps_mixed_category_two_survivor_slots_in_one_pass() {
+        let alias = Uninitialized {
+            reference: Reference::null(),
+            key: AliasKey::This(1),
+        };
+        let other = Uninitialized {
+            reference: Reference::null(),
+            key: AliasKey::This(2),
+        };
+        let mut stack = Stack::new(8);
+        for value in [
+            FrameValue::Ordinary(Value::Long(7)),
+            FrameValue::Uninitialized(alias),
+            FrameValue::Ordinary(Value::Double(9)),
+            FrameValue::Uninitialized(other),
+            FrameValue::Uninitialized(alias),
+        ] {
+            stack.push_frame(value, 0).unwrap();
+        }
+        assert_eq!(stack.slots, 7);
+        stack.rewrite_alias(alias, false);
+        assert_eq!(stack.slots, 5);
+        assert_eq!(
+            stack.values,
+            vec![
+                FrameValue::Ordinary(Value::Long(7)),
+                FrameValue::Ordinary(Value::Double(9)),
+                FrameValue::Uninitialized(other)
+            ]
+        );
+        stack.rewrite_alias(other, true);
+        assert_eq!(stack.slots, 5);
+        assert_eq!(
+            stack.pop(ValueKind::Reference, 0).unwrap(),
+            Value::Reference(Reference::null())
+        );
+        assert_eq!(stack.slots, 4);
     }
 }

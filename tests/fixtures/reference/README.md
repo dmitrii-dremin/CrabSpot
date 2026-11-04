@@ -1,5 +1,21 @@
 # Numeric reference outcomes
 
+construction.tsv records 184 Java21 results: 112 genuine-source rows across sixteen
+entry methods and 72 original-encoding rows across nine raw methods. The latter
+include nine additional narrow-store boundary inputs. Generate/check with
+tools/construction_reference.py after compiling the genuine source and generating
+the original fixtures with tools/construction_fixtures.py. R:escaped identifies
+the ordinary returned object retained in the trace field; R:null is a null result;
+T:first identifies the exact supplied Error. Numeric rows preserve raw floating
+bits including negative zero. Each row uses fresh JDK loader state.
+
+The Rust integration separately checks every retained instance field, array value,
+actual array type, edge order, alias/cycle identity, allocation/slot/payload count,
+static slot, admitted-class status and persistent root. Failed unused allocations
+remain counted. JDK reflection, driver class loading and supplied-Error construction
+are outside the evaluated bodies. The raw JDK child loader and Rust's single
+admitted loader are explicit fixture boundaries, not cross-loader conformance.
+
 virtual_calls.tsv records 494 virtual-call body-graph cases over 40
 receiver/method pairs, with provenance in virtual_calls.json and the fixture
 manifest. Receiver labels select child/leaf objects or four cross-package

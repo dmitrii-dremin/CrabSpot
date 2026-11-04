@@ -674,3 +674,46 @@ NCDFE materialization, VM-produced exception objects, String interning, construc
 concurrent initialization, complete preparation/loading constraints and JVM startup
 remain outside these runtime services. The session separately owns exactly-once,
 recursive-use and erroneous/aborted behavior; no runtime API marks a class completed.
+
+## Checked construction metadata and memory
+
+`resolve_new` validates the permanent initialization claim and caller's Class
+constant, rejects array owners, resolves through the existing loader/name policy,
+and checks caller access before concrete-class eligibility. Its opaque scalar token
+retains the actual class identity. `allocate_new` revalidates that token without
+replaying name resolution, funds each admitted superclass shape and actual own
+field entry incrementally, then uses the existing atomic default-storage allocator.
+Fully funded work remains spent after quota failure; partial funding allocates
+nothing. The engine must initialize the class before allocation and tag the returned
+storage identity before bytecode or host outcomes can observe it. These services
+have no lifecycle or successful-construction setter.
+
+`constructor_invocation_shape` returns the existing compact computational shape;
+array-owner refusal stays after extraction at selection. `resolve_constructor`
+uses shared symbolic method resolution, access and conservative nominal loading
+checks before enforcing the exact constructor declaration owner. An ancestor access
+failure can precede NoSuchMethod, but an ancestor constructor is never executed as
+an inherited target. Allocation mode requires an exact allocated class; This mode
+requires an actual declaring constructor and this/direct-super owner relation.
+There is no ACC_SUPER redirection, receiver override audit or second initialization
+trigger. The designated Object base is checked lazily after receiver relations;
+the interpreter still executes its supplied real constructor Code.
+
+`write_constructor_field` validates the receiver-bound authority, ordinary symbolic
+field access/loading, static category and own-declaration final authority before
+receiver/value checks. Ordinary receivers may be other compatible instances.
+Pre-chain This additionally requires the original bound receiver and exact symbolic
+and declared own-field owners. A private short-lived proof rechecks method/field
+fingerprints, role, owner-qualified slot/kind/finality, heap/source handles and bounds
+before one mutation. Reference assignment keeps source-first identity-only descriptor
+resolution and complete per-store work. No callback occurs between proof and commit.
+Raw setters and ordinary field contexts continue to reject final writes.
+
+Public Value and Reference remain ordinary values. The interpreter privately owns
+unfinished allocation/activation tags, chain obligations, alias promotion and abrupt
+invalidation; runtime tokens do not certify frame provenance or completion. Failed
+and discarded allocations retain arena quota, and lawful prior writes/escaped
+references persist. Only direct intentional Java access categories are elevated;
+nested errors preserve host sources. InstantiationError remains an unmaterialized
+VM category. Full verification, constructor-time exception creation, GC and Java
+startup remain outside this bounded runtime service.

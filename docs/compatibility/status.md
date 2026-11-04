@@ -22,7 +22,7 @@ completion of that goal.
 | Unknown attributes (4.7.1) | Implemented and tested | Payload preservation, including standard-looking names outside applicable version/location |
 | Resource bounds | Implemented and tested | Default 16 MiB class input, annotation depth 64, one million annotation/value nodes shared across the whole class; depth hard-capped at 64 even if caller requests more |
 | Inspection CLI | Implemented and tested | Escaped metadata, bounded reads, preview opt-in and nonzero argument/input failures; no bytecode execution |
-| Genuine Java 21 fixtures | Implemented and tested | 151 classes including cross-class static calls, initialization and primitive/reference/multidimensional-array and instance/reference-field bodies, class/interface/special dispatch and cast hierarchies and raw-field oracle metadata; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
+| Genuine Java 21 fixtures | Implemented and tested | 165 javac classes, with fourteen new construction/driver definitions; nine original class-file version 65 construction encodings are separately marked synthetic. Source/artifact digest manifests and compiler/encoding regeneration preserve all prior 151 class hashes (M1 acceptance used 17); oracle data alone does not establish execution support |
 | Parser fuzzing | Implemented and tested | 108,907,980 seeded cases over 300 seconds, zero failures, exact-source fingerprint; no coverage metrics or proof of panic freedom |
 | Linux/Windows hosted CI | Passed for 8ef7f43 | [Linux/Windows run 41845390025](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41845390025) passed every step on both platforms with Rust/Cargo 1.99.1 and Temurin 21.0.13: 151 fixtures/19 reference sets, 882 workspace tests before and after regeneration, 795 optimized tests, provenance, strict lint and parser smoke |
 | Rust 1.85 minimum version | Not tested | Manifest declaration; actual local toolchain is Rust 1.98.1 |
@@ -49,14 +49,41 @@ completion of that goal.
 | Checked static state and body access (5.4.2, 6.5.b2/b3 memory behavior) | Implemented and tested in explicit memory profile | Unique heap-owned locations, defaults, atomic value-preserving extension, typed checked stores, final protection and alias-preserving roots; static-only/composed profiles support 193/194 opcodes; 364 JDK outcomes plus retained-state assertions pass debug/release; ConstantValue, clinit and Java active-use initialization remain unapplied |
 | Single-session initialization (5.5, 4.7.2) | Implemented, tested and approved within the single-session profile | Actual clinit, numeric constants, ordered dependencies, once-only state and supplied Error propagation; 145 JDK outcomes and independent state checks pass locally in debug/release; combined gate passes 838 debug and 751 optimized tests. String constants, VM exception production, threads and startup remain unsupported |
 | Registered static-call resolution (5.4.3.3/4, 6.5.b8) | Implemented, tested and approved within the registered-call profile | All context-backed profiles resolve cross-class b8 to actual MethodId with access/loading/category checks and unchanged standalone behavior. Session initializes only the declarer. 154 distinct JDK rows (217 profile comparisons before repeats) and full retained-state assertions pass debug/release; native/synchronized execution and full loading constraints remain unsupported |
+| Session allocation and constructors (2.9.1, 4.10.1, 6.5.new/invokespecial/putfield) | Implemented, tested and approved within the session profile | New and real constructor Code, private unfinished aliases, precise chaining/final authority and exception boundaries. All 184 JDK comparisons and complete retained graph/state checks pass debug/release; the fresh combined gate passes 947 workspace and 860 optimized tests. Full verifier, library bootstrap, VM exception construction and GC remain unimplemented; full M2 remains open |
 | Full linkage, bytecode verifier and initialization | Not implemented | Subsequent increments; registration and layout planning are not full linkage |
 | Class loading, GC, threads, Java libraries, JNI, Kotlin, Spring Boot, JIT | Not implemented | Subsequent milestones |
 
 No executed test currently remains failing. This statement is limited to the
 recorded tests; it is not proof that no defect exists.
 
-Latest independent native Windows checks: 768 workspace tests and 681 optimized
-runtime/interpreter tests pass (366 runtime + 315 interpreter), with strict Clippy
+## Construction validation
+
+The frozen construction implementation passes the independent native Windows gate
+in a new build directory: 947 workspace tests and 860 optimized tests (436 runtime,
+424 interpreter), strict formatting/lint and all 26,508 distinct execution rows.
+Sixty-five Rust tests are added, including 28 public/9 private interpreter tests,
+21 public/5 private runtime tests and 2 independent oracle tests. The 184 new rows
+cover 112 genuine-source cases and 72 original encodings. All 165 genuine classfiles,
+nine original encodings and 20 reference sets reproduce. All 151 prior class hashes
+remain unchanged; 42 source records and seven Python regressions pass.
+
+Expanded parser smoke passed 10,000 cases at seed 4851011501752864596 with 174 input
+classfiles: 119 accepted, 9,881 rejected, ten rechecks, corpus 256 and zero failures.
+The local toolchain is Rust/Cargo 1.98.1 with Zulu 21.0.7 on Windows x86-64.
+Construction hosted CI is pending; the preceding hosted evidence remains scoped
+to its named commits. The technical record is [construction review](../architecture/m2-construction-review.md).
+
+Review corrected an observable if_acmp operand-error precedence regression and
+hardened constructor authority/one-pass alias accounting. An older debug cache
+omitted five new unit tests because snapshot mtimes predated its binary; those
+results were discarded. The final fresh-directory runtime unit binary runs all 73
+tests, and all 55 frozen path hashes were verified again after the full gate.
+
+## Historical static-memory evidence
+
+At the earlier static-memory checkpoint, independent native Windows checks passed
+768 workspace tests and 681 optimized runtime/interpreter tests
+(366 runtime + 315 interpreter), with strict Clippy
 and formatting clean. All 26,025 execution comparisons match; separate array and
 field services have 151 oracle roundtrips each. All 104 class fixtures and seventeen
 reference sets reproduce; all 98 earlier class hashes remain unchanged. Forty-four

@@ -6,7 +6,7 @@ result or a symbolic uncaught `ArithmeticException`. An explicit heap entry poin
 also evaluates primitive arrays with supported symbolic array exceptions. This kernel does not perform Java
 invocation, class loading, class initialization, verification or exception-object
 allocation. An explicit `InitializationSession`, described below, separately opts
-into a bounded single-owner initialization procedure.
+into a bounded single-owner initialization and construction procedure.
 
 The selected standalone method must have exactly one Code attribute, a numeric/void
 descriptor, and no native, abstract or synchronized declaration or exception
@@ -21,7 +21,9 @@ adds `getfield`, `putfield`, `invokevirtual`, `invokeinterface` and ordinary
 `invokespecial`, plus `checkcast`, `instanceof`, `anewarray`, `aaload` and
 `aastore`, `multianewarray` and `areturn`, for 191 total. The opt-in exception
 profile adds `athrow`, for 192 total. The static-only and composed static/exception
-profiles add `getstatic`/`putstatic`, for 193 and 194 respectively. `wide` is an encoding prefix for indexed
+profiles add `getstatic`/`putstatic`, for 193 and 194 respectively. The initialization
+session adds `new` and constructor semantics for `invokespecial`, for 195 effective
+opcodes. `wide` is an encoding prefix for indexed
 loads/stores and increment; heap mode adds two reference local forms to the nine
 numeric wide forms.
 
@@ -160,7 +162,7 @@ methods remain excluded. This entry point also rejects Code handlers.
 
 Only this runtime-aware API enables `getfield` and `putfield`. Earlier APIs reject
 them even with a configured instance heap. Field operations delegate symbolic
-resolution, access and receiver relationships to the contextР Р†Р вЂљРІвЂћСћs explicit unnamed
+resolution, access and receiver relationships to the contextР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р вЂ Р Р†Р вЂљРЎвЂєР РЋРЎвЂєs explicit unnamed
 module profile. Exact owner-qualified storage preserves inherited hiding, raw
 floating bits and the approved Z/B/C/S store conversions. Final writes fail;
 reference fields retain null defaults and support the checked stores described
@@ -170,8 +172,8 @@ identity branches and all supported primitive-array operations remain available.
 Explicit field Java failures become symbolic `NoSuchFieldError`,
 `IllegalAccessError`, `IncompatibleClassChangeError` or the existing
 `NullPointerException`. Resolution/access, staticness and write finality precede
-bytecode null dereferences. Other context failuresР Р†Р вЂљРІР‚Сњincluding unsupported nest or
-loading constraints, invalid receivers, changed layouts and resource exhaustionР Р†Р вЂљРІР‚Сњ
+bytecode null dereferences. Other context failuresР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р вЂ Р В РІР‚С™Р РЋРЎС™including unsupported nest or
+loading constraints, invalid receivers, changed layouts and resource exhaustionР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р вЂ Р В РІР‚С™Р РЋРЎС™
 remain boxed `ExecutionErrorKind::FieldAccess` errors with method, instruction and
 available caller provenance. These outcomes allocate no Java error objects.
 
@@ -708,7 +710,7 @@ initialize its parents. Already-completed child interfaces do not prune ancestor
 from a later class plan. Instance ConstantValue attributes are ignored; any static
 String ConstantValue rejects the whole plan before installation or publication.
 B/C/S/Z constants use raw descriptor normalization, and F/D retain their raw bits.
-This service does not materialize a String or execute constructors.
+Constant installation itself does not materialize a String or execute constructors.
 
 A scheduler-created initializer frame has a distinct preparation/cache role and
 executes the actual `<clinit>()V` body. Historical ignored access flags are treated
@@ -822,6 +824,103 @@ or, with the supplied-Throwable/session policy, UnsupportedVmException before
 handler search. Nested Java-shaped Context/Type failures remain boxed MethodAccess
 host errors. Diagnostics keep caller resolution/pops at the invoke site, target
 preparation/return failures at the real target and actual caller transition origins.
-No constructors, native binding, monitors, String materialization, VM exception
-construction, complete loading constraints, persistent resolution/failure caching
-or Java startup are added.
+Static resolution alone adds no constructor execution. Native binding, monitors,
+String materialization, VM exception construction, complete loading constraints,
+persistent resolution/failure caching and Java startup remain outside that scope.
+
+
+## Session allocation and constructors
+
+InitializationSession now executes `new` and constructor `invokespecial` through
+the same engine, scheduler and MethodId cache. Existing initialize/run_static use
+ConstructionLimits::default(); their `_with_construction_limits` counterparts add
+a final ConstructionLimits argument. max_alias_steps defaults to 1,048,576, resets
+per evaluation even on root preflight failure, and is reported by
+last_construction_steps. Old standalone, heap-only and every explicit body/static/
+Throwable entry point retain their original new/constructor rejection. A constructor
+cannot be selected as a host root; host default-instance allocation still supplies
+storage without claiming that any constructor executed.
+
+Public Value/ValueKind/Reference stay unchanged. Private frame values distinguish
+ordinary values from one-slot unfinished aliases. An allocation alias includes
+its actual handle and allocation site; each constructor activation has a distinct
+checked, nonwrapping This identity. Fixed/indexed/wide reference moves and every
+legal category stack form preserve aliases, including pop/pop2 discard and mixed
+category-two values. Null/identity branches compare validated actual heap identity
+without promotion. Ordinary arguments, field/static/array values, casts/instanceof,
+returns, throws and ordinary receivers reject unfinished references. Numeric misuse
+retains computational-kind diagnostics. An ordinary frame may return an unrelated
+ordinary result while disposing of unused unfinished values; that is not construction
+success. No unfinished value appears in public results or protocol diagnostics.
+
+A reached new resolves and checks its target, reserves operand/continuation capacity,
+funds the site scan, then requests class initialization before allocating storage.
+It retains the resolved token and original PC/fuel, so resumption neither resolves
+nor allocates twice. A live unfinished stack alias from the same new site is rejected.
+Only successful publication invalidates older same-site unfinished locals; a failed
+initialization/allocation preserves them. Ordinary references and other sites are
+unaffected. All fallible work precedes heap-to-private-token publication. Allocations
+use shared instance/slot quotas and charged layout traversal; orphaned or failed
+objects remain allocated and retain quota, with no fake OutOfMemoryError or reclaim.
+
+Constructor resolution follows checked symbolic lookup/access/loading before exact
+constructor-owner and receiver relations. It does not execute inherited constructors,
+perform ACC_SUPER redirection or audit an override chain. Each call prepares or
+reuses a distinct Constructor role, shares Code/frame/slot/handler/fuel limits,
+validates ordinary arguments and owns its receiver-bound runtime authority.
+Only current Pending This may delegate to its class or direct superclass; a separate
+Allocation may be constructed before that chain completes. Abstract superclass
+constructors may execute for concrete descendants. The bound bootstrap Object
+constructor begins Complete with ordinary local0, but executes actual supplied Code;
+its public/concrete/root identity is checked lazily, without breaking old sessions.
+There is no production empty-Object fallback.
+
+Pending/Complete/Failed chain state is independent of local0 and alias liveness.
+Losing local0 or constructing another object cannot authorize premature return.
+Normal constructor return checks Complete, validates its void return, funds the
+immediate caller scan and promotes matching aliases without allocating. A successful
+this/super call completes the caller's own chain; completing a separate allocation
+does not. On an escaping constructor exception, matching caller locals become
+unusable before caller handler search at the original b7 PC, and a failed This call
+marks Failed. A caught ordinary-helper throw or failed separate allocation before
+chaining leaves Pending and permits the real chain later. A caught throw inside
+the current constructor does not itself fail its caller. Failed chains cannot be
+retried or return successfully.
+
+Promotion/invalidation is per frame, never a global heap initialized/poisoned bit.
+Ordinary this published after inner completion, or by the actual Object constructor,
+remains usable when an outer constructor fails. Earlier writes, roots, arrays and
+object identities persist. A constructor failure after class initialization does
+not mark that class erroneous. An Error escaping into a class initializer still
+uses the established session erroneous-state protocol. Host errors and recovered
+resolver panics drop transient frames/tokens and let the initialization guard abort
+only still-active classes; no cleanup budget or uninitialized retained-root value
+is introduced.
+
+Only actual constructor frames use the checked constructor field service. It permits
+own-declaration final writes, including repeated writes and ordinary receivers other
+than local0, under normal receiver/access/assignment checks. A Pending This receiver
+has the additional exact symbolic/current declaring-owner restrictions; unfinished
+values cannot be stored. Helpers and ordinary/raw setters retain final-write refusal.
+A single receiver-bound authority must match the executing MethodId. Private tests
+reject mismatched/duplicate authority before field or alias mutation, and preserve
+all field/root values on late failure.
+
+Each allocation-site scan, normal promotion or exceptional invalidation atomically
+funds `1 + logical max_locals + actual operand-value count`. Long/Double count once
+as inspected values while still consuming two Java slots. Failed charges preserve
+counters and data; funded work remains consumed after later failures. Scans and
+chains are iterative, with actual-demand fallible token reservations and no global
+alias registry or policy-sized allocation. Tests exercise 1,000 superclass frames,
+1,000 recursive this activations, exact budgets, same-site loops and single-pass
+mixed-wide survivor accounting. Only direct ConstructionJavaError categories become
+UnsupportedVmException, now including InstantiationError; nested Java-shaped errors
+remain boxed ConstructionAccess host failures.
+
+This is dynamic enforcement on executed supported paths, not the complete verifier,
+stack-map merge validation or full JVM rejection timing. No VM exception objects,
+String materialization, concurrent initialization, native binding, synchronization,
+complete loading constraints, Java library bootstrap or startup are added. Heap
+children/static roots expose lawful ordinary writes; retained_roots still enumerates
+initialization-failure causes. Transient frame tokens are conceptual roots, but no
+complete active-frame GC root API or collector is claimed.

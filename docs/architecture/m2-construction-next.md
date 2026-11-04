@@ -1,6 +1,6 @@
 # Next: allocation and constructor reference protocol
 
-Status: proposed direction on 2026-11-04 after the bounded approval in `m2-static-call-resolution-review.md`. This note does not authorize production changes. An exact contract must settle the verification and reference-lifetime boundaries first.
+Status: historical proposal fulfilled by the bounded contract `m2-construction.md` and approval `m2-construction-review.md` on 2026-11-04. The obligations below record the design questions that led to the accepted increment; they are not a new implementation authorization. Full verification remains open, with the next proposed foundation in `m2-code-validation-next.md`.
 
 Checked ordinary-instance storage, reference transfer, special-call resolution, supplied exceptions and active-use initialization now provide most supporting services for real Java object construction. The next coherent execution increment should address new and constructor invokespecial together, rather than exposing default-filled storage as a constructed Java object. Keep independent execution in the existing engine and preserve explicit host-supplied object APIs.
 

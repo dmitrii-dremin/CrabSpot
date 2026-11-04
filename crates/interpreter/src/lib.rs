@@ -5,6 +5,7 @@
 //! Neither profile loads/fully links/verifies classes, allocates exception objects,
 //! or provides Java startup.
 //! Unsupported declarations and executed instructions fail explicitly.
+mod construction;
 mod error;
 mod execute;
 mod frame;
@@ -26,3 +27,5 @@ pub use initialization::{
     InitializationLimits, InitializationOutcome, InitializationResource, InitializationSession,
     InitializationStatus,
 };
+
+pub use construction::ConstructionLimits;

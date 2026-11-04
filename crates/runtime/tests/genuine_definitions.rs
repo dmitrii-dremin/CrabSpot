@@ -26,7 +26,7 @@ fn class_files(path: &Path, files: &mut Vec<PathBuf>) {
 }
 
 #[test]
-fn registers_all_150_genuine_ordinary_definitions_without_claiming_linkage() {
+fn registers_all_164_genuine_ordinary_definitions_without_claiming_linkage() {
     let mut registry = DefinitionRegistry::new(RegistryOptions::default()).unwrap();
     let loader = registry.create_loader().unwrap();
     let mut files = Vec::new();
@@ -51,7 +51,7 @@ fn registers_all_150_genuine_ordinary_definitions_without_claiming_linkage() {
         assert_eq!(registry.lookup_class(loader, expected).unwrap(), Some(id));
         expected_bytes += bytes.len();
     }
-    assert_eq!(registry.definition_count(), 150);
+    assert_eq!(registry.definition_count(), 164);
     assert_eq!(registry.total_definition_bytes(), expected_bytes);
     // The real module descriptor is valid metadata, but not an ordinary definition.
     assert!(
@@ -64,7 +64,7 @@ fn registers_all_150_genuine_ordinary_definitions_without_claiming_linkage() {
             )
             .is_err()
     );
-    assert_eq!(registry.definition_count(), 150);
+    assert_eq!(registry.definition_count(), 164);
     assert_eq!(registry.total_definition_bytes(), expected_bytes);
 }
 

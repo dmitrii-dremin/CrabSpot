@@ -1,7 +1,7 @@
 //! Single-owner initialization records. Only the shared engine can complete them.
 use crate::{
-    CallLimits, ExceptionLimits, ExceptionOutcome, ExecutionError, ExecutionErrorKind as E,
-    ExecutionOptions, Value,
+    CallLimits, ConstructionLimits, ExceptionLimits, ExceptionOutcome, ExecutionError,
+    ExecutionErrorKind as E, ExecutionOptions, Value, construction::ConstructionState,
 };
 use crabspot_runtime::{
     ClassId, ExceptionProfile, FieldResolutionContext, HeapRef, InitializationAccessError,
@@ -75,6 +75,7 @@ pub(crate) struct SessionState {
     pub constants: usize,
     pub evaluation_owner: u64,
     pub steps: u64,
+    pub construction: ConstructionState,
 }
 pub(crate) fn allocation(resource: &'static str) -> ExecutionError {
     ExecutionError::new(
@@ -206,6 +207,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
                 constants: 0,
                 evaluation_owner: 0,
                 steps: 0,
+                construction: ConstructionState::default(),
             },
         })
     }
@@ -216,6 +218,23 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
         call_limits: CallLimits,
         exception_limits: ExceptionLimits,
     ) -> Result<InitializationOutcome, ExecutionError> {
+        self.initialize_with_construction_limits(
+            class,
+            options,
+            call_limits,
+            exception_limits,
+            ConstructionLimits::default(),
+        )
+    }
+    pub fn initialize_with_construction_limits(
+        &mut self,
+        class: ClassId,
+        options: ExecutionOptions,
+        call_limits: CallLimits,
+        exception_limits: ExceptionLimits,
+        construction_limits: ConstructionLimits,
+    ) -> Result<InitializationOutcome, ExecutionError> {
+        self.state.construction.reset(construction_limits);
         let guard = EvaluationGuard {
             state: &mut self.state,
         };
@@ -253,6 +272,25 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
         call_limits: CallLimits,
         exception_limits: ExceptionLimits,
     ) -> Result<ExceptionOutcome, ExecutionError> {
+        self.run_static_with_construction_limits(
+            method,
+            arguments,
+            options,
+            call_limits,
+            exception_limits,
+            ConstructionLimits::default(),
+        )
+    }
+    pub fn run_static_with_construction_limits(
+        &mut self,
+        method: MethodId,
+        arguments: &[Value],
+        options: ExecutionOptions,
+        call_limits: CallLimits,
+        exception_limits: ExceptionLimits,
+        construction_limits: ConstructionLimits,
+    ) -> Result<ExceptionOutcome, ExecutionError> {
+        self.state.construction.reset(construction_limits);
         let guard = EvaluationGuard {
             state: &mut self.state,
         };
@@ -324,6 +362,9 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             }
         })
     }
+    pub fn last_construction_steps(&self) -> u64 {
+        self.state.construction.steps
+    }
     pub fn last_initialization_steps(&self) -> u64 {
         self.state.steps
     }
@@ -342,6 +383,7 @@ mod tests {
             constants: 0,
             evaluation_owner: 0,
             steps: 0,
+            construction: ConstructionState::default(),
         }
     }
     #[test]

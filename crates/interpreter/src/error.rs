@@ -33,6 +33,17 @@ pub struct CallSite {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExecutionErrorKind {
+    ConstructionAccess(Box<crabspot_runtime::ConstructionAccessError>),
+    ConstructionProtocol {
+        reason: &'static str,
+    },
+    ConstructionStepLimit {
+        limit: u64,
+        required: u64,
+    },
+    ConstructionAccountingOverflow {
+        resource: &'static str,
+    },
     InitializationAccess(Box<InitializationAccessError>),
     InitializationAborted {
         class: ClassId,
@@ -214,6 +225,19 @@ impl fmt::Display for ExecutionError {
                 formatter,
                 "primitive array kind {actual:?} is invalid for instruction 0x{opcode:02x}"
             ),
+            ExecutionErrorKind::ConstructionProtocol { reason } => {
+                write!(formatter, "construction protocol failed: {reason}")
+            }
+            ExecutionErrorKind::ConstructionStepLimit { limit, required } => write!(
+                formatter,
+                "construction alias work {required} exceeds limit {limit}"
+            ),
+            ExecutionErrorKind::ConstructionAccountingOverflow { resource } => {
+                write!(formatter, "construction accounting overflow: {resource}")
+            }
+            ExecutionErrorKind::ConstructionAccess(error) => {
+                write!(formatter, "construction service failed: {error}")
+            }
             ExecutionErrorKind::InitializationAccess(error) => {
                 write!(formatter, "initialization service failed: {error}")
             }
@@ -371,6 +395,7 @@ impl fmt::Display for ExecutionError {
 impl std::error::Error for ExecutionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.kind {
+            ExecutionErrorKind::ConstructionAccess(error) => Some(error.as_ref()),
             ExecutionErrorKind::InitializationAccess(error) => Some(error.as_ref()),
             ExecutionErrorKind::StaticAccess(error) => Some(error.as_ref()),
             ExecutionErrorKind::ExceptionAccess(error) => Some(error.as_ref()),

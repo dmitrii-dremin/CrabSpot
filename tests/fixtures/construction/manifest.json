@@ -1,0 +1,16 @@
+{
+  "source": "ConstructionCases.java",
+  "source_sha256": "fa0ad6e8166c2770f16fb1691542e699eabd3f02da0843a92096d55344b39e83",
+  "kind": "Original synthetic encodings, not javac-generated classfiles",
+  "files": {
+    "rawCaughtBefore.class": "36d6986227c282b8492ae2d182fe324a185e74b9e04114df11ca63ea9fd77b20",
+    "rawLong.class": "90357e53bd0f9ec867009c3aca2416ddcaaf28ef5e641d2e2402b885bc505fc7",
+    "rawNarrow.class": "80c7ce2b9f15d784e322bb456772a7b7f784d2058b9ab4565803d3acbcd7d45e",
+    "rawNull.class": "f37f108f3399765fa133ea51ffd9cd837a6b5a71a28783f938d468034fc56197",
+    "rawOwn.class": "62dfb0b138aed2330dfe68c382f8ec7d151836f2ffc0e84579e9969ec758efa1",
+    "rawTokenEqual.class": "27f6b65f66e4069c5e9d0498a6e1748ead6a64f13757fec6ef70573275d1d34d",
+    "rawTokenNonNull.class": "b91fbb6e2773a2f178ddc02b2e0b4f08789a939e9c061262de284ecdf3523f7f",
+    "rawTokenNotEqual.class": "c0aafdcd922efcaf02dbeebb01a5dc93d13de51052ffc0b17201785905f3ec19",
+    "rawTokenNull.class": "8bd60c29b5aecbf9615eaa37c9759ce382e502c38e535759c49baa6c8015cd8e"
+  }
+}

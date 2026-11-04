@@ -3,7 +3,7 @@
 An independent JVM implementation in Rust. It parses Java 21 class files, decodes
 JVM instructions, and executes supported primitive/reference method bodies independently in
 Rust, including bounded virtual/interface/super calls across bodies, primitive/reference arrays,
-instance fields, static access, single-session class initialization, casts, type tests
+instance fields, static access, single-session class initialization and construction, casts, type tests
 and supplied-Throwable handlers. The long-term goal is a complete
 JVM specification implementation with the required observable behavior of
 conforming JVMs, using HotSpot as the primary reference, and demonstrated
@@ -55,6 +55,8 @@ python tools/exception_reference.py --check
 python tools/static_reference.py --check
 python tools/initialization_reference.py --check
 python tools/cross_static_reference.py --check
+python tools/construction_fixtures.py --check
+python tools/construction_reference.py --check
 cargo test -p crabspot-interpreter --test numeric_reference
 cargo test -p crabspot-interpreter --test floating_reference --release
 ```
@@ -85,8 +87,8 @@ The differential tests compare 616 integral, 7,263 floating-point, 126 static-ca
 280 primitive-array, 553 instance-field, 494 virtual-call, 1,337 interface/default,
 450 ordinary special-call, 1,276 cast/type-test, 690 reference-field, 3,948
 reference-array, 7,388 multidimensional-array, 904 reference-call, 336
-supplied-exception, 364 static-memory, 145 initialization and 154 cross-class
-static-call OpenJDK 21 outcomes with Rust execution,
+supplied-exception, 364 static-memory, 145 initialization, 154 cross-class
+static-call and 184 construction OpenJDK 21 outcomes with Rust execution,
 including arithmetic exceptions, signed zero,
 subnormals and NaN classification. Registered bodies support checked cross-class
 static calls, ordinary virtual calls and interface/default dispatch. Standalone and
@@ -121,8 +123,8 @@ match 151 OpenJDK array store/load outcomes. The opt-in instance service admits
 shared, owner-qualified layouts atomically and allocates typed default fields.
 Raw heap writes support numeric/null values with final-field protection and
 explicit quotas;
-151 raw-putfield JDK reference cases test its storage conversions. Constructors
-remain unimplemented. Checked context writes additionally
+151 raw-putfield JDK reference cases test its storage conversions. Constructor
+execution belongs to the session profile described below. Checked context writes additionally
 store compatible non-null instance and array references, preserving loader
 identities and per-location child edges without implementing collection.
 Typed reference arrays retain actual component identity, use checked covariant
@@ -156,14 +158,21 @@ constraints remain unimplemented.
 A separate opt-in exception API adds athrow (192 effective opcodes), ordered
 handlers and iterative unwind for already supplied, checked Throwable instances.
 It preserves the thrown handle and searches callers at the invocation PC. Handler
-metadata and dispatch work have explicit limits. All eleven unmaterialized
+metadata and dispatch work have explicit limits. All twelve unmaterialized
 VM-produced categories fail explicitly in this profile, including null athrow;
 no exception object is fabricated and no catch is silently bypassed. Earlier APIs
 keep their symbolic outcomes and handler/athrow exclusions. Throwable construction,
 initialized library state and general Java exception production remain unimplemented.
-Host-selected root bodies still require supplied instance storage; they
-do not construct objects or start Java applications. Constructor invocation,
-named-module access, cross-class nests and cross-loader reference loading
+InitializationSession additionally executes new and actual constructor Code,
+including an explicitly supplied bootstrap Object constructor. Private frame
+values track unfinished aliases, lawful this/super chains, constructor-scoped
+final writes and alias invalidation on failure. Escaped ordinary references remain
+usable after an outer constructor throws. Separate ConstructionLimits bound frame
+scans; failed/unused allocations remain in the noncollecting arena. This brings
+the session surface to 195 opcodes. The bounded construction increment is approved after source review and a fresh
+build gate; hosted validation is recorded in the current milestone.
+Host-selected ordinary root bodies still require supplied instance storage and
+retain their construction gates. Named-module access, cross-class nests and cross-loader reference loading
 constraints remain explicit unsupported cases.
 The implementation uses the
 [JVMS Java SE 21](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html)

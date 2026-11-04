@@ -67,6 +67,31 @@ class FixtureSourceTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     verify(self.root)
 
+    def test_original_construction_provenance_and_artifact_changes(self):
+        directory = self.root / "tests/fixtures/construction"
+        directory.mkdir()
+        artifact = directory / "A.class"
+        artifact.write_bytes(bytes.fromhex("cafebabe00000041"))
+        manifest = directory / "manifest.json"
+        record = {"source": "A.java", "source_sha256": self.digest,
+                  "files": {"A.class": hashlib.sha256(artifact.read_bytes()).hexdigest()}}
+        manifest.write_text(json.dumps(record), encoding="utf-8")
+        self.assertEqual(verify(self.root), (1, 1))
+        for changed in ({**record, "source": "missing.java"}, {**record, "source_sha256": "stale"},
+                        {**record, "files": {}}, {**record, "files": {"A.class": "stale"}},
+                        {**record, "files": {**record["files"], "B.class": "extra"}}):
+            with self.subTest(record=changed):
+                manifest.write_text(json.dumps(changed), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "construction fixture"):
+                    verify(self.root)
+        manifest.write_text(json.dumps(record), encoding="utf-8")
+        artifact.write_bytes(b"changed")
+        with self.assertRaisesRegex(ValueError, "construction fixture hashes/set"):
+            verify(self.root)
+        artifact.unlink()
+        with self.assertRaisesRegex(ValueError, "construction fixture hashes/set"):
+            verify(self.root)
+
 
 if __name__ == "__main__":
     unittest.main()
