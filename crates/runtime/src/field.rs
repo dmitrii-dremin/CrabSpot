@@ -229,14 +229,24 @@ fn bind<'a>(
     name: &'a JavaString,
     class: ClassId,
 ) -> Result<(), FieldAccessError> {
-    let key = (loader, name.units());
+    bind_units(bindings, units, options, loader, name.units(), class)
+}
+fn bind_units<'a>(
+    bindings: &mut Bindings<'a>,
+    units: &mut usize,
+    options: FieldResolutionOptions,
+    loader: LoaderId,
+    name: &'a [u16],
+    class: ClassId,
+) -> Result<(), FieldAccessError> {
+    let key = (loader, name);
     if let Some(existing) = bindings.get(&key) {
         return if *existing == class {
             Ok(())
         } else {
             Err(FieldAccessError::ConflictingBinding {
                 loader,
-                name: name.clone(),
+                name: JavaString::from_units(name.to_vec()),
             })
         };
     }
@@ -248,7 +258,7 @@ fn bind<'a>(
     )?;
     let next_units = increased(
         *units,
-        name.units().len(),
+        name.len(),
         options.max_symbol_units,
         FieldResource::SymbolUnits,
     )?;
@@ -279,6 +289,7 @@ pub struct FieldResolutionContext<'a> {
     steps: usize,
     admitted_classes: usize,
     heap_identity: u64,
+    reference_universe: Option<crate::ReferenceTypeUniverse>,
 }
 impl<'a> FieldResolutionContext<'a> {
     pub fn new_unnamed_modules(
@@ -367,6 +378,7 @@ impl<'a> FieldResolutionContext<'a> {
         }
         let admitted_classes = heap.retained_layout_classes();
         let heap_identity = heap.identity;
+        let reference_universe = heap.reference_type_universe();
         Ok(Self {
             registry,
             heap,
@@ -377,6 +389,7 @@ impl<'a> FieldResolutionContext<'a> {
             steps,
             admitted_classes,
             heap_identity,
+            reference_universe,
         })
     }
     pub fn registry(&self) -> &'a DefinitionRegistry {
@@ -400,6 +413,7 @@ impl<'a> FieldResolutionContext<'a> {
     pub(crate) fn unchanged(&self) -> Result<(), FieldAccessError> {
         if self.heap.identity != self.heap_identity
             || self.heap.retained_layout_classes() != self.admitted_classes
+            || self.heap.reference_type_universe() != self.reference_universe
         {
             Err(FieldAccessError::ContextChanged)
         } else {
@@ -442,8 +456,15 @@ impl<'a> FieldResolutionContext<'a> {
         origin: ClassId,
         name: &'a JavaString,
     ) -> Result<ClassId, FieldAccessError> {
+        self.resolve_type_name(origin, name.units())
+    }
+    pub(crate) fn resolve_type_name(
+        &mut self,
+        origin: ClassId,
+        name: &'a [u16],
+    ) -> Result<ClassId, FieldAccessError> {
         let loader = self.registry.defining_loader(origin)?;
-        if let Some(class) = self.bindings.get(&(loader, name.units())) {
+        if let Some(class) = self.bindings.get(&(loader, name)) {
             return Ok(*class);
         }
         increased(
@@ -454,36 +475,37 @@ impl<'a> FieldResolutionContext<'a> {
         )?;
         increased(
             self.units,
-            name.units().len(),
+            name.len(),
             self.options.max_symbol_units,
             FieldResource::SymbolUnits,
         )?;
         let class = self
             .resolver
-            .resolve(self.registry, loader, name.units())
+            .resolve(self.registry, loader, name)
             .map_err(|error| FieldAccessError::Resolve {
                 origin,
-                name: name.clone(),
+                name: JavaString::from_units(name.to_vec()),
                 error,
             })?
             .ok_or_else(|| FieldAccessError::MissingDefinition {
                 origin,
-                name: name.clone(),
+                name: JavaString::from_units(name.to_vec()),
             })?;
         if self
             .registry
             .class(class)?
             .name()
             .map_err(RegistryError::Parse)?
+            .units()
             != name
         {
             return Err(FieldAccessError::NameMismatch {
-                requested: name.clone(),
+                requested: JavaString::from_units(name.to_vec()),
                 returned: class,
             });
         }
         self.heap.instance_graph_node(class)?;
-        bind(
+        bind_units(
             &mut self.bindings,
             &mut self.units,
             self.options,

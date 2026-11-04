@@ -16,6 +16,7 @@ mod reference;
 mod registry;
 mod source;
 mod storage;
+mod types;
 mod values;
 
 pub use error::{HandleKind, RegistryError, RegistryResource};
@@ -38,3 +39,6 @@ pub use values::{Value, ValueKind};
 
 pub use instance::{InstanceClassKind, InstanceError, InstanceOptions, InstanceResource};
 pub use method::{MethodAccessError, MethodJavaError};
+pub use types::{
+    ArrayElement, ReferenceType, ReferenceTypeUniverse, TypeAccessError, TypeJavaError,
+};

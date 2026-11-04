@@ -10,7 +10,7 @@ use crabspot_classfile::{
 use crabspot_runtime::{
     ClassId, DefinitionRegistry, FieldAccessError, FieldJavaError, FieldResolutionContext,
     HeapError, ManagedHeap, MethodAccessError, MethodId, MethodJavaError, PrimitiveArrayKind,
-    Reference,
+    Reference, TypeAccessError, TypeJavaError,
 };
 use std::collections::HashMap;
 
@@ -31,6 +31,7 @@ pub enum ExecutionOutcome {
     Returned(Option<Value>),
     /// A symbolic uncaught Java exception; no exception object is fabricated.
     ArithmeticException,
+    ClassCastException,
     NullPointerException,
     ArrayIndexOutOfBoundsException,
     NegativeArraySizeException,
@@ -208,6 +209,7 @@ enum Action {
     Call { constant_index: u16, kind: CallKind },
     Return(Option<Value>),
     ArithmeticException,
+    ClassCastException,
     NullPointerException,
     ArrayIndexOutOfBoundsException,
     NegativeArraySizeException,
@@ -719,6 +721,7 @@ fn execute_with_services(
             Action::IncompatibleClassChangeError => {
                 return Ok(ExecutionOutcome::IncompatibleClassChangeError);
             }
+            Action::ClassCastException => return Ok(ExecutionOutcome::ClassCastException),
             Action::Continue => {}
             Action::ArithmeticException => return Ok(ExecutionOutcome::ArithmeticException),
             Action::NullPointerException => return Ok(ExecutionOutcome::NullPointerException),
@@ -1056,7 +1059,9 @@ fn step(
             E::UnsupportedInstruction(opcode),
         ));
     }
-    if matches!(opcode, 0xb4..=0xb7 | 0xb9) && !matches!(services, Services::Fields { .. }) {
+    if matches!(opcode, 0xb4..=0xb7 | 0xb9 | 0xc0 | 0xc1)
+        && !matches!(services, Services::Fields { .. })
+    {
         return Err(ExecutionError::new(
             Some(pc),
             E::UnsupportedInstruction(opcode),
@@ -1067,6 +1072,29 @@ fn step(
         .checked_add(instruction.length)
         .ok_or_else(|| ExecutionError::new(Some(pc), E::InstructionPointerOutsideCode))?;
     match opcode {
+        0xc0 | 0xc1 => {
+            let Operands::Constant(index) = operands else {
+                return Err(operand_error(pc));
+            };
+            let reference = stack.reference(pc)?;
+            let Services::Fields { context, .. } = services else {
+                return Err(operand_error(pc));
+            };
+            let origin = frame.method.owner().ok_or_else(|| operand_error(pc))?;
+            if opcode == 0xc0 {
+                let reference = match context.check_cast(origin, *index, reference) {
+                    Ok(reference) => reference,
+                    Err(error) => return type_failure(error, pc),
+                };
+                stack.push(Value::Reference(reference), pc)?;
+            } else {
+                let matches = match context.instance_of(origin, *index, reference) {
+                    Ok(matches) => matches,
+                    Err(error) => return type_failure(error, pc),
+                };
+                stack.push(Value::Int(i32::from(matches)), pc)?;
+            }
+        }
         0xb4 | 0xb5 => {
             let Operands::Constant(index) = operands else {
                 return Err(operand_error(pc));
@@ -1721,6 +1749,17 @@ fn invocation_parameters(
         slots: descriptor.parameter_slots,
     })
 }
+fn type_failure(error: TypeAccessError, pc: u32) -> Result<Action, ExecutionError> {
+    match error {
+        TypeAccessError::Java(TypeJavaError::ClassCast) => Ok(Action::ClassCastException),
+        TypeAccessError::Java(TypeJavaError::IllegalAccess) => Ok(Action::IllegalAccessError),
+        error => Err(ExecutionError::new(
+            Some(pc),
+            E::TypeAccess(Box::new(error)),
+        )),
+    }
+}
+
 fn method_failure(error: MethodAccessError, pc: u32) -> Result<ExecutionOutcome, ExecutionError> {
     match error {
         MethodAccessError::Java(MethodJavaError::NoSuchMethod) => {
@@ -1911,6 +1950,29 @@ mod resource_tests {
             };
             assert_eq!(error.offset, Some(7));
             assert_eq!(error.kind, E::Heap(failure));
+        }
+    }
+    #[test]
+    fn type_failure_maps_only_explicit_java_variants_and_keeps_wrapped_errors_host_side() {
+        assert!(matches!(
+            type_failure(TypeAccessError::Java(TypeJavaError::ClassCast), 7),
+            Ok(Action::ClassCastException)
+        ));
+        assert!(matches!(
+            type_failure(TypeAccessError::Java(TypeJavaError::IllegalAccess), 7),
+            Ok(Action::IllegalAccessError)
+        ));
+        for host in [
+            TypeAccessError::Context(FieldAccessError::Java(FieldJavaError::IllegalAccess)),
+            TypeAccessError::Heap(HeapError::ForeignHeap),
+        ] {
+            let error = match type_failure(host.clone(), 7) {
+                Err(error) => error,
+                Ok(_) => panic!("host type failure mapped as Java"),
+            };
+            assert_eq!(error.offset, Some(7));
+            assert_eq!(error.kind, E::TypeAccess(Box::new(host)));
+            assert!(std::error::Error::source(&error).is_some());
         }
     }
     #[test]

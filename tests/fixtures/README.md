@@ -26,7 +26,7 @@ kinds/defaults, visible/invisible declaration/parameter/type annotations, generi
 type paths and annotated Code, inner/nest classes, records, sealed classes, and
 a module descriptor with requires, exports, opens, uses and provides tables.
 Numeric, floating-point, static-call and hierarchy fixtures bring the manifest to
-65 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
+74 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
 reference descriptors and interface ancestry. Rust hierarchy tests supply an
 explicit synthetic root as test input; this is not a production Object fallback
 or evidence of Java library execution.
@@ -63,3 +63,13 @@ superclass and direct-superinterface call bodies. The fixtures deliberately mix
 special selection with later virtual/interface/static dispatch, hidden fields,
 numeric/void values, recursion and arrays. Receiver storage remains default-only
 at Rust entry; fixture constructors are not executed by CrabSpot.
+
+CastBase/Cases and seven companion definitions add casts and type tests across
+ordinary ancestry, interface diamonds and all eight primitive-array kinds.
+The 1,276-row JDK oracle covers null, successful casts, ClassCastException and
+NegativeArraySizeException. Rust deliberately omits CastNullTarget and leaves the
+reference universe unbound for its null-only wrappers. Explicit original Object,
+Cloneable and Serializable metadata establishes test identities; it is not a
+production Java library. Reference-array targets exercise structural type rules,
+not reference-array allocation. Field and allocation effects supplement result
+comparisons. Constructors and exception handlers are not executed by CrabSpot.

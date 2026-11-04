@@ -55,6 +55,10 @@ pub enum InstanceError {
     LayoutConflict {
         class: ClassId,
     },
+    ReferenceUniverseMismatch {
+        class: ClassId,
+        expected_object: ClassId,
+    },
     NonInstantiable {
         class: ClassId,
         kind: InstanceClassKind,
@@ -91,6 +95,13 @@ impl fmt::Display for InstanceError {
             Self::LayoutConflict { class } => {
                 write!(f, "conflicting instance layouts for {class:?}")
             }
+            Self::ReferenceUniverseMismatch {
+                class,
+                expected_object,
+            } => write!(
+                f,
+                "layout root {class:?} differs from the bound Object {expected_object:?}"
+            ),
             Self::NonInstantiable { class, kind } => {
                 write!(f, "cannot allocate {kind:?} {class:?}")
             }
@@ -454,6 +465,7 @@ impl ManagedHeap {
         registry: &DefinitionRegistry,
         plans: &[&HierarchyPlan],
     ) -> Result<(), InstanceError> {
+        let universe = self.reference_universe;
         let state = self.instances.as_mut().ok_or(InstanceError::Disabled)?;
         if plans.is_empty() {
             return Ok(());
@@ -480,6 +492,14 @@ impl ManagedHeap {
                     return Err(InstanceError::InvalidMetadata(
                         "layout identity does not match plan class",
                     ));
+                }
+                if let Some(universe) = universe {
+                    if layout.direct_superclass().is_none() && class != universe.object {
+                        return Err(InstanceError::ReferenceUniverseMismatch {
+                            class,
+                            expected_object: universe.object,
+                        });
+                    }
                 }
                 // Check all consumed field handles, including statics which are not retained.
                 let mut own = layout.declared_instance_fields().iter();

@@ -291,3 +291,38 @@ access. All new node/edge/declaration scans use the existing cumulative work bud
 selection retains successful symbol bindings without introducing another cache.
 Native/synchronized methods remain preparation responsibilities. This does not
 construct, initialize or mark an instance as having completed a constructor.
+
+## Reference types and cast services
+
+`ManagedHeap::bind_reference_types` attaches caller-designated bootstrap Object,
+Cloneable and Serializable identities to a heap with admitted layouts. It checks
+their loader, exact names, public class/interface roles and dependencies, and
+requires every admitted graph root to be the selected Object. Publication is
+atomic; identical rebinding succeeds and conflicting rebinding fails. Later
+incompatible layout batches are rejected before commit. Existing primitive arrays
+retain their handles, contents and accounting, and registry-free heap APIs remain
+available without a universe.
+
+`ReferenceType` identifies nominal classes/interfaces or structural arrays with a
+rank, primitive/nominal leaf and defining loader. `is_assignable` validates both
+publicly constructed values before identity shortcuts and iteratively implements
+nominal inheritance, interface membership, the three array supertypes and component
+covariance through rank 255. Interface-to-Object assignment leaves protected-access
+class-only subclass checks unchanged. No array ClassId or mirror is fabricated.
+
+The shared context resolves Class constants using the current origin's loader and
+existing borrowed UTF-16 bindings, including array-leaf slices. Targets require
+pre-admitted layouts, public or same-runtime-package access, and no initialization.
+`check_cast` preserves reference identity on success; `instance_of` returns a bool.
+Both validate origin/CP shape before null. Null skips universe, target resolution,
+access, callbacks and name scans. Non-null operations validate universe and heap
+handles before target resolution and produce explicit ClassCast/IllegalAccess Java
+categories; other failures remain checked host errors.
+
+Binding a previously unbound heap invalidates an existing context, as do heap
+replacement and additional admission. New target-name scans charge each UTF-16
+unit even on cache hits; nominal validation, type reductions, graph nodes and every
+edge enqueue share the existing cumulative work limits. Diamond traversal is
+deduplicated and fallibly reserved without recursion or permanent type caches.
+Reference-array allocation, non-null reference stores, reference call signatures,
+constructors, initialization, verification and collection remain outside this service.

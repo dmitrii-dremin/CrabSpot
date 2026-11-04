@@ -2,8 +2,8 @@
 
 An independent JVM implementation in Rust. It parses Java 21 class files, decodes
 JVM instructions, and executes supported numeric method bodies independently in
-Rust, including bounded virtual/interface/super calls across bodies, primitive arrays
-and instance fields. The long-term goal is a complete
+Rust, including bounded virtual/interface/super calls across bodies, primitive arrays,
+instance fields, casts and type tests. The long-term goal is a complete
 JVM specification implementation with the required observable behavior of
 conforming JVMs, using HotSpot as the primary reference, and demonstrated
 performance superiority over HotSpot on representative workloads. Java SE 21 is
@@ -43,6 +43,7 @@ python tools/instance_reference.py --check
 python tools/virtual_reference.py --check
 python tools/interface_dispatch_reference.py --check
 python tools/special_reference.py --check
+python tools/type_reference.py --check
 cargo test -p crabspot-interpreter --test numeric_reference
 cargo test -p crabspot-interpreter --test floating_reference --release
 ```
@@ -71,7 +72,7 @@ hierarchy/field-layout plans, shared values, static storage and a managed heap,
 and `crabspot-launcher` for command-line inspection.
 The differential tests compare 616 integral, 7,263 floating-point, 126 static-call,
 280 primitive-array, 553 instance-field, 494 virtual-call, 1,337 interface/default
-and 450 ordinary special-call OpenJDK 21 outcomes with Rust execution,
+450 ordinary special-call and 1,276 cast/type-test OpenJDK 21 outcomes with Rust execution,
 including arithmetic exceptions, signed zero,
 subnormals and NaN classification. The kernel supports bounded same-class static
 helpers, ordinary virtual calls and interface/default dispatch across registered
@@ -92,14 +93,16 @@ class initialization and non-null reference assignment remain unimplemented.
 A runtime-aware instance-body API executes getfield/putfield, invokevirtual,
 invokeinterface and ordinary nonconstructor invokespecial through bounded
 loader-aware resolution and an explicit unnamed-module access profile.
-It supports 184 opcode values; the earlier
+It supports 186 opcode values, including checkcast and instanceof; the earlier
 explicit-heap/static API
 retains 179 and the numeric-only APIs retain 148. Virtual selection handles
 inherited declarations, private/final methods and package-aware overrides. Shared
 interface analysis resolves defaults and abstract redeclarations, preserves
 diamond identity and reports conflicting defaults during receiver selection.
 Special calls select from the prescribed superclass or direct interface without
-letting receiver overrides intercept the call. Each
+letting receiver overrides intercept the call. Reference operations use an explicit
+Object/Cloneable/Serializable identity binding and bounded nominal/array assignment;
+null skips target resolution after constant-pool shape checks. Each
 frame uses its declaring class and shares execution limits with the whole call
 graph. Host-selected root bodies still require supplied instance storage; they
 do not construct objects or start Java applications. Constructor invocation,

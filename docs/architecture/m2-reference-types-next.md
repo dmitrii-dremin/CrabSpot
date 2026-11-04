@@ -1,6 +1,6 @@
 # Reference types after ordinary special calls
 
-Status: technical direction proposed on 2026-11-04 following the bounded approval in `m2-special-calls-review.md`. This is not implementation authorization. Full M2 remains open. A concrete API and resource/error contract must precede worker dispatch.
+Status: superseded by the implemented and approved contract `m2-reference-types.md` on 2026-11-04; final evidence is in `m2-reference-types-review.md`. The rationale below is retained as history. The proposed subsequent direction is `m2-reference-fields-next.md`. Full M2 remains open.
 
 ## Proposed next executable increment
 

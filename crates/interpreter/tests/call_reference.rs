@@ -36,7 +36,8 @@ fn observed(outcome: ExecutionOutcome) -> String {
         | ExecutionOutcome::IllegalAccessError
         | ExecutionOutcome::IncompatibleClassChangeError
         | ExecutionOutcome::NoSuchMethodError
-        | ExecutionOutcome::AbstractMethodError) => {
+        | ExecutionOutcome::AbstractMethodError
+        | ExecutionOutcome::ClassCastException) => {
             panic!("numeric call fixture unexpectedly raised array exception: {unexpected:?}")
         }
         ExecutionOutcome::Returned(Some(Value::Int(value))) => format!("I:{value}"),

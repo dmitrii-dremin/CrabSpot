@@ -17,7 +17,7 @@ instruction stream before evaluation. Unsupported instructions fail when reached
 The original numeric entry points handle 148 effective opcode values. The explicit
 heap entry point adds 31, for 179 total. The runtime-aware instance entry point
 adds `getfield`, `putfield`, `invokevirtual`, `invokeinterface` and ordinary
-`invokespecial`, for 184 total. `wide` is an encoding prefix for indexed
+`invokespecial`, plus `checkcast` and `instanceof`, for 186 total. `wide` is an encoding prefix for indexed
 loads/stores and increment; heap mode adds two reference local forms to the nine
 numeric wide forms.
 
@@ -295,3 +295,49 @@ and handler bodies. Existing writes and allocations persist after every later
 Java or host failure. No new public execution API, constructor/lifecycle proof,
 class initialization, reference-valued API, general static resolution, native
 binding, monitors or exception dispatch is supplied by this increment.
+
+
+## Reference type tests and casts
+
+Runtime-aware mode enables `checkcast` and `instanceof` through the existing
+instance entry point. The caller explicitly binds a checked
+`ReferenceTypeUniverse` to the heap before non-null type operations. The universe
+identifies admitted Object, Cloneable and Serializable definitions and their
+bootstrap loader; names do not substitute for identity. This structural test
+profile supplies no Java library, class mirrors or initialization proof.
+Ordinary method/field/array execution still works without a bound universe.
+
+Both instructions first pop a typed reference and delegate to the shared context
+with the current frame's declaring ClassId and CP index. The runtime validates
+context/origin and the Class constant shape even for null. Null checkcast retains
+null and null instanceof produces Int(0), without requiring a universe, resolving
+or accessing the target, inserting a symbol or calling the resolver. For non-null
+values the universe and managed handle are checked before target resolution and
+access. Successful checkcast preserves the identical reference and other stack
+operands; instanceof produces Int(0/1).
+
+Sources are admitted ordinary instances or allocated primitive arrays. Nominal
+class/interface ancestry and structural array-component relations use exact
+registry/loader identities. All eight primitive array kinds retain distinct
+components; arrays have only the explicitly selected core supertypes. Target
+array ranks through 255 are structural service values, not reference-array
+allocations. Target classes/interfaces outside receiver ancestry require their
+own admitted hierarchy plans before context creation. Rebinding a previously
+unbound heap invalidates an existing context; construct a new one afterward.
+
+Only explicit TypeJavaError::ClassCast becomes symbolic `ClassCastException`;
+explicit IllegalAccess uses the existing symbolic error. Other failures stay
+boxed `ExecutionErrorKind::TypeAccess` host errors with method, instruction and
+transition-site provenance and useful Error sources. Wrapped context Java errors
+are not inferred as type-instruction Java outcomes. Malformed stack failures
+precede runtime CP checks; complete-code decoding stays eager while unreachable
+CP semantics remain unverified. Earlier numeric and heap-only entry points still
+reject these opcodes.
+
+Each instruction consumes one shared fuel unit. Type resolution and relations
+share the existing cumulative symbol/name/work limits and do not introduce a
+second type cache. Earlier stores and array allocations persist after cast,
+access, resolution, budget or malformed-operand failures. Numeric/void method
+signatures, null-only reference stores, reference-array allocation, constructors,
+initialization, class mirrors, native binding, monitors, verification and Java
+exception-object/handler protocols retain their earlier boundaries.
