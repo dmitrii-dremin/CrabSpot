@@ -159,7 +159,8 @@ them even with a configured instance heap. Field operations delegate symbolic
 resolution, access and receiver relationships to the context’s explicit unnamed
 module profile. Exact owner-qualified storage preserves inherited hiding, raw
 floating bits and the approved Z/B/C/S store conversions. Final writes fail;
-reference fields support null defaults and null stores only. Reference locals,
+reference fields retain null defaults and support the checked stores described
+below. Reference locals,
 identity branches and all supported primitive-array operations remain available.
 
 Explicit field Java failures become symbolic `NoSuchFieldError`,
@@ -173,7 +174,7 @@ available caller provenance. These outcomes allocate no Java error objects.
 Each field instruction consumes one shared fuel unit. Completed field writes and
 array allocations persist after every return, symbolic failure or host error;
 failed writes preserve their previous values. This bridge does not implement
-`new`, constructors, getstatic/putstatic, class initialization, reference parameters/results, non-null field stores,
+`new`, constructors, getstatic/putstatic, class initialization, reference parameters/results,
 exception dispatch, monitors, named modules, full verification or complete linkage.
 
 
@@ -338,6 +339,50 @@ Each instruction consumes one shared fuel unit. Type resolution and relations
 share the existing cumulative symbol/name/work limits and do not introduce a
 second type cache. Earlier stores and array allocations persist after cast,
 access, resolution, budget or malformed-operand failures. Numeric/void method
-signatures, null-only reference stores, reference-array allocation, constructors,
+signatures, reference-array allocation, constructors,
 initialization, class mirrors, native binding, monitors, verification and Java
 exception-object/handler protocols retain their earlier boundaries.
+
+
+## Checked reference fields
+
+The existing runtime-aware putfield now accepts assignment-compatible non-null
+instance and primitive-array references through `FieldResolutionContext::write_field`.
+No opcode or execution API was added; runtime-aware coverage remains 186 effective
+opcodes. The shared engine still forwards the actual computational Value, typed
+receiver and current declaring origin to the field service. Reference arguments
+and results remain excluded from method descriptors.
+
+Field resolution/access/loading constraints, staticness, write finality and
+receiver checks retain their earlier order. Wrong computational kinds remain
+ordinary field-kind host failures. Numeric and null stores still require no
+reference universe or descriptor-type resolution. Non-null reference stores require
+a bound universe and valid source identity, then resolve the selected declaring
+field's immutable descriptor using its defining loader and apply the shared
+assignment relation. An accessible field may have a type inaccessible to the
+caller; descriptor identity resolution adds no cast-style caller-access check.
+The existing cross-loader nominal loading-constraint boundary remains in place.
+
+Successful writes store the exact handle, allowing self-links, aliases, cycles,
+overwrite and null clearing. Retrieved values can feed locals, casts, field/array
+operations and virtual/interface/ordinary-special receivers. Inherited and hidden
+fields keep owner-qualified locations. Every failed check leaves the previous
+value and children unchanged; consumed work and successful name bindings may
+remain. Shared descriptor/source/relation work is charged on every non-null store,
+including cache hits. Fuel and frame/slot/code limits retain their earlier meaning.
+
+Incompatible references are boxed FieldAccess host diagnostics with selected
+FieldId and exact source/target types, not ClassCastException or ArrayStoreException.
+Descriptor/type failures remain nested under FieldAccess with method, instruction,
+transition-site provenance and useful Error sources. A nested TypeJavaError is
+never inferred as a field instruction's Java outcome. Existing stores and
+allocations persist after later Java errors, malformed states or policy failures.
+
+The public low-level ManagedHeap::put_field continues rejecting every non-null
+reference, even when assignable and bound. Only the checked context reaches a
+crate-private guarded commit. Borrowed children enumeration yields each non-null
+logical location in slot order, including repeated aliases and cycles, without
+tracing, recursion, deduplication, allocation or heap quota use. These are graph
+edges, not roots or a collector. No constructor/lifecycle proof, static writes,
+reference-array allocation, reference signatures, verifier, native binding,
+monitors or exception dispatch is added.

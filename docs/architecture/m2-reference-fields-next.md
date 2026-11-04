@@ -1,6 +1,6 @@
 # Next: non-null ordinary instance fields
 
-Status: proposed direction on 2026-11-04 following the bounded approval in `m2-reference-types-review.md`. This note does not authorize implementation; an exact API, ordering and budget contract must precede dispatch. Full M2 remains open.
+Status: historical direction, superseded by the exact contract in `m2-reference-fields.md` and bounded approval in `m2-reference-fields-review.md` on 2026-11-04. The rationale below is retained; the next proposed increment is `m2-reference-arrays-next.md`. Full M2 remains open.
 
 The next coherent increment should permit checked non-null instance-reference field stores through the existing runtime-aware field service and b5 instruction. This uses the new assignment relation to create useful object graphs without adding another heap payload kind or widening method signatures. Existing getfield, reference locals, casts and invocation receivers can then consume those graphs. Primitive arrays can also be stored in compatible reference fields.
 

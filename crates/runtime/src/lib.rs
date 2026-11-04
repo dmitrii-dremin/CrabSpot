@@ -21,7 +21,8 @@ mod values;
 
 pub use error::{HandleKind, RegistryError, RegistryResource};
 pub use field::{
-    FieldAccessError, FieldJavaError, FieldResolutionContext, FieldResolutionOptions, FieldResource,
+    FieldAccessError, FieldJavaError, FieldResolutionContext, FieldResolutionOptions,
+    FieldResource, ReferenceFieldMismatch,
 };
 pub use handles::{ClassId, FieldId, LoaderId, MethodId};
 pub use heap::{

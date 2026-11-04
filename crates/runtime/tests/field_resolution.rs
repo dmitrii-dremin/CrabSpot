@@ -1160,7 +1160,13 @@ fn typed_storage_semantics_and_null_only_reference_stores_survive_resolution() {
                 Value::Reference(receiver)
             )
             .unwrap_err(),
-        E::Instance(InstanceError::UnsupportedReferenceStore {
+        E::ReferenceType(Box::new(crabspot_runtime::TypeAccessError::MissingUniverse))
+    );
+    assert_eq!(
+        context
+            .heap_mut()
+            .put_field(receiver, reference_field, Value::Reference(receiver)),
+        Err(InstanceError::UnsupportedReferenceStore {
             field: reference_field
         })
     );

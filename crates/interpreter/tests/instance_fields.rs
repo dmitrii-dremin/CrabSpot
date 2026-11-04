@@ -535,7 +535,7 @@ fn malformed_constant_indices_and_stack_types_are_explicit_with_instruction_iden
     }
 }
 #[test]
-fn incorrect_field_value_kinds_and_nonnull_reference_stores_preserve_defaults() {
+fn incorrect_field_value_kinds_and_unbound_nonnull_stores_preserve_defaults() {
     for (descriptor, code_tail, expected_kind) in [
         ("I", vec![0x01], ValueKind::Int),
         ("J", vec![0x03], ValueKind::Long),
@@ -568,7 +568,7 @@ fn incorrect_field_value_kinds_and_nonnull_reference_stores_preserve_defaults() 
     let receiver = fixture.object("p/T");
     let method = fixture.method("p/T", "m", "()V");
     assert!(
-        matches!(fixture.run(method,receiver,&[]).unwrap_err().kind,E::FieldAccess(error) if matches!(*error,FieldAccessError::Instance(InstanceError::UnsupportedReferenceStore {..})))
+        matches!(fixture.run(method,receiver,&[]).unwrap_err().kind,E::FieldAccess(error) if matches!(error.as_ref(),FieldAccessError::ReferenceType(error) if matches!(error.as_ref(),crabspot_runtime::TypeAccessError::MissingUniverse)))
     );
     assert_eq!(
         fixture.stored("p/T", "f", "Ljava/lang/Object;", receiver),

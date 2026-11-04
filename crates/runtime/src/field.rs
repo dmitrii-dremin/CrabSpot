@@ -1,7 +1,7 @@
 //! Bounded field resolution and access for an explicitly selected unnamed-module profile.
 use crate::{
     ClassId, DefinitionRegistry, FieldId, HeapError, HierarchyResolver, InstanceError, LoaderId,
-    ManagedHeap, Reference, RegistryError, ResolveError, Value,
+    ManagedHeap, Reference, ReferenceType, RegistryError, ResolveError, TypeAccessError, Value,
 };
 use crabspot_classfile::{Constant, JavaString};
 use std::{
@@ -38,10 +38,18 @@ pub enum FieldResource {
     LookupSteps,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReferenceFieldMismatch {
+    pub field: FieldId,
+    pub source: ReferenceType,
+    pub target: ReferenceType,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FieldAccessError {
     Java(FieldJavaError),
     Registry(RegistryError),
     Instance(InstanceError),
+    ReferenceType(Box<TypeAccessError>),
+    IncompatibleReference(Box<ReferenceFieldMismatch>),
     Resolve {
         origin: ClassId,
         name: JavaString,
@@ -90,6 +98,14 @@ impl fmt::Display for FieldAccessError {
             Self::Java(error) => write!(f, "field access failed: {error:?}"),
             Self::Registry(error) => write!(f, "field registry operation failed: {error}"),
             Self::Instance(error) => write!(f, "field instance operation failed: {error}"),
+            Self::ReferenceType(error) => {
+                write!(f, "field reference type validation failed: {error}")
+            }
+            Self::IncompatibleReference(mismatch) => write!(
+                f,
+                "reference type {:?} is not assignable to {:?} for field {:?}",
+                mismatch.source, mismatch.target, mismatch.field
+            ),
             Self::Resolve {
                 origin,
                 name,
@@ -151,6 +167,7 @@ impl std::error::Error for FieldAccessError {
         match self {
             Self::Registry(error) => Some(error),
             Self::Instance(error) => Some(error),
+            Self::ReferenceType(error) => Some(error.as_ref()),
             Self::Resolve { error, .. } => Some(error),
             _ => None,
         }
@@ -752,6 +769,43 @@ impl<'a> FieldResolutionContext<'a> {
             return Err(FieldAccessError::Java(FieldJavaError::IllegalAccess));
         }
         self.field_receiver(&selected, receiver)?;
+        let definition = self.registry.class(selected.field.owner())?;
+        let descriptor = definition
+            .constant_pool
+            .utf8(self.registry.field(selected.field)?.descriptor_index)
+            .map_err(RegistryError::Parse)?;
+        if let Value::Reference(reference) = value {
+            if !reference.is_null() && matches!(descriptor.units().first(), Some(76 | 91)) {
+                let source = self
+                    .reference_type(reference)
+                    .map_err(|error| FieldAccessError::ReferenceType(Box::new(error)))?
+                    .ok_or_else(|| {
+                        FieldAccessError::ReferenceType(Box::new(TypeAccessError::InvalidType(
+                            "nonnull field value has no runtime type",
+                        )))
+                    })?;
+                let target = self
+                    .resolve_reference_field_type(selected.field)
+                    .map_err(|error| FieldAccessError::ReferenceType(Box::new(error)))?;
+                if !self
+                    .is_assignable(source, target)
+                    .map_err(|error| FieldAccessError::ReferenceType(Box::new(error)))?
+                {
+                    return Err(FieldAccessError::IncompatibleReference(Box::new(
+                        ReferenceFieldMismatch {
+                            field: selected.field,
+                            source,
+                            target,
+                        },
+                    )));
+                }
+                return Ok(self.heap.commit_reference_field(
+                    receiver,
+                    selected.field,
+                    reference,
+                )?);
+            }
+        }
         Ok(self.heap.put_field(receiver, selected.field, value)?)
     }
 }
@@ -764,6 +818,31 @@ mod tests {
         SameLoaderResolver, build_hierarchy,
     };
     use crabspot_classfile::ParseOptions;
+    #[test]
+    fn reference_diagnostics_preserve_wrapped_sources_and_mismatch_identities() {
+        use std::error::Error;
+        let wrapped = FieldAccessError::ReferenceType(Box::new(TypeAccessError::Java(
+            crate::TypeJavaError::IllegalAccess,
+        )));
+        assert!(wrapped.source().is_some());
+        assert!(matches!(wrapped, FieldAccessError::ReferenceType(_)));
+        assert!(wrapped.to_string().contains("reference type"));
+        let class = ClassId {
+            registry: 1,
+            index: 0,
+        };
+        let field = FieldId {
+            owner: class,
+            index: 0,
+        };
+        let error = FieldAccessError::IncompatibleReference(Box::new(ReferenceFieldMismatch {
+            field,
+            source: ReferenceType::Class(class),
+            target: ReferenceType::Class(class),
+        }));
+        assert!(error.source().is_none());
+        assert!(error.to_string().contains("not assignable"));
+    }
 
     fn fixture() -> (DefinitionRegistry, ClassId) {
         let mut registry = DefinitionRegistry::new(RegistryOptions::default()).unwrap();

@@ -2011,6 +2011,19 @@ mod resource_tests {
         assert!(std::error::Error::source(&error).is_some());
     }
     #[test]
+    fn reference_field_nested_type_java_errors_remain_boxed_field_host_errors() {
+        for kind in [TypeJavaError::ClassCast, TypeJavaError::IllegalAccess] {
+            let host = FieldAccessError::ReferenceType(Box::new(TypeAccessError::Java(kind)));
+            let error = match field_failure(host.clone(), 17) {
+                Err(error) => error,
+                Ok(_) => panic!("nested type error mapped as instruction Java"),
+            };
+            assert_eq!(error.offset, Some(17));
+            assert_eq!(error.kind, E::FieldAccess(Box::new(host)));
+            assert!(std::error::Error::source(&error).is_some());
+        }
+    }
+    #[test]
     fn field_failure_maps_only_explicit_java_errors_and_keeps_host_null_structured() {
         for (error, expected) in [
             (FieldJavaError::NoSuchField, 0),

@@ -1,11 +1,10 @@
-# Accepted checkpoint: reference types and cast instructions
+# Accepted checkpoint: checked non-null instance fields
 
-Updated 2026-11-04. M1 and earlier M2/runtime increments through interface/default
-dispatch are approved. Ordinary nonconstructor special calls are approved. Reference types and cast
-instructions are approved after final integrated validation and frozen-source review;
-see docs/architecture/m2-reference-types-review.md. Full M2
-remains open. Continue autonomously without NanoSpec; ask only when user
-intervention is unavoidable.
+Updated 2026-11-04. M1 and earlier M2/runtime increments through reference types
+and cast instructions are approved. Checked non-null instance fields are approved after
+final integrated validation and frozen-source review; see
+docs/architecture/m2-reference-fields-review.md. Full M2 remains open. Continue autonomously without NanoSpec; ask only
+when user intervention is unavoidable.
 
 The long-term objective is complete JVM specification support, required observable
 compatibility with conforming JVMs (HotSpot is the primary reference), and
@@ -69,73 +68,80 @@ reference identity, and skip target resolution for null after CP shape checks.
 Only explicit Java failures become symbolic outcomes; malformed host input retains
 structured errors. Reference-array types do not imply reference-array storage.
 
+Checked context writes now accept assignment-compatible non-null ordinary-instance
+and primitive-array references. They preserve field/access/static/final/receiver
+ordering, resolve descriptor identity through the declaring loader, and commit
+one slot only after all checks pass. Public raw writes remain numeric/null only.
+The descriptor type need not be accessible to the caller; cast accessibility
+checks remain separate. Incompatible stores are structured host errors, and child
+enumeration preserves immediate locations, repeated aliases and cycles without
+tracing or collection.
+
 ## Validation
 
-Final independent native Windows checks passed on the verified frozen source:
+Final independent checks passed on the verified frozen source:
 
 | Check | Result |
 | --- | --- |
 | cargo fmt --check | Passed |
 | Strict workspace/all-target Clippy | Passed |
-| Debug workspace tests | 519 passed, zero failed |
-| Optimized runtime/interpreter tests | 432 passed: 238 runtime + 194 interpreter |
-| Execution comparisons | All 12,395 match in debug and release |
+| Debug workspace tests | 551 passed, zero failed |
+| Optimized runtime/interpreter tests | 464 passed: 253 runtime + 211 interpreter |
+| Execution comparisons | All 13,085 match in debug and release |
 | Separate memory-service roundtrips | 151 array + 151 field cases match in both profiles |
-| Fixture/reference reproduction | 74 classes and all eleven output sets reproduced |
+| Fixture/reference reproduction | 80 classes and all twelve output sets reproduced |
 | Expanded parser smoke | 10,000 cases, zero failures |
 
-This increment adds 44 tests: 24 runtime public plus three private guards,
-15 interpreter public plus one private error-map guard, and one independent
-1,276-case JDK integration test. Coverage includes explicit universe identities,
-atomic binding/admission, all primitive array kinds, rank-255 covariance,
-loader-sensitive nominal and array leaves, UTF-16 aliases, deep iterative graphs,
-null resolution skipping, CP/stack error order, per-frame origins after all call
-kinds, exact work/fuel limits, and persistent effects after failure. All 65 prior
-class hashes are unchanged. No executed test remains failing.
+This increment adds 32 tests: 13 runtime public and two private, 15 interpreter
+public and one private mapping guard, and one independent 690-case JDK integration.
+Coverage includes distinct-object cycles, aliases and slot order, inherited/hidden
+fields, private commit defenses, source/receiver invalidity, cross-loader boundaries,
+Unicode descriptors, a 10,000-class assignment walk, a maximum 65,535-unit descriptor,
+exact budgets and failure persistence. The old interpreter test for unsupported
+non-null writes now checks MissingUniverse; the combined run includes that updated
+regression. No executed test remains failing. All 74 prior class hashes are unchanged.
 
-The complete execution corpus is 12,395 cases: 616 integral, 7,263 floating,
+The complete execution corpus is 13,085 cases: 616 integral, 7,263 floating,
 126 static-call, 280 primitive-array, 402 genuine instance-body, 151 raw-field,
-494 virtual-call, 1,337 interface/default, 450 ordinary-special and 1,276 type cases.
-Separate array and field memory services each have 151 oracle roundtrips, not
-extra execution cases.
+494 virtual-call, 1,337 interface/default, 450 ordinary-special, 1,276 type and
+690 reference-field cases. Separate array and field memory services each have
+151 oracle roundtrips, not extra execution cases.
 
-The new type oracle covers 36 receiver/method pairs, including 463 ClassCastException
-and 242 NegativeArraySizeException outcomes. Source-derived field/allocation
-assertions supplement JDK result rows. The Rust null-target wrappers deliberately
-omit the referenced definition and universe binding. Original structural platform
-metadata is explicit test input, not evidence of genuine Java-library execution.
-Production execution never invokes Java.
+The new oracle covers 42 receiver/method pairs and 100 Java failures:
+14 ClassCastException, 54 NegativeArraySizeException, 28 NullPointerException,
+two ArithmeticException and two ArrayIndexOutOfBoundsException. Exact field state,
+child slot order, duplicate handles and allocation checks derive from fixture
+source; JDK rows independently record results/exceptions. A public field has a
+package-private nominal type in another package, and the caller successfully
+stores and copies references without naming that type. Production execution never
+invokes Java. Default host storage does not establish constructor execution.
 
 The unchanged parser's sustained M1 evidence remains in docs/milestones/evidence:
 108,907,980 cases over 300 seconds, zero failures, with exact-source fingerprint.
-The expanded 74-class smoke run passed 10,000 cases at seed 4851011501752864596:
-115 accepted, 9,885 rejected, 10 deterministic rechecks, corpus 189, zero failures.
+The expanded 80-class smoke run passed 10,000 cases at seed 4851011501752864596:
+125 accepted, 9,875 rejected, ten deterministic rechecks, corpus 205, zero failures.
 No finite test proves panic freedom. Rust 1.85, the declared minimum, remains
 untested; local tools are Rust/Cargo 1.98.1 and Zulu OpenJDK 21.0.7.
 
-The preceding special implementation 8d2c523 passed complete Linux/Windows
-[run 41795065210](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41795065210)
-with Rust 1.99.1 and Temurin JDK 21.0.13. Reference-type implementation f05fa69 passed complete [run 41798076784](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41798076784)
-on Linux and Windows with Rust 1.99.1 and Temurin JDK 21.0.13. Every check passed:
-checked-in and regenerated fixtures, all eleven output sets, strict lint, debug
-and optimized tests, and parser smoke. Both hosted smoke runs completed 10,000
-cases with 115 accepted, 9,885 rejected, ten rechecks, corpus 189 and zero failures.
-This hosted evidence belongs to the implementation commit, separately from this
-documentation update.
+The preceding reference-type implementation f05fa69 passed complete Linux/Windows
+[run 41798076784](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41798076784)
+with Rust 1.99.1 and Temurin JDK 21.0.13. Hosted CI for this increment is pending
+publication; prior CI is not attributed to current changes.
 
 ## Reviews, limitations and next work
 
-The exact contract is docs/architecture/m2-reference-types.md. Director review found no production or genuine-oracle blocker. Final frozen review
-approved this increment in docs/architecture/m2-reference-types-review.md. Implementation uses separate runtime/interpreter worker worktrees; the
-coordinator owns integration and genuine reference comparisons. The technical
-director is GPT-6 Astra (high); workers are GPT-6.1 Sol (high).
+The exact contract is docs/architecture/m2-reference-fields.md. Final director review found no blocking semantic defect and approved the frozen
+increment in docs/architecture/m2-reference-fields-review.md. Workers
+use isolated runtime/interpreter worktrees; the coordinator owns genuine fixtures,
+reference comparisons and integration. The technical director is GPT-6 Astra (high);
+workers are GPT-6.1 Sol (high).
 
-Next direction is checked non-null instance-reference field stores, outlined in
-docs/architecture/m2-reference-fields-next.md. A concrete director-approved contract
-is required before its implementation; no repeated user approval is needed.
+Next direction is reference-array storage and anewarray/aaload/aastore, outlined in
+docs/architecture/m2-reference-arrays-next.md. It requires a concrete reviewed
+contract after this increment's acceptance. No repeated user approval is needed.
 
-Constructor invocation, reference parameters/results and non-null stores,
-reference-array storage, initialization, full linkage, verification, exception
+Constructor invocation, reference parameters/results, reference-array storage,
+initialization, full linkage, verification, loading constraints, exception
 objects/handlers, monitors, native methods, threads, GC and Java library integration
 remain incomplete. Kotlin/Spring Boot is not yet executable. Full M2 and complete
 JVM conformance remain open; no performance superiority has been demonstrated.
@@ -161,10 +167,11 @@ python tools/virtual_reference.py --check
 python tools/interface_dispatch_reference.py --check
 python tools/special_reference.py --check
 python tools/type_reference.py --check
+python tools/reference_field_reference.py --check
 cargo run -p crabspot-classfile --example fuzz_parser -- tests/fixtures/classes --iterations 10000
 ```
 
 On this Windows host, add C:/Users/Admin/.cargo/bin to PATH and set
 CARGO_INCREMENTAL=0. Use isolated CARGO_TARGET_DIR and TMP/TEMP directories inside
 the project. The coordinator used target/verification-m2; workers used separate
-types-runtime-worker and types-interpreter-worker output directories.
+reference-fields-runtime-worker and reference-fields-interpreter-worker output directories.

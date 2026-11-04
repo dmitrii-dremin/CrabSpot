@@ -25,6 +25,9 @@
     "module-info.java": "737d187a421d52167f3713c0a1565aa84538691ffe0e4f7e66722320df7035ca",
     "NumericCases.java": "fb62d87c4ca6d4ce6227feb0e0d0462d128cd75bfaaa8de442c283918931f7f0",
     "Point.java": "37e3b52eb9e6ddd8f55e8ee4d4f3acfe7bfd09539a6e736b84e7ccc3917324d3",
+    "ReferenceFieldBase.java": "780c918361ca8259f4fe5a204ef45277f70bf5cb4e715be8cbcbe89f162b4b99",
+    "ReferenceFieldCases.java": "c14864e8f157f49194307a32de8756f77d0ac02b27c70e70ab1887077d9968de",
+    "referencep/ReferenceOwner.java": "6dd3b1445cf080a0abf1191bcfaeeeb5228ab57abea9da7614151bd5c98323f3",
     "Service.java": "c36ad81361e29bdd8b0d80389c5266bff419fbbe540a483fbaa22e0b113f3220",
     "ServiceProvider.java": "501445f5d3a905d017de21ff4883e5c10363117ecb2e833d19058451fffd5ffc",
     "Shape.java": "5e73e97dafe8c7ac045cd0e5f8a514a1b88e8b0c01ca0b31ad4d50cc1f3fc563",
@@ -93,6 +96,10 @@
     "fixtures/NumericCases$Case.class": "973539536bb91ace25cbb052a27bd1039a93d9ba8ce1915b5004a6bda10ce3b7",
     "fixtures/NumericCases.class": "cbca29871dab26286844bfd06f79d329930ca30e11b4ff68ea789b08330bec78",
     "fixtures/Point.class": "79b1f9e25579165377ea73ba5a4252b8e5691121d9abbe4d266c453c5d6daf51",
+    "fixtures/ReferenceFieldBase.class": "fe6d578544abe7e743400f0b2f96a8cf3c0033710e96f541f0249c955e639854",
+    "fixtures/ReferenceFieldCases.class": "baf65e4456068a6bb6b9f93bf3d93b5548d999709b66d13d852884dc06581347",
+    "fixtures/ReferenceFieldChild.class": "50396143d7a9682fab8bc98fac3c9bd015ea2a73ab4a8da42454aa006bc7adb5",
+    "fixtures/ReferenceFieldMarker.class": "514d9571efe368261699be241de64dfe07aae4b05bab4caac808670a44124b92",
     "fixtures/RichAnnotation.class": "1398b14f54fd65446f8338e963ed0183d5544f3a1358719f58dfc6d3b8376f80",
     "fixtures/Service.class": "93f9d88a2384584c5da052611cf61a62b0b1e31bb1c17a6d0b3ac223369783c6",
     "fixtures/ServiceProvider.class": "1cf55455880cc4905610732ae3563173af82b619507b471f4d955200449b8847",
@@ -113,6 +120,8 @@
     "fixtures/virtualq/PackageCallLeaf.class": "5e285e0a001b64bc0e4fd0b43d6ac056c647885900d63de3ae4222c05280e31b",
     "fixtures/virtualq/PackageCallMiddle.class": "5afe32bbfb3a2ea18cf4728a13881ee3816006cc395b355e06636e2574ae71bd",
     "fixtures/VisibleType.class": "74fc7f45fe4b27bd8a22dc122d0002d4e804c442c8db5bed4392ff8a34ca2069",
-    "module-info.class": "5c872bf8bcc9e88513b1fc203596546c0c6b61f5691fb72f4cc8bdc388df16da"
+    "module-info.class": "5c872bf8bcc9e88513b1fc203596546c0c6b61f5691fb72f4cc8bdc388df16da",
+    "referencep/HiddenReferenceBase.class": "6a242011dd84d4ba997381cf609e01dc9859de6ad793aa7579b48267885fdce7",
+    "referencep/ReferenceOwner.class": "a980306cb59a546aefabc6663084361041f6633d94dd010cebdb70bb6e2a1477"
   }
 }

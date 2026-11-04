@@ -44,6 +44,7 @@ python tools/virtual_reference.py --check
 python tools/interface_dispatch_reference.py --check
 python tools/special_reference.py --check
 python tools/type_reference.py --check
+python tools/reference_field_reference.py --check
 cargo test -p crabspot-interpreter --test numeric_reference
 cargo test -p crabspot-interpreter --test floating_reference --release
 ```
@@ -71,8 +72,9 @@ method-body execution kernel, `crabspot-runtime` for bounded definition registra
 hierarchy/field-layout plans, shared values, static storage and a managed heap,
 and `crabspot-launcher` for command-line inspection.
 The differential tests compare 616 integral, 7,263 floating-point, 126 static-call,
-280 primitive-array, 553 instance-field, 494 virtual-call, 1,337 interface/default
-450 ordinary special-call and 1,276 cast/type-test OpenJDK 21 outcomes with Rust execution,
+280 primitive-array, 553 instance-field, 494 virtual-call, 1,337 interface/default,
+450 ordinary special-call, 1,276 cast/type-test and 690 reference-field OpenJDK 21
+outcomes with Rust execution,
 including arithmetic exceptions, signed zero,
 subnormals and NaN classification. The kernel supports bounded same-class static
 helpers, ordinary virtual calls and interface/default dispatch across registered
@@ -87,9 +89,12 @@ running initializers. A bounded noncollecting heap owns primitive arrays of all
 eight kinds through checked opaque references. Heap-service tests additionally
 match 151 OpenJDK array store/load outcomes. The opt-in instance service admits
 shared, owner-qualified layouts atomically and allocates typed default fields.
-It supports numeric/null writes with final-field protection and explicit quotas;
-151 raw-putfield JDK reference cases test its storage conversions. Constructors,
-class initialization and non-null reference assignment remain unimplemented.
+Raw heap writes support numeric/null values with final-field protection and
+explicit quotas;
+151 raw-putfield JDK reference cases test its storage conversions. Constructors and
+class initialization remain unimplemented. Checked context writes additionally
+store compatible non-null instance/primitive-array references, preserving loader
+identities and per-location child edges without implementing collection.
 A runtime-aware instance-body API executes getfield/putfield, invokevirtual,
 invokeinterface and ordinary nonconstructor invokespecial through bounded
 loader-aware resolution and an explicit unnamed-module access profile.

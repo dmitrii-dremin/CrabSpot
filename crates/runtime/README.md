@@ -172,16 +172,17 @@ field hiding. They check receiver identity/kind and field relationship before
 write finality and value validation. All final writes fail. Nonfinal stores
 require exact computational kinds; Z masks with one, B/S truncate and sign extend,
 C truncates and zero extends, and floating values preserve raw bits. Reference
-fields accept null only; every non-null store is explicitly unsupported without
+fields accept null only through public `put_field`; every raw non-null store is unsupported without
 dereferencing its value. A failed write preserves the previous value. Field
 services perform no symbolic Fieldref resolution or Java access checks.
 
 `children` is a validated, borrowed iterator over non-null reference-field values;
-primitive arrays yield none. Public instance children currently remain empty
-because non-null field stores are unsupported. This iterator is neither caller
-roots nor a collector. No reclamation, reference arrays, assignability,
-constructor protocol, lifecycle proof, field bytecode or interpreter instance
-bridge is implemented by this memory service.
+primitive arrays yield none. Checked context stores can populate these locations;
+aliases and cycles are returned as immediate edges in slot order. This iterator is neither caller
+roots nor a collector. The raw instance memory API does not perform assignment
+checks, field-bytecode execution, constructors or lifecycle transitions; the checked
+context described below supplies resolution and assignment. Reclamation and
+reference arrays remain unimplemented.
 
 ## Field resolution and access context
 
@@ -213,8 +214,8 @@ Public inherited fields do not require separate declarer accessibility.
 Resolution/access/loading-constraint failures precede staticness, write
 finality and null checks. Java-shaped failures are explicitly distinguished
 from host metadata, resolver, heap and policy failures. Every final write is
-rejected; approved memory-service narrowing, floating bits and null-only
-reference stores remain in effect. `check_receiver` validates host-selected
+rejected; memory-service narrowing and floating bits remain in effect. Null and
+numeric stores retain their original universe-free behavior. `check_receiver` validates host-selected
 ordinary instance identity without claiming method invocation access checks.
 
 Named modules, cross-loader reference loading constraints, cross-class private
@@ -324,5 +325,33 @@ replacement and additional admission. New target-name scans charge each UTF-16
 unit even on cache hits; nominal validation, type reductions, graph nodes and every
 edge enqueue share the existing cumulative work limits. Diamond traversal is
 deduplicated and fallibly reserved without recursion or permanent type caches.
-Reference-array allocation, non-null reference stores, reference call signatures,
+Reference-array allocation and reference call signatures,
 constructors, initialization, verification and collection remain outside this service.
+
+## Checked non-null instance-reference fields
+
+`write_field` permits non-null ordinary-instance and primitive-array references
+after the established resolution/access/loading-constraint, static/final, receiver
+and computational-kind checks. It validates the source universe/handle, resolves
+the selected declaration's descriptor using its declaring loader, then applies the
+shared assignment relation. Descriptor identity resolution skips cast-style caller
+access checks: a public field may expose a type that the caller cannot name. The
+existing cross-loader nominal loading-constraint restriction remains in force;
+primitive-leaf arrays use the designated bootstrap identity.
+
+Descriptor scans charge every UTF-16 unit, including delimiters, exactly once per
+non-null store even on cache hits. Nominal leaves borrow the shared name bindings.
+Source/type/resolver/policy failures preserve the old field and immediate children.
+An incompatible assignment reports a boxed `ReferenceFieldMismatch` containing
+the selected FieldId and exact source/target types; this is a host failure, not a
+ClassCastException or ArrayStoreException. Other type failures retain their nested
+`TypeAccessError` source and are not reclassified as field Java outcomes.
+
+The context commits through a crate-private operation that rechecks receiver and
+source handles, instance/field relationship, nonfinal reference kind and slot bounds
+before one mutation. Public `put_field` continues rejecting all non-null references.
+Stores allocate no heap entries or payload, do not change quotas or identity, and
+do not claim construction or initialization. `children` borrows one handle per
+non-null slot, preserving repeated aliases and cycles without recursion, tracing,
+deduplication or allocation. Static writes, reference arrays, reference call
+signatures, lifecycle protocols and collection remain outside this increment.

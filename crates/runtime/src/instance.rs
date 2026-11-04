@@ -851,6 +851,57 @@ impl ManagedHeap {
             ))? = value;
         Ok(())
     }
+    // The field context owns the descriptor/assignment proof. There are no
+    // external callbacks between that proof and this exclusive heap mutation.
+    // Public put_field deliberately never routes a non-null value here.
+    pub(crate) fn commit_reference_field(
+        &mut self,
+        receiver: Reference,
+        field: FieldId,
+        value: Reference,
+    ) -> Result<(), InstanceError> {
+        let state = self.instances.as_ref().ok_or(InstanceError::Disabled)?;
+        let handle = receiver.heap_ref().ok_or(HeapError::NullReference)?;
+        let index = self.checked_handle(handle)?;
+        let object = instance(
+            &self
+                .entries
+                .get(index)
+                .ok_or(HeapError::MissingEntry { index })?
+                .payload,
+        )?;
+        let (slot, own) = state.field(object.class, field)?;
+        if own.is_final {
+            return Err(InstanceError::FinalField { field });
+        }
+        if own.kind != FieldKind::Reference {
+            return Err(HeapError::ValueKindMismatch {
+                expected: own.kind.default_value().kind(),
+                actual: crate::ValueKind::Reference,
+            }
+            .into());
+        }
+        if !value.is_null() {
+            self.entry(value)?;
+        }
+        let EntryPayload::Instance(object) = &mut self
+            .entries
+            .get_mut(index)
+            .ok_or(HeapError::MissingEntry { index })?
+            .payload
+        else {
+            return Err(InstanceError::InvalidMetadata(
+                "validated reference receiver changed kind",
+            ));
+        };
+        *object
+            .values
+            .get_mut(slot)
+            .ok_or(InstanceError::InvalidMetadata(
+                "reference field slot is outside instance payload",
+            ))? = Value::Reference(value);
+        Ok(())
+    }
     pub fn children(
         &self,
         reference: Reference,
@@ -1003,6 +1054,77 @@ mod tests {
                 })
                 .collect(),
         )
+    }
+    #[test]
+    fn checked_reference_commit_revalidates_guards_and_never_mutates_on_failure() {
+        let (mut heap, class, fields) = setup();
+        let receiver = heap.allocate_instance(class).unwrap();
+        let value = heap.allocate_instance(class).unwrap();
+        heap.commit_reference_field(receiver, fields[1], value)
+            .unwrap();
+        let old = heap.get_field(receiver, fields[1]).unwrap();
+        let edges: Vec<_> = heap.children(receiver).unwrap().collect();
+        let mut foreign = ManagedHeap::new(HeapOptions::default()).unwrap();
+        let foreign_ref = foreign
+            .allocate_primitive_array(PrimitiveArrayKind::Int, 0)
+            .unwrap();
+        let array = heap
+            .allocate_primitive_array(PrimitiveArrayKind::Int, 0)
+            .unwrap();
+        let (id, index, generation) = value.heap_ref().unwrap().components();
+        let foreign_field = FieldId {
+            owner: ClassId {
+                registry: class.registry + 1,
+                index: class.index,
+            },
+            index: 1,
+        };
+        let unrelated = FieldId {
+            owner: ClassId {
+                registry: class.registry,
+                index: usize::MAX,
+            },
+            index: 1,
+        };
+        for (parent, field, source) in [
+            (receiver, fields[0], value),
+            (receiver, fields[2], value),
+            (receiver, foreign_field, value),
+            (receiver, unrelated, value),
+            (receiver, fields[1], foreign_ref),
+            (foreign_ref, fields[1], value),
+            (array, fields[1], value),
+            (Reference::null(), fields[1], value),
+            (
+                receiver,
+                fields[1],
+                Reference::issued(id, usize::MAX, generation),
+            ),
+            (
+                receiver,
+                fields[1],
+                Reference::issued(id, index, generation + 1),
+            ),
+        ] {
+            assert!(heap.commit_reference_field(parent, field, source).is_err());
+            assert_eq!(heap.get_field(receiver, fields[1]).unwrap(), old);
+            assert_eq!(heap.children(receiver).unwrap().collect::<Vec<_>>(), edges);
+        }
+        let receiver_index = receiver.heap_ref().unwrap().components().1;
+        let EntryPayload::Instance(object) = &mut heap.entries[receiver_index].payload else {
+            panic!()
+        };
+        object.values.truncate(1);
+        let before = object.values.clone();
+        assert!(matches!(
+            heap.commit_reference_field(receiver, fields[1], value),
+            Err(InstanceError::InvalidMetadata(_))
+        ));
+        let EntryPayload::Instance(object) = &heap.entries[receiver_index].payload else {
+            panic!()
+        };
+        assert_eq!(object.values, before);
+        assert!(heap.children(receiver).unwrap().next().is_none());
     }
     #[test]
     fn allocation_free_descriptor_classifier_matches_valid_kinds_and_rejects_malformed_names() {

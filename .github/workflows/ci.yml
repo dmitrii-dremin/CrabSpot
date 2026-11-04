@@ -57,6 +57,8 @@ jobs:
           python tools/special_reference.py --check
           python tools/type_reference.py
           python tools/type_reference.py --check
+          python tools/reference_field_reference.py
+          python tools/reference_field_reference.py --check
       - name: Format
         run: cargo fmt --check
       - name: Lint

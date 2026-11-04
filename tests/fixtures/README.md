@@ -26,7 +26,7 @@ kinds/defaults, visible/invisible declaration/parameter/type annotations, generi
 type paths and annotated Code, inner/nest classes, records, sealed classes, and
 a module descriptor with requires, exports, opens, uses and provides tables.
 Numeric, floating-point, static-call and hierarchy fixtures bring the manifest to
-74 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
+80 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
 reference descriptors and interface ancestry. Rust hierarchy tests supply an
 explicit synthetic root as test input; this is not a production Object fallback
 or evidence of Java library execution.
@@ -73,3 +73,13 @@ Cloneable and Serializable metadata establishes test identities; it is not a
 production Java library. Reference-array targets exercise structural type rules,
 not reference-array allocation. Field and allocation effects supplement result
 comparisons. Constructors and exception handlers are not executed by CrabSpot.
+
+ReferenceFieldBase/Cases, marker/child and referencep/ReferenceOwner/HiddenReferenceBase
+add six definitions for checked non-null reference fields. The 690-row JDK oracle
+covers self-links, aliases, hidden/inherited fields, clearing, overwrites, calls
+through loaded references, all eight array field types and retained effects after
+Java failures. A public field has a package-private declared type in another
+package; its wrapper stores and copies the value without naming that type.
+Rust checks exact field state, repeated child handles in slot order and allocations
+against fixture-source expectations, separately from recorded JDK return/exception
+rows. Distinct-object cycles and malformed assignments use synthetic service tests.

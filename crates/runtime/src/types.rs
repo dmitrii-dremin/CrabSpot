@@ -1,7 +1,7 @@
 //! Checked reference identities and bounded assignment, separate from protected
 //! class-only access checks and from allocation/initialization protocols.
 use crate::{
-    ClassId, DefinitionRegistry, FieldAccessError, FieldResolutionContext, HeapError,
+    ClassId, DefinitionRegistry, FieldAccessError, FieldId, FieldResolutionContext, HeapError,
     InstanceError, LoaderId, ManagedHeap, PrimitiveArrayKind, Reference, RegistryError,
 };
 use crabspot_classfile::Constant;
@@ -32,6 +32,11 @@ pub enum ReferenceType {
 pub enum TypeJavaError {
     IllegalAccess,
     ClassCast,
+}
+#[derive(Clone, Copy)]
+enum TypeAccess {
+    Caller,
+    IdentityOnly,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TypeAccessError {
@@ -247,10 +252,12 @@ impl<'a> FieldResolutionContext<'a> {
         &mut self,
         origin: ClassId,
         name: &'a [u16],
+        access: TypeAccess,
     ) -> Result<ClassId, TypeAccessError> {
         let class = self.resolve_type_name(origin, name)?;
         self.nominal(class)?;
-        if self.registry().class(class)?.access_flags & 1 == 0
+        if matches!(access, TypeAccess::Caller)
+            && self.registry().class(class)?.access_flags & 1 == 0
             && !self.same_package(origin, class)?
         {
             return Err(TypeAccessError::Java(TypeJavaError::IllegalAccess));
@@ -266,8 +273,19 @@ impl<'a> FieldResolutionContext<'a> {
         for _ in name {
             self.step()?;
         }
+        self.resolve_type_spelling(origin, name, TypeAccess::Caller, universe)
+    }
+    fn resolve_type_spelling(
+        &mut self,
+        origin: ClassId,
+        name: &'a [u16],
+        access: TypeAccess,
+        universe: ReferenceTypeUniverse,
+    ) -> Result<ReferenceType, TypeAccessError> {
         if name.first() != Some(&91) {
-            return Ok(ReferenceType::Class(self.accessible_nominal(origin, name)?));
+            return Ok(ReferenceType::Class(
+                self.accessible_nominal(origin, name, access)?,
+            ));
         }
         let rank = name.iter().take_while(|unit| **unit == 91).count();
         let dimensions = u8::try_from(rank)
@@ -306,7 +324,7 @@ impl<'a> FieldResolutionContext<'a> {
                     "invalid nominal array leaf name",
                 ));
             }
-            let class = self.accessible_nominal(origin, class_name)?;
+            let class = self.accessible_nominal(origin, class_name, access)?;
             (
                 ArrayElement::Class(class),
                 self.registry().defining_loader(class)?,
@@ -317,6 +335,38 @@ impl<'a> FieldResolutionContext<'a> {
             element,
             defining_loader,
         })
+    }
+    pub(crate) fn resolve_reference_field_type(
+        &mut self,
+        field: FieldId,
+    ) -> Result<ReferenceType, TypeAccessError> {
+        let universe = self.universe()?;
+        let definition = self.registry().class(field.owner())?;
+        let descriptor = definition
+            .constant_pool
+            .utf8(self.registry().field(field)?.descriptor_index)
+            .map_err(RegistryError::Parse)?
+            .units();
+        // Full descriptor, including delimiters, exactly once even on cache hits.
+        for _ in descriptor {
+            self.step()?;
+        }
+        let name = if descriptor.first() == Some(&76) {
+            descriptor
+                .strip_prefix(&[76])
+                .and_then(|name| name.strip_suffix(&[59]))
+                .filter(|name| !name.is_empty())
+                .ok_or(TypeAccessError::InvalidType(
+                    "invalid nominal field descriptor",
+                ))?
+        } else if descriptor.first() == Some(&91) {
+            descriptor
+        } else {
+            return Err(TypeAccessError::InvalidType(
+                "reference field descriptor required",
+            ));
+        };
+        self.resolve_type_spelling(field.owner(), name, TypeAccess::IdentityOnly, universe)
     }
     pub fn resolve_reference_type(
         &mut self,
