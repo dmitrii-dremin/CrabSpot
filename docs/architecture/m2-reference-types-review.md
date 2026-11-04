@@ -36,7 +36,7 @@ The director verified all 15 integrated files against `target/coordinator/types-
 | interpreter/src/execute.rs | `B4FB07B164DDF2B8329044825F343E81C4243F7F9110599C3726038BFAA04C12` |
 | interpreter/src/error.rs | `78734555CE6A5F8413F45A755337B4DA8D1E09AFEF029E4B53CDA766FF09F3AE` |
 
-Fresh hosted Linux/Windows validation remains pending publication and is recorded separately. The preceding special-call increment passed both platforms; its evidence is not substituted for this increment's future run.
+The coordinator subsequently inspected complete [run 41798076784](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41798076784) for implementation commit f05fa69. Linux and Windows passed every check with Rust 1.99.1 and Temurin JDK 21.0.13: checked-in/regenerated fixtures, all eleven reference sets, strict lint, debug/optimized tests and parser smoke. Both smoke runs completed 10,000 cases with 115 accepted, 9,885 rejected, ten deterministic rechecks, corpus 189 and zero failures. This hosted evidence is recorded separately after frozen-source approval.
 
 ## Boundaries and next direction
 

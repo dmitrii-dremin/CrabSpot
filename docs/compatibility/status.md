@@ -15,16 +15,16 @@ completion of that goal.
 
 | Area / JVMS SE 21 clauses | Status | Evidence and boundary |
 | --- | --- | --- |
-| Reader, header and versions (4.1) | Implemented and tested | Checked reads, exact consumption, majors 45РІР‚вЂњ65, historical/preview policy and configured byte limits |
+| Reader, header and versions (4.1) | Implemented and tested | Checked reads, exact consumption, majors 45Р Р†Р вЂљРІР‚Сљ65, historical/preview policy and configured byte limits |
 | Constant-pool encodings (4.4) | Implemented and tested | Every tag, wide holes, numeric bits, modified UTF-8, typed indices, version introductions, module/package names and method-handle constraints |
-| Names, descriptors and members (4.2РІР‚вЂњ4.6) | Implemented and tested | Descriptor grammar/dimensions/slots, duplicate identities, versioned access flags, class/interface/initializer context and Code presence |
+| Names, descriptors and members (4.2Р Р†Р вЂљРІР‚Сљ4.6) | Implemented and tested | Descriptor grammar/dimensions/slots, duplicate identities, versioned access flags, class/interface/initializer context and Code presence |
 | Standard attributes (4.7) | Implemented and tested for parser stage | All 30 bodies below; later-consumer semantics remain separate |
 | Unknown attributes (4.7.1) | Implemented and tested | Payload preservation, including standard-looking names outside applicable version/location |
 | Resource bounds | Implemented and tested | Default 16 MiB class input, annotation depth 64, one million annotation/value nodes shared across the whole class; depth hard-capped at 64 even if caller requests more |
 | Inspection CLI | Implemented and tested | Escaped metadata, bounded reads, preview opt-in and nonzero argument/input failures; no bytecode execution |
 | Genuine Java 21 fixtures | Implemented and tested | 74 classes including array/instance bodies, class/interface/special dispatch and cast hierarchies and raw-field oracle metadata; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
 | Parser fuzzing | Implemented and tested | 108,907,980 seeded cases over 300 seconds, zero failures, exact-source fingerprint; no coverage metrics or proof of panic freedom |
-| Linux/Windows hosted CI | Passed for 8d2c523 | [run 41795065210](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41795065210) completed all checks on both platforms with Rust 1.99.1 and JDK 21.0.13, including strict lint, 65 regenerated fixtures/ten oracle sets, debug/optimized tests and fuzz smoke |
+| Linux/Windows hosted CI | Passed for f05fa69 | [run 41798076784](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41798076784) completed all checks on both platforms with Rust 1.99.1 and JDK 21.0.13, including strict lint, 74 regenerated fixtures/eleven oracle sets, debug/optimized tests and fuzz smoke |
 | Rust 1.85 minimum version | Not tested | Manifest declaration; actual local toolchain is Rust 1.98.1 |
 | Performance superiority over HotSpot | Not demonstrated | Long-term objective; no comparative performance benchmark results are claimed |
 | Bytecode decoder | Implemented and tested | All defined JVM instruction formats, version/operand constraints and static branch destinations; 10 focused tests and malformed-input corpus |
@@ -55,8 +55,8 @@ reproduce, with all 65 prior class hashes unchanged. This increment adds 44 test
 covering atomic identity binding, rank-255 array types, loader/UTF-16 boundaries,
 null skipping, current-frame origins, exact cumulative quotas and failure effects.
 Final frozen review approved this increment in docs/architecture/m2-reference-types-review.md;
-full M2 remains open. Hosted CI for the new increment is pending publication;
-the table's previous passing run is evidence only for its named commit.
+full M2 remains open. Hosted CI also passed for f05fa69 on Linux and Windows;
+that evidence applies to the implementation commit, separately from this update.
 
 ## Standard attribute coverage
 

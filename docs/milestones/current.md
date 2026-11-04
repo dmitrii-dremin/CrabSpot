@@ -115,8 +115,13 @@ untested; local tools are Rust/Cargo 1.98.1 and Zulu OpenJDK 21.0.7.
 
 The preceding special implementation 8d2c523 passed complete Linux/Windows
 [run 41795065210](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41795065210)
-with Rust 1.99.1 and Temurin JDK 21.0.13. Hosted CI for this increment is pending
-publication; prior CI is not attributed to current changes.
+with Rust 1.99.1 and Temurin JDK 21.0.13. Reference-type implementation f05fa69 passed complete [run 41798076784](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41798076784)
+on Linux and Windows with Rust 1.99.1 and Temurin JDK 21.0.13. Every check passed:
+checked-in and regenerated fixtures, all eleven output sets, strict lint, debug
+and optimized tests, and parser smoke. Both hosted smoke runs completed 10,000
+cases with 115 accepted, 9,885 rejected, ten rechecks, corpus 189 and zero failures.
+This hosted evidence belongs to the implementation commit, separately from this
+documentation update.
 
 ## Reviews, limitations and next work
 
