@@ -36,7 +36,7 @@ The coordinator independently observed:
 - All 65 genuine class fixtures and ten reference-output sets reproduce; the previous 59 class hashes are unchanged.
 - The expanded 65-class parser smoke campaign completes 10,000 cases with zero failures: 117 accepted, 9,883 rejected, ten deterministic rechecks, final corpus 182, seed 4851011501752864596.
 
-Both production fingerprints were reverified after the final runs. Hosted Linux/Windows validation of this increment remains pending publication and is recorded separately by the coordinator. The preceding interface/default increment has passed both hosted platforms; that does not substitute for this increment's future run.
+Both production fingerprints were reverified after the final runs. The coordinator subsequently inspected complete [run 41795065210](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41795065210) for implementation commit 8d2c523: Linux and Windows passed every check with Rust 1.99.1 and Temurin JDK 21.0.13, including checked-in/regenerated fixture tests, all ten reference sets, strict lint, optimized tests and parser smoke. This hosted evidence is recorded separately after source approval.
 
 ## Remaining boundaries
 

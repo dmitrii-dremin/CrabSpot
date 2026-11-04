@@ -106,8 +106,12 @@ Rust 1.85, the declared minimum, remains untested.
 
 The accepted interface implementation 3574484 passed complete Linux/Windows
 [run 41792109658](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41792109658)
-with Rust 1.99.1 and Temurin JDK 21.0.13. Hosted evidence for this special-call
-increment is pending publication.
+with Rust 1.99.1 and Temurin JDK 21.0.13. Special implementation 8d2c523 passed complete [run 41795065210](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41795065210)
+on Linux and Windows with Rust 1.99.1 and Temurin JDK 21.0.13. Checked-in and
+regenerated fixture tests, all ten reference sets, strict lint, optimized tests
+and parser smoke passed. Both hosted smoke runs completed 10,000 cases with
+117 accepted, 9,883 rejected, 10 rechecks, corpus 182 and zero failures. These
+results belong to the implementation commit, separately from this evidence update.
 
 ## Reviews, limitations and next work
 
