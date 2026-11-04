@@ -1,6 +1,6 @@
 # Next: bounded multidimensional allocation
 
-Status: proposed direction on 2026-11-04 after the bounded approval in `m2-reference-arrays-review.md`. This note does not authorize implementation. An exact runtime API, work/quota and failure-publication contract must precede dispatch. Full M2 remains open.
+Status: historical direction, superseded by the exact contract in `m2-multidimensional-arrays.md` and bounded approval in `m2-multidimensional-arrays-review.md` on 2026-11-04. The rationale below is retained; the next proposed increment is `m2-reference-calls-next.md`. Full M2 remains open.
 
 Implement multianewarray next, using the accepted structural types, primitive/reference payloads, explicit universe and current-origin resolver. This completes multidimensional array allocation without first widening method signatures or introducing loading-constraint and return-type obligations. Reference parameters/results should follow as a separate invocation contract; object construction still needs uninitialized-reference and lifecycle protocols.
 

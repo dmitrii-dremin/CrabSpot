@@ -440,6 +440,28 @@ impl<'a> FieldResolutionContext<'a> {
     pub(crate) fn step(&mut self) -> Result<(), FieldAccessError> {
         step(&mut self.steps, self.options)
     }
+    /// Reserve an entire staging operation's node/link work atomically. Existing
+    /// single-step operations retain their established failure counters.
+    pub(crate) fn charge_bulk_work(
+        &mut self,
+        nodes: usize,
+        links: usize,
+    ) -> Result<(), FieldAccessError> {
+        let amount = nodes
+            .checked_add(links)
+            .ok_or(FieldAccessError::ResourceLimit {
+                resource: FieldResource::LookupSteps,
+                limit: self.options.max_lookup_steps,
+                required: usize::MAX,
+            })?;
+        self.steps = increased(
+            self.steps,
+            amount,
+            self.options.max_lookup_steps,
+            FieldResource::LookupSteps,
+        )?;
+        Ok(())
+    }
     fn symbol(&self, origin: ClassId, index: u16) -> Result<Symbol<'a>, FieldAccessError> {
         let invalid = || FieldAccessError::InvalidConstant { origin, index };
         let registry: &'a DefinitionRegistry = self.registry;
@@ -818,6 +840,56 @@ mod tests {
         SameLoaderResolver, build_hierarchy,
     };
     use crabspot_classfile::ParseOptions;
+    #[test]
+    fn bulk_work_reservations_are_checked_atomically_at_exact_and_machine_boundaries() {
+        let (registry, class) = fixture();
+        let plan = build_hierarchy(
+            &registry,
+            class,
+            &mut SameLoaderResolver,
+            HierarchyOptions::default(),
+        )
+        .unwrap();
+        let mut heap =
+            ManagedHeap::new_with_instances(HeapOptions::default(), InstanceOptions::default())
+                .unwrap();
+        heap.admit_instance_layouts(&registry, &[&plan]).unwrap();
+        let mut resolver = SameLoaderResolver;
+        let mut ctx = FieldResolutionContext::new_unnamed_modules(
+            &registry,
+            &mut heap,
+            &mut resolver,
+            FieldResolutionOptions::default(),
+        )
+        .unwrap();
+        let before = ctx.lookup_steps();
+        ctx.options.max_lookup_steps = before + 5;
+        assert_eq!(
+            ctx.charge_bulk_work(3, 3),
+            Err(FieldAccessError::ResourceLimit {
+                resource: FieldResource::LookupSteps,
+                limit: before + 5,
+                required: before + 6
+            })
+        );
+        assert_eq!(ctx.lookup_steps(), before);
+        ctx.charge_bulk_work(3, 2).unwrap();
+        assert_eq!(ctx.lookup_steps(), before + 5);
+        ctx.charge_bulk_work(0, 0).unwrap();
+        ctx.options.max_lookup_steps = usize::MAX;
+        let before = ctx.lookup_steps();
+        for (nodes, links) in [(usize::MAX, 1), (usize::MAX, 0)] {
+            assert_eq!(
+                ctx.charge_bulk_work(nodes, links),
+                Err(FieldAccessError::ResourceLimit {
+                    resource: FieldResource::LookupSteps,
+                    limit: usize::MAX,
+                    required: usize::MAX
+                })
+            );
+            assert_eq!(ctx.lookup_steps(), before);
+        }
+    }
     #[test]
     fn reference_diagnostics_preserve_wrapped_sources_and_mismatch_identities() {
         use std::error::Error;

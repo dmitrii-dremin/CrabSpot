@@ -61,6 +61,8 @@ jobs:
           python tools/reference_field_reference.py --check
           python tools/reference_array_reference.py
           python tools/reference_array_reference.py --check
+          python tools/multidimensional_reference.py
+          python tools/multidimensional_reference.py --check
       - name: Format
         run: cargo fmt --check
       - name: Lint

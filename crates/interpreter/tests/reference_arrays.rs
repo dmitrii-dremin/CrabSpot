@@ -1111,7 +1111,8 @@ fn primitive_only_operations_and_generic_length_use_the_exact_new_entry_diagnost
     );
 }
 #[test]
-fn old_modes_reject_new_reference_opcodes_and_multianewarray_remains_unsupported() {
+fn old_modes_reject_new_reference_opcodes_and_runtime_multidimensional_arrays_use_actual_payloads()
+{
     for opcode in [0x32, 0x53, 0xbd] {
         let mut root = ordinary();
         let mut code = if opcode == 0xbd {
@@ -1148,10 +1149,11 @@ fn old_modes_reject_new_reference_opcodes_and_multianewarray_remains_unsupported
     let receiver = fixture.object("p/T");
     let method = fixture.method("p/T", "run", "()V");
     assert_eq!(
-        fixture.run(method, receiver, &[]).unwrap_err().kind,
-        E::UnsupportedInstruction(0xc5)
+        fixture.run(method, receiver, &[]).unwrap(),
+        O::Returned(None)
     );
-    assert_eq!(fixture.heap.allocated_arrays(), 0);
+    assert_eq!(fixture.heap.allocated_arrays(), 1);
+    assert_eq!(fixture.heap.total_elements(), 0);
     let mut root = ordinary();
     let mut code = vec![0x01];
     code.extend(op(0xbd, 1));

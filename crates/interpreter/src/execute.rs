@@ -1064,7 +1064,7 @@ fn step(
     }
     if matches!(
         opcode,
-        0x32 | 0x53 | 0xb4..=0xb7 | 0xb9 | 0xbd | 0xc0 | 0xc1
+        0x32 | 0x53 | 0xb4..=0xb7 | 0xb9 | 0xbd | 0xc0 | 0xc1 | 0xc5
     ) && !matches!(services, Services::Fields { .. })
     {
         return Err(ExecutionError::new(
@@ -1077,6 +1077,27 @@ fn step(
         .checked_add(instruction.length)
         .ok_or_else(|| ExecutionError::new(Some(pc), E::InstructionPointerOutsideCode))?;
     match opcode {
+        0xc5 => {
+            let Operands::MultiANewArray { index, dimensions } = operands else {
+                return Err(operand_error(pc));
+            };
+            let mut counts = [0_i32; 255];
+            let requested = counts
+                .get_mut(..usize::from(*dimensions))
+                .ok_or_else(|| operand_error(pc))?;
+            for count in requested.iter_mut().rev() {
+                *count = stack.int(pc)?;
+            }
+            let Services::Fields { context, .. } = services else {
+                return Err(operand_error(pc));
+            };
+            let origin = frame.method.owner().ok_or_else(|| operand_error(pc))?;
+            let reference = match context.new_multidimensional_array(origin, *index, requested) {
+                Ok(reference) => reference,
+                Err(error) => return array_failure(error, pc),
+            };
+            stack.push(Value::Reference(reference), pc)?;
+        }
         0xbd => {
             let Operands::Constant(index) = operands else {
                 return Err(operand_error(pc));

@@ -6,6 +6,8 @@ use std::{
     fmt,
     sync::atomic::{AtomicU64, Ordering},
 };
+#[path = "multidimensional.rs"]
+mod multidimensional;
 
 static NEXT_HEAP: AtomicU64 = AtomicU64::new(1);
 pub(crate) const LIVE_GENERATION: u64 = 1;

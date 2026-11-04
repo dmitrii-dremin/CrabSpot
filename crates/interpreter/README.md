@@ -18,7 +18,7 @@ The original numeric entry points handle 148 effective opcode values. The explic
 heap entry point adds 31, for 179 total. The runtime-aware instance entry point
 adds `getfield`, `putfield`, `invokevirtual`, `invokeinterface` and ordinary
 `invokespecial`, plus `checkcast`, `instanceof`, `anewarray`, `aaload` and
-`aastore`, for 189 total. `wide` is an encoding prefix for indexed
+`aastore` and `multianewarray`, for 190 total. `wide` is an encoding prefix for indexed
 loads/stores and increment; heap mode adds two reference local forms to the nine
 numeric wide forms.
 
@@ -350,7 +350,7 @@ exception-object/handler protocols retain their earlier boundaries.
 The existing runtime-aware putfield now accepts assignment-compatible non-null
 instance and array references through `FieldResolutionContext::write_field`.
 Checked field stores added no opcode or execution API. Current runtime-aware
-coverage is 189 effective opcodes, including the reference-array instructions
+coverage is 190 effective opcodes, including the reference-array instructions
 below. The shared engine still forwards the actual computational Value, typed
 receiver and current declaring origin to the field service. Reference arguments
 and results remain excluded from method descriptors.
@@ -395,8 +395,8 @@ dispatch remain outside this profile.
 Runtime-aware instance bodies additionally execute `anewarray`, `aaload` and
 `aastore` through the existing context and shared frame loop. Earlier numeric and
 primitive-heap APIs reject these three opcodes even with a configured heap.
-`multianewarray` remains unsupported in every mode; nested arrays can be built one
-allocation at a time. Method descriptors and host arguments/results remain
+The bounded multidimensional operation below can also allocate nested arrays.
+Method descriptors and host arguments/results remain
 numeric/void, so these arrays travel through locals, fields, element references
 and implicit receivers inside the body graph.
 
@@ -438,3 +438,40 @@ stores and field changes persist after later symbolic outcomes, host failures or
 budget exhaustion; failed allocation/store leaves prior contents intact. This
 increment adds no constructors, initialization, reference signatures, exception
 handlers or generalized JVM invocation.
+
+
+## Bounded multidimensional arrays
+
+Runtime-aware instance bodies also execute `multianewarray` (`c5`) through the
+same frame loop and array-error mapper. Numeric and primitive-heap entry points
+continue rejecting this opcode before operand extraction. No new execution API,
+frame type or prepared-code cache is introduced.
+
+The decoder checks the encoded nonzero dimension count, including unreachable
+instructions. Execution pops the requested Int counts in reverse order into a
+fixed 255-element buffer, then passes the outermost-to-innermost slice and the
+current declaring frame's ClassId to the context. Underflow and wrong stack kinds
+precede CP resolution; the interpreter does not inspect count signs or stop at
+zero. Target resolution/access, complete array-type validation and requested-rank
+checks precede the runtime's outer-to-inner negative-count scan. A negative after
+a zero still gives symbolic `NegativeArraySizeException`; a lookup-work policy
+failure can stop that scan first and stays a boxed host `ArrayAccess` error.
+
+The runtime preflights the complete reachable geometry, shared array quotas and
+node/link work before staging and atomically publishing the resulting graph.
+Every reached array has a distinct stable identity and its actual structural
+rank. Only requested dimensions are allocated: partial reference components stay
+null, primitive leaves receive their existing typed zero defaults, and a reached
+zero prevents deeper allocation. Positive unreachable sizes do not consume
+allocation quotas. Rank 255 with 255 requested dimensions uses the same bounded,
+iterative service; it creates no recursive host execution or owned object tree.
+
+`multianewarray` consumes one interpreter fuel unit. Type resolution, count/level
+inspection and checked bulk staging work consume the existing cumulative context
+budget; heap geometry uses the same primitive/reference array-count, length,
+element and payload policies. Failed preflight/staging leaves the live heap and
+prior elements intact. Once publication succeeds, a later instruction, return,
+exception or exhausted fuel does not roll it back. Fields, casts, normal array
+operations and receiver use see ordinary actual payloads with no special bridge
+representation. Numeric/void signatures, constructor/lifecycle boundaries,
+exception-object allocation and handlers remain unchanged.

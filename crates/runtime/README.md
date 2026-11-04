@@ -392,5 +392,38 @@ generic `length` accepts both payloads and reports expected Array for instances.
 `children` borrows non-null elements in ascending index order, preserving aliases,
 self-edges and cycles without allocation, recursion or tracing. Existing checked
 fields and cast/type services accept actual arrays through the same relation.
-Recursive multianewarray allocation, mirrors, reference call signatures,
-constructors, initialization, verification and collection remain outside scope.
+Mirrors, reference call signatures, constructors, initialization, verification and
+collection remain outside scope.
+
+## Atomic multidimensional arrays
+
+`allocate_multidimensional_array` accepts a complete checked array type and an
+outer-to-inner count slice. `new_multidimensional_array` first resolves/access-checks
+a current-origin Class constant, then shares the typed path. Dimension shape is
+validated before signs; every requested count is charged and checked, including
+counts after zero. A zero stops only deeper allocation. Partial-rank allocation
+leaves null components; full primitive leaves receive their existing zero defaults.
+Rank 255 is supported without rank increment or host recursion.
+
+Preflight records at most 255 levels and checks each reachable level in order:
+cumulative arrays, per-node length, checked aggregate elements, then checked payload
+bytes. Primitive rank-one nodes use their actual element width; other nodes use
+the reference element width. Existing primitive/reference allocations share the
+same limits. Complete node/link work is charged atomically before staging; failure
+keeps the precharge counter, arena, counters, old elements and child edges intact.
+
+All payloads are constructed once in a fallibly reserved breadth-first staging
+vector. Private future handles connect the exact next-level children and cannot
+validate against the live heap before commit. Publication rebuilds the retained
+geometry and checks the original heap snapshot, node generations/types/lengths and
+every expected child or null slot. Arena capacity for the whole tree is reserved
+before moving any entry, then payloads and precomputed totals are published without
+further fallible allocation. Private injected-failure and corrupted-staging tests
+exercise these boundaries; no public transaction or future-reference issuer exists.
+
+The extra staged entry descriptors and fixed level metadata are bounded by array
+count/rank limits. They may coexist with reserved arena capacity and are excluded
+from the shallow public payload-byte total. Dropping failed staging or live trees
+is iterative because edges are opaque handles. No components are constructed or
+initialized, no mirrors are fabricated, and no verification, collection or Java
+OutOfMemoryError behavior is claimed.

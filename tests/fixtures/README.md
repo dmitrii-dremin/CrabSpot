@@ -26,7 +26,7 @@ kinds/defaults, visible/invisible declaration/parameter/type annotations, generi
 type paths and annotated Code, inner/nest classes, records, sealed classes, and
 a module descriptor with requires, exports, opens, uses and provides tables.
 Numeric, floating-point, static-call and hierarchy fixtures bring the manifest to
-86 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
+88 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
 reference descriptors and interface ancestry. Rust hierarchy tests supply an
 explicit synthetic root as test input; this is not a production Object fallback
 or evidence of Java library execution.
@@ -92,3 +92,12 @@ failures. Rust verifies complete source-derived graph state, retained actual typ
 child ordering and shared allocation/payload counters separately from JDK result
 rows. Selected Code is decoded to require all three new instructions and exclude
 multianewarray; the Java driver is outside CrabSpot execution.
+
+MultiArrayCases/Child add complete and partial multianewarray allocation. The
+7,388 unique JDK rows cover all primitive leaves, nominal/interface leaves,
+rank-two through rank-four graphs, asymmetric dimensions, zero/negative ordering,
+large unreachable dimensions and later stores/loads or failures. Decoded selected
+Code confirms full-rank and partial-rank c5 encodings. A depth-first source model
+bounded to four levels independently checks reachable types, defaults/mutations,
+children and totals; production stages breadth-first without recursion. The JDK
+rows remain independent return/exception observations, not recorded heap snapshots.
