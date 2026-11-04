@@ -67,6 +67,8 @@ The initial host is Windows x86-64, with Rust stable 1.98.1 through the user's C
 
 The subsequent field-execution commit `d6ef169` also passed the complete Linux/Windows workflow in [run 41726268353](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41726268353), including all seven reference sets, debug/optimized tests, strict lint and parser smoke. The virtual-call implementation `d6558d8` subsequently passed complete Linux/Windows [run 41730095972](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41730095972) with Rust 1.99.1 and JDK 21.0.13, including all eight reference sets, debug/optimized tests, strict lint and parser smoke.
 
+The interface/default-dispatch implementation `3574484` passed complete Linux/Windows [run 41792109658](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41792109658) with Rust 1.99.1 and JDK 21.0.13, including all nine reference sets, debug/optimized tests, strict lint and parser smoke.
+
 Reference JDK tooling is development-only: compile fixtures, inspect class metadata, and later produce differential reference results. Fixture generation records the JDK version, source inputs, compiler options, and generated artifact provenance. Ordinary Rust tests must be reproducible without quietly executing a Java application or downloading a JDK. Tests using checked-in binary fixtures should validate the expected major version; regeneration uses an explicit Java 21 toolchain.
 
 ## Acceptance gates

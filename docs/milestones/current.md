@@ -96,8 +96,12 @@ panic freedom. The 70 classfile tests pass against the expanded corpus.
 The local toolchain is Rust/Cargo 1.98.1. Rust 1.85, the declared minimum, remains
 untested. The accepted virtual-call implementation d6558d8 passed complete
 Linux/Windows [run 41730095972](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41730095972)
-with Rust 1.99.1 and Temurin JDK 21.0.13. Hosted validation for this interface
-increment remains pending publication.
+with Rust 1.99.1 and Temurin JDK 21.0.13. Interface implementation 3574484 passed complete [run 41792109658](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41792109658)
+on Linux and Windows with the same hosted toolchain. All 59 fixtures and nine
+reference sets regenerated, checked-in/fresh tests, strict lint, optimized tests
+and parser smoke passed. Both hosted smoke runs completed 10,000 cases with 124
+accepted, 9,876 rejected, 10 rechecks, corpus 183 and zero failures. This evidence
+belongs to the implementation commit; this documentation update is separate.
 
 ## Reviews, limitations and next work
 
