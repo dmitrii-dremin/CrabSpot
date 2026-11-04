@@ -166,10 +166,13 @@ The expanded 98-class smoke passed 10,000 cases at seed 4851011501752864596:
 No finite test proves panic freedom. Rust 1.85, the declared minimum, remains
 untested; local tools are Rust/Cargo 1.98.1 and Zulu OpenJDK 21.0.7.
 
-The preceding reference-call implementation 9757382 passed complete Linux/Windows
-[run 41819049792](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41819049792)
-with Rust/Cargo 1.99.1 and Temurin JDK 21.0.13. Hosted CI for this exception
-increment is pending publication; earlier CI is not attributed to the new source.
+Implementation `215ec91ee10cd9b20e9860a33376193b82c89198` passed complete
+[Linux/Windows run 41824069552](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41824069552).
+Both job logs were inspected: Rust/Cargo 1.99.1, Temurin JDK 21.0.13, six Python
+regressions, 38-source/sixteen-record preflight, 98 reproduced classes and all
+sixteen reference sets. Each platform passed 724 checked-in and 724 regenerated
+workspace tests plus 637 optimized tests (2,085 Rust test executions), strict
+formatting/lint, and the same 10,000-case parser smoke with zero failures.
 
 ## Reviews, limitations and next work
 

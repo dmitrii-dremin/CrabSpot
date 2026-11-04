@@ -1,6 +1,6 @@
 # Supplied-Throwable dispatch review
 
-Status: approved by the technical director on 2026-11-04 for the bounded opt-in supplied-Throwable profile. Frozen technical review and the coordinator's integrated gate satisfy `m2-exception-dispatch.md`. Full M2 remains open. New hosted CI is pending publication.
+Status: approved by the technical director on 2026-11-04 for the bounded opt-in supplied-Throwable profile. Frozen technical review and the coordinator's integrated gate satisfy `m2-exception-dispatch.md`. Full M2 remains open. Hosted Linux/Windows CI also passes; see the evidence below.
 
 ## Reviewed invariants
 
@@ -43,7 +43,7 @@ The coordinator independently observed on the frozen combined source:
 - All 98 class fixtures and sixteen reference-output sets reproduce; all previous 92 class hashes remain unchanged. The 38-source/sixteen-record provenance preflight and six Python regressions pass.
 - The 98-class corpus passed 10,000 seeded parser mutations: 131 accepted, 9,869 rejected, ten deterministic rechecks, corpus 229 and zero failures; seed 4851011501752864596.
 
-All sixteen frozen hashes were reverified after the gate. Local validation used Rust/Cargo 1.98.1 and Zulu JDK 21.0.7. Hosted Linux/Windows validation of this increment remains pending publication and will be recorded separately.
+All sixteen frozen hashes were reverified after the gate. Local validation used Rust/Cargo 1.98.1 and Zulu JDK 21.0.7. Implementation `215ec91ee10cd9b20e9860a33376193b82c89198` subsequently passed complete [Linux/Windows run 41824069552](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41824069552). The coordinator inspected both job logs: Rust/Cargo 1.99.1 and Temurin JDK 21.0.13; six Python regressions; 38-source/sixteen-record preflight; 98 reproduced classes and all sixteen reference sets; 724 workspace tests before and after regeneration plus 637 optimized tests (2,085 Rust test executions per platform); strict formatting/lint; and identical 10,000-case parser results with zero failures.
 
 ## Boundary and next direction
 
