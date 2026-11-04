@@ -1,6 +1,6 @@
 # Construction review
 
-Status: approved by the technical director on 2026-11-04 for the bounded session construction increment in `m2-construction.md`. Frozen runtime, root oracle and revised interpreter review and the independent combined gate in a fresh build directory pass. Publication is authorized under the existing project mandate; fresh hosted CI remains pending publication. Full M2 and complete JVM verification remain open.
+Status: approved by the technical director on 2026-11-04 for the bounded session construction increment in `m2-construction.md`. Frozen runtime, root oracle and revised interpreter review and the independent combined gate in a fresh build directory pass. Implementation ea7dc014 is published and its fresh Linux/Windows CI passed, with inspected evidence below. Full M2 and complete JVM verification remain open.
 
 ## Frozen runtime component
 
@@ -49,7 +49,13 @@ The director independently checked all 55 combined manifest hashes after the gat
 - Reproduction passes for 165 javac classfiles and nine original encodings, all 151 previous javac hashes preserved; 42 canonical sources and seven Python provenance regressions pass.
 - Parser smoke over 174 initial classfiles: seed `4851011501752864596`, 10,000 cases, 119 accepted, 9,881 rejected, ten deterministic rechecks, final corpus 256, zero failures. This is seeded mutation evidence, not a coverage-guided campaign or a verifier proof.
 
-Aggregate evidence is `target/coordinator/construction-final-evidence.json`; frozen paths are in `target/coordinator/construction-combined-manifest.json`. Final logs are `construction-final-{fmt,clippy,debug,release,fixtures,fuzz}.log` in the same directory. Hosted CI remains pending publication and must be appended only after the actual run is inspected.
+Aggregate evidence is `target/coordinator/construction-final-evidence.json`; frozen paths are in `target/coordinator/construction-combined-manifest.json`. Final logs are `construction-final-{fmt,clippy,debug,release,fixtures,fuzz}.log` in the same directory.
+
+## Hosted verification
+
+The coordinator inspected both successful jobs in run `41859897401` for implementation commit `ea7dc014352d46253fc5123b11dfeec04774eb34`: Linux job `126678491674` and Windows job `126678492033`. Each used Rust/Cargo 1.99.1 and Temurin 21.0.13, passed formatting and strict lint, and executed 947 checked-in-fixture tests, 947 regenerated-fixture tests, 424 optimized interpreter tests and 436 optimized runtime tests: 2,754 Rust test executions per platform.
+
+Both platforms passed seven Python regressions, pre-regeneration provenance for 42 sources/twenty reference records, reproduction of 165 javac classfiles and nine original encodings, and all twenty reference sets. Hosted parser smoke used 174 initial inputs and seed `4851011501752864596`: 10,000 cases, 122 accepted, 9,878 rejected, ten deterministic rechecks, corpus 256 and zero failures. These Temurin-regenerated fixture results are recorded separately from the local Zulu 21.0.7 smoke's 119/9,881 split; neither set is substituted for the other.
 
 ## Bounded disposition
 

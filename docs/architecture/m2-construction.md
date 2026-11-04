@@ -1,6 +1,6 @@
 # Session object allocation and constructor execution
 
-Status: bounded implementation approved by the technical director on 2026-11-04 after frozen source review and the fresh-build independent gate. See `m2-construction-review.md` for corrections, exact source identities and 947 debug / 860 optimized passing tests. The implementation contract was frozen before dispatch from d3ad54f; its original dispatch hash is retained in the review and worker manifests. Fresh hosted CI remains pending publication. Full M2 remains open. No NanoSpec.
+Status: bounded implementation approved by the technical director on 2026-11-04 after frozen source review and the fresh-build independent gate. See `m2-construction-review.md` for corrections, exact source identities and 947 debug / 860 optimized passing tests. The implementation contract was frozen before dispatch from d3ad54f; its original dispatch hash is retained in the review and worker manifests. Implementation ea7dc014 and inspected Linux/Windows CI run 41859897401 are complete. Full M2 remains open. No NanoSpec.
 
 ## Scope and specification boundary
 

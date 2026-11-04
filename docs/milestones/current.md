@@ -89,7 +89,7 @@ boundaries, lifecycle failures and alias publication/invalidation atomicity.
 The parser smoke used seed 4851011501752864596 with 174 initial classfiles:
 119 accepted, 9,881 rejected, ten deterministic rechecks, corpus 256 and zero failures.
 Local platform: Windows x86-64, Rust/Cargo 1.98.1, Zulu 21.0.7. Hosted construction
-validation has not yet run. Full M2 remains open.
+validation also passes as recorded below. Full M2 remains open.
 
 ## Review corrections and boundaries
 
@@ -121,7 +121,7 @@ GPT-6 Astra/high owns interpretation and review; GPT-6.1 Sol/high workers use
 separate mutable worktrees/output directories. Root owns fixtures, integration and
 independent evidence. Hash-checked atomic integration preserves Admin ownership.
 The user authorized autonomous review and publication. Source review and the
-combined gate are approved; Linux/Windows evidence remains pending publication.
+combined gate are approved; inspected Linux/Windows validation also passes.
 The next proposed direction is whole-method structural/code constraints followed
 by type-state verification. Its exact contract requires a separate review.
 
@@ -129,6 +129,23 @@ A reused debug build directory initially omitted five new runtime unit tests
 because copied snapshot timestamps predated the cached binary. Those results are
 not acceptance evidence. The final gate uses a brand-new CARGO_TARGET_DIR and
 rechecks the frozen source hashes; future snapshot integrations refresh mtimes.
+
+## Hosted construction evidence
+
+Implementation `ea7dc014352d46253fc5123b11dfeec04774eb34` passed complete
+[Linux/Windows run 41859897401](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41859897401).
+The coordinator inspected Linux job 126678491674 and Windows job 126678492033.
+Both used Rust/Cargo 1.99.1 and Temurin 21.0.13 and passed every workflow step:
+947 checked-in tests, 947 regenerated workspace tests and 860 optimized tests
+(424 interpreter + 436 runtime), totaling 2,754 Rust executions per platform.
+Seven Python tests, 42-source/20-record provenance, 165 reproduced javac classes,
+nine original encodings and all 20 reference sets also passed.
+
+Hosted parser smoke used 174 input classes and seed 4851011501752864596:
+10,000 cases, 122 accepted, 9,878 rejected, ten rechecks, corpus 256 and zero failures.
+This is the regenerated Temurin corpus; the native Zulu corpus produced 119/9,881.
+Neither result is substituted for the other. No full-JVM or performance acceptance
+is implied by the bounded construction approval or these CI results.
 
 ## Previous published checkpoint
 

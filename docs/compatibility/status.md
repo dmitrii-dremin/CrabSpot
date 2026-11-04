@@ -24,7 +24,7 @@ completion of that goal.
 | Inspection CLI | Implemented and tested | Escaped metadata, bounded reads, preview opt-in and nonzero argument/input failures; no bytecode execution |
 | Genuine Java 21 fixtures | Implemented and tested | 165 javac classes, with fourteen new construction/driver definitions; nine original class-file version 65 construction encodings are separately marked synthetic. Source/artifact digest manifests and compiler/encoding regeneration preserve all prior 151 class hashes (M1 acceptance used 17); oracle data alone does not establish execution support |
 | Parser fuzzing | Implemented and tested | 108,907,980 seeded cases over 300 seconds, zero failures, exact-source fingerprint; no coverage metrics or proof of panic freedom |
-| Linux/Windows hosted CI | Passed for 8ef7f43 | [Linux/Windows run 41845390025](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41845390025) passed every step on both platforms with Rust/Cargo 1.99.1 and Temurin 21.0.13: 151 fixtures/19 reference sets, 882 workspace tests before and after regeneration, 795 optimized tests, provenance, strict lint and parser smoke |
+| Linux/Windows hosted CI | Passed for ea7dc01 | [Linux/Windows run 41859897401](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41859897401) passes every step on both platforms with Rust/Cargo 1.99.1 and Temurin 21.0.13: 947 workspace tests before and after regeneration, 860 optimized tests, 165 javac + 9 original fixtures, 20 references, provenance, strict lint and parser smoke |
 | Rust 1.85 minimum version | Not tested | Manifest declaration; actual local toolchain is Rust 1.98.1 |
 | Performance superiority over HotSpot | Not demonstrated | Long-term objective; no comparative performance benchmark results are claimed |
 | Bytecode decoder | Implemented and tested | All defined JVM instruction formats, version/operand constraints and static branch destinations; 10 focused tests and malformed-input corpus |
@@ -70,14 +70,29 @@ remain unchanged; 42 source records and seven Python regressions pass.
 Expanded parser smoke passed 10,000 cases at seed 4851011501752864596 with 174 input
 classfiles: 119 accepted, 9,881 rejected, ten rechecks, corpus 256 and zero failures.
 The local toolchain is Rust/Cargo 1.98.1 with Zulu 21.0.7 on Windows x86-64.
-Construction hosted CI is pending; the preceding hosted evidence remains scoped
-to its named commits. The technical record is [construction review](../architecture/m2-construction-review.md).
+Construction hosted CI passes on both Linux and Windows; preceding evidence
+remains scoped to its named commits. The technical record is [construction review](../architecture/m2-construction-review.md).
 
 Review corrected an observable if_acmp operand-error precedence regression and
 hardened constructor authority/one-pass alias accounting. An older debug cache
 omitted five new unit tests because snapshot mtimes predated its binary; those
 results were discarded. The final fresh-directory runtime unit binary runs all 73
 tests, and all 55 frozen path hashes were verified again after the full gate.
+
+Implementation `ea7dc014352d46253fc5123b11dfeec04774eb34` passed complete
+[Linux/Windows run 41859897401](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41859897401).
+The coordinator inspected Linux job 126678491674 and Windows job 126678492033.
+Both used Rust/Cargo 1.99.1 and Temurin 21.0.13 and passed every workflow step:
+947 checked-in tests, 947 regenerated workspace tests and 860 optimized tests
+(424 interpreter + 436 runtime), totaling 2,754 Rust executions per platform.
+Seven Python tests, 42-source/20-record provenance, 165 reproduced javac classes,
+nine original encodings and all 20 reference sets also passed.
+
+Hosted parser smoke used 174 input classes and seed 4851011501752864596:
+10,000 cases, 122 accepted, 9,878 rejected, ten rechecks, corpus 256 and zero failures.
+This is the regenerated Temurin corpus; the native Zulu corpus produced 119/9,881.
+Neither result is substituted for the other. No full-JVM or performance acceptance
+is implied by the bounded construction approval or these CI results.
 
 ## Historical static-memory evidence
 
