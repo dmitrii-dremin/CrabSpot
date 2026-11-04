@@ -32,3 +32,11 @@ version = "0.1.0"
 dependencies = [
  "crabspot-classfile",
 ]
+
+[[package]]
+name = "crabspot-verifier"
+version = "0.1.0"
+dependencies = [
+ "crabspot-bytecode",
+ "crabspot-classfile",
+]

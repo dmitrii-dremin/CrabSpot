@@ -1,6 +1,6 @@
 # CrabSpot architecture
 
-Status: M1 and the documented M2 execution/runtime increments through session object allocation and constructor execution are approved in separate review records. The latest bounded approval is `m2-construction-review.md`: real constructor Code, initialization-before-allocation, per-frame unfinished-reference protocol and scoped own-field final writes in the existing session engine. Its fresh-build gate passed 947 workspace and 860 optimized tests, including 184 new construction reference rows; implementation ea7dc014 also passed inspected Linux/Windows CI run 41859897401. Existing host-controlled body entry points retain their earlier gates and do not gain automatic construction or initialization. String constants, constructed VM exceptions/wrappers, complete verification/preparation and concurrent initialization remain open. The proposed next verification foundation is in `m2-code-validation-next.md` and requires an exact contract before dispatch. Full M2 and later milestones remain open.
+Status: M1 and the documented M2 execution/runtime increments through session construction are approved, followed by the standalone whole-method Code-validation foundation in `m2-code-validation-review.md`. Its fresh-target gate passed 998 workspace and 911 optimized verifier/runtime/interpreter tests, all 168 genuine classes and eighteen stage-aware original validation cases. New hosted CI is pending publication; construction implementation ea7dc014 retains its separately inspected Linux/Windows evidence. Code validation remains an explicitly partial result and adds no implicit execution gate. Full type-state verification, String constants, constructed VM exceptions/wrappers, complete preparation and concurrent initialization remain open. The next exact-contract planning direction is `m2-type-state-verification-next.md`; no next production dispatch is authorized yet. Full M2 and later milestones remain open.
 
 `ARCHITECTURE.md` is the project charter. This document refines its initial layout without reducing its roadmap. CrabSpot is an independent Rust JVM project targeting Linux x86-64. The first deliverable reads class files; it does not execute Java programs or claim JVM compatibility. NanoSpec is not used in this project.
 
@@ -24,6 +24,8 @@ Only create crates containing implemented behavior:
 | `launcher` | Read an explicitly selected file, invoke the parser, print metadata and errors | `classfile`, standard library |
 
 The implemented M2 foundation additionally contains `bytecode` (independent bounded instruction decoding) and `interpreter` (a selected static method-body execution kernel using `classfile` and `bytecode`). Its scope and evidence are recorded in `m2-foundation-review.md`. The initial parser/launcher description below remains their contract; the launcher still does not start Java applications.
+
+Subsequent reviewed increments added `runtime` for explicit identities, managed storage, resolution and related services, and `verifier` for standalone selected-method Code representation checks. The workspace now has six implemented crates. The verifier borrows inspection metadata and owns decoded Code; it does not yet establish type safety or grant execution permission.
 
 The parser owns `reader`, `error`, `model`, `constant_pool`, `descriptor`, `attribute`, and parser orchestration modules. These are logical boundaries and may be combined while small. A module does not need a separate crate. The CLI executable is `crabspot`; its initial action is `crabspot inspect <path>`. Successful inspection must never be described as verification or execution. The CLI returns a nonzero status on malformed, unsupported, resource-limited, or unreadable input and handles bad arguments without a panic.
 
@@ -49,10 +51,10 @@ The normative format reference is [JVMS SE 21 chapter 4](https://docs.oracle.com
 
 ## Growth boundaries
 
-Crates are introduced when their first coherent implementation exists. The decoder and execution kernel now have that implementation; the remaining runtime services are future work:
+Crates are introduced when their first coherent implementation exists. The following boundaries describe both implemented foundations and remaining obligations; individual review records define current support:
 
 - `bytecode`: bounded instruction decoding and instruction offsets, independent of execution. Code bytes remain available in the class-file model until this layer is introduced.
-- `verifier`: instruction and type-state checks with explicit inputs, diagnostics, and checked output states. A parsed class is never implicitly a verified class.
+- `verifier`: whole-method instruction/metadata representation checks are implemented with explicit partial output; type-state verification remains next. A parsed or partially validated class is never implicitly a verified class.
 - `classloader` and `runtime`: defining-loader-plus-name class identity, runtime constant pools, resolution, and explicit loaded/linked/initializing/initialized/erroneous lifecycle transitions. Initialization synchronization is a runtime concern.
 - `interpreter`: JVM values with explicit category-one/category-two semantics, frame/local/operand-stack rules, and Java exception outcomes distinct from host/parser errors. It depends on runtime services, not a future JIT backend.
 - `heap`, `gc`, and `threading`: managed reference handles, roots, thread state, and safepoint cooperation. Raw host addresses must not become stable application references. Root ownership and safepoint obligations must be part of runtime API design before allocation or threading lands.

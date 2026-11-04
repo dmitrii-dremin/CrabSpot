@@ -43,6 +43,10 @@ jobs:
         run: |
           python tools/construction_fixtures.py
           python tools/construction_fixtures.py --check
+      - name: Reproduce original Code-validation encodings and verification-stage oracle
+        run: |
+          python tools/code_validation_reference.py
+          python tools/code_validation_reference.py --check
       - name: Generate and verify numeric reference output with this JDK
         run: |
           python tools/numeric_reference.py
@@ -93,5 +97,7 @@ jobs:
         run: cargo test -p crabspot-interpreter --release --locked
       - name: Runtime invariants in optimized builds
         run: cargo test -p crabspot-runtime --release --locked
+      - name: Code validation in optimized builds
+        run: cargo test -p crabspot-verifier --release --locked
       - name: Seeded parser fuzz smoke test
         run: cargo run -p crabspot-classfile --example fuzz_parser --locked -- tests/fixtures --iterations 10000

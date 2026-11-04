@@ -57,6 +57,8 @@ python tools/initialization_reference.py --check
 python tools/cross_static_reference.py --check
 python tools/construction_fixtures.py --check
 python tools/construction_reference.py --check
+python tools/code_validation_reference.py --check
+cargo test -p crabspot-verifier --release
 cargo test -p crabspot-interpreter --test numeric_reference
 cargo test -p crabspot-interpreter --test floating_reference --release
 ```
@@ -78,11 +80,23 @@ original payload bytes.
 
 ## Development
 
-There are five crates: `crabspot-classfile` for pure byte parsing,
+There are six crates: `crabspot-classfile` for pure byte parsing,
 `crabspot-bytecode` for instruction decoding, `crabspot-interpreter` for the
 method-body execution kernel, `crabspot-runtime` for bounded definition registration,
 hierarchy/field-layout plans, shared values, static storage and a managed heap,
+`crabspot-verifier` for standalone whole-method Code representation checks,
 and `crabspot-launcher` for command-line inspection.
+
+The validator checks every instruction, including unreachable code, constant-pool
+operand categories, local ranges, handler boundaries and stack-map representation.
+It returns a borrowed partial validation result with explicit resource accounting.
+It does not establish stack/local type flow, linkage or execution permission, and
+existing execution APIs do not acquire an implicit gate. Independent tests cover
+all 890 Code bodies and 31 bodyless declarations in the genuine fixture corpus,
+plus original encodings that distinguish static defects from deferred type errors.
+See the [verifier contract](docs/architecture/m2-code-validation.md) and
+[crate documentation](crates/verifier/README.md).
+
 The differential tests compare 616 integral, 7,263 floating-point, 126 static-call,
 280 primitive-array, 553 instance-field, 494 virtual-call, 1,337 interface/default,
 450 ordinary special-call, 1,276 cast/type-test, 690 reference-field, 3,948

@@ -1,0 +1,15 @@
+[package]
+name = "crabspot-verifier"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "crabspot_verifier"
+
+[dependencies]
+crabspot-classfile = { path = "../classfile" }
+crabspot-bytecode = { path = "../bytecode" }
+
+[lints]
+workspace = true

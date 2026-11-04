@@ -1,0 +1,25 @@
+{
+  "source": "CodeValidationCases.java",
+  "source_sha256": "7f0253316171f5c58b67c574020cb800926b905cc5686662ae20a0a559cc92e4",
+  "kind": "Original synthetic encodings, not javac-generated classfiles",
+  "files": {
+    "DeadBadField.class": "35f7349e08bc853336dca806b4e452cbc0b395926b0c13966810e113ea64bcd8",
+    "DeadBadInvoke.class": "0c15bfcdfc61b1b552a5e96b2bb928c0c39bb9d454caeb33bf671ec554d5b73e",
+    "DeadBadLdc.class": "c67f0c0c9b4c9af85831c348965ed3b1222aec43d37c832bbfdd356a4fbdb6f1",
+    "DeadBadLocal.class": "a2dfe96eec404da5ffea38aeff30d2837c8a3da427a71b0ea3acbafbda712eac",
+    "DeadBadLong.class": "3ce890081345784e56286d9a8abf3da332388d67e11180d9343cd242e634413c",
+    "DeadBadWide.class": "9626807a43b7300d6d876138f1f8f4adceaf02a79ceec73bf557d8d0b9a13c90",
+    "DeadInterface51.class": "656f130a86798330607448450458c22be05a31349b7ea5ec1e94262e7a1ecb48",
+    "DeadInterface52.class": "9fe2ea6f7e035ade0a94e7c4f1691a74af1b779ffbed9e637ff588325569ae44",
+    "DeadTypeMismatch.class": "b31734bfb1abe8468c1f4b1b7298b4dd795c64779e33837bc5c472663278c059",
+    "DeadUninitializedLocal.class": "38563ae42aecabdee6fbd00349f8f5273316f1bd4a0e27bf3f75bdc51e854ca0",
+    "DeadValid.class": "12217af1ad2323d93f6ceaffef31e43a50a9df78018840f9e603aaa2d7ddc6ab",
+    "FrameMiddle.class": "a0badc073c87fc3a22168ac572c765f5e133a08f1cef1ed0b50cc1a2f5d880f5",
+    "HandlerEndMiddle.class": "b9eb54ccb69fcf18ebc7935490fa495039e34aad57adda1df2ec672d0cc807ab",
+    "HandlerStartMiddle.class": "fc388d68e67c44bd8daf7e79e00a98de856cc7cbe6cd65c411b4e0e1578cecb4",
+    "HandlerTargetMiddle.class": "5952be0e6e3ccbad3859bedb938e29c1310a772dd86d7d4612c6ffe4467ba44a",
+    "HandlerValid.class": "bcc8989c20b949b76ea8c74fdfa393aa0565d44c2b41eca012f55d637b3baa2d",
+    "UninitValid.class": "f36379e106119dae3c7525ab0246ec7027c2c734d076b0e50ac7dccf95ff4f08",
+    "UninitWrongSite.class": "55be8b4e955241a4ecd11b5acc0188861e963f50988f767e06341b572201d0e4"
+  }
+}

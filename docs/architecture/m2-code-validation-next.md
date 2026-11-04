@@ -1,6 +1,6 @@
 # Next: whole-method Code validation and verifier foundation
 
-Status: proposed direction after the bounded construction approval on 2026-11-04. This note does not authorize production changes. The technical director must freeze an exact scope, API, policy and acceptance contract before workers implement it.
+Status: historical proposal fulfilled by the bounded `m2-code-validation.md` implementation and approval in `m2-code-validation-review.md` on 2026-11-04. The discussion below records its motivation, not a new implementation authorization. The next exact-contract planning direction is `m2-type-state-verification-next.md`.
 
 The engine now executes substantial class, interface, initialization and construction behavior. Its dynamic checks intentionally cover only executed paths. The next coherent step is a reusable whole-method validation foundation, followed by verification of type states. This advances the full JVM target without mistaking a successful constructor execution or opcode count for verification.
 

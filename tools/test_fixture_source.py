@@ -68,7 +68,13 @@ class FixtureSourceTests(unittest.TestCase):
                     verify(self.root)
 
     def test_original_construction_provenance_and_artifact_changes(self):
-        directory = self.root / "tests/fixtures/construction"
+        self.check_original_provenance_and_artifact_changes("construction")
+
+    def test_original_code_validation_provenance_and_artifact_changes(self):
+        self.check_original_provenance_and_artifact_changes("code-validation")
+
+    def check_original_provenance_and_artifact_changes(self, name):
+        directory = self.root / "tests/fixtures" / name
         directory.mkdir()
         artifact = directory / "A.class"
         artifact.write_bytes(bytes.fromhex("cafebabe00000041"))
@@ -82,14 +88,14 @@ class FixtureSourceTests(unittest.TestCase):
                         {**record, "files": {**record["files"], "B.class": "extra"}}):
             with self.subTest(record=changed):
                 manifest.write_text(json.dumps(changed), encoding="utf-8")
-                with self.assertRaisesRegex(ValueError, "construction fixture"):
+                with self.assertRaisesRegex(ValueError, f"{name} fixture"):
                     verify(self.root)
         manifest.write_text(json.dumps(record), encoding="utf-8")
         artifact.write_bytes(b"changed")
-        with self.assertRaisesRegex(ValueError, "construction fixture hashes/set"):
+        with self.assertRaisesRegex(ValueError, f"{name} fixture hashes/set"):
             verify(self.root)
         artifact.unlink()
-        with self.assertRaisesRegex(ValueError, "construction fixture hashes/set"):
+        with self.assertRaisesRegex(ValueError, f"{name} fixture hashes/set"):
             verify(self.root)
 
 

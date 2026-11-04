@@ -1,4 +1,111 @@
-# Current checkpoint: session object construction
+# Current checkpoint: whole-method Code validation
+
+Updated 2026-11-04. The [contract](../architecture/m2-code-validation.md) is frozen;
+production and independent-test components passed technical review. The final
+fresh-build combined gate passes, and [bounded approval](../architecture/m2-code-validation-review.md)
+authorizes publication after the director's independent evidence readback. Full M2 and full JVM conformance
+remain open. Continue autonomously without NanoSpec.
+
+## Implemented scope
+
+The new standalone `crabspot-verifier` crate checks one selected method's entire
+Code without execution or class resolution. It borrows immutable class/member/Code
+metadata and owns one decoded instruction sequence with scalar resource usage.
+Legal abstract/native declarations return no Code or decoded body. Existing
+parser, registry, interpreter, session and launcher APIs gain no implicit gate.
+
+The pass checks version/preview policy, selected name/descriptor and Code presence,
+all instruction operands including unreachable instructions, constant-pool links
+and loadable categories, versioned invocation tags, receiver-inclusive argument
+slots, local ranges and array ranks. It validates exception-handler boundaries,
+stack-map offset deltas and normalized forms, uninitialized allocation sites,
+current local-entry widths and operand-stack slot capacity. MethodHandle target
+kinds and 254/255-slot limits are tested independently from invocation operands.
+
+Four inclusive quotas fund actual Code bytes, metadata entries, UTF-16 scans and
+work. Multi-counter charges are atomic; successful compact name/descriptor
+summaries are cached by actual Utf8 index and role. The current local-width buffer
+is updated without expanding one full frame per bytecode offset or rescanning Same
+frames. Opaque extensions retain the parser's location/version recognition policy.
+
+Success remains a partial representation result. Stack/local type flow, joins,
+return compatibility, missing required branch frames, reachability/fall-off,
+constructor obligations, assignment/protected checks, linkage and execution
+permission are not established. Bootstrap-table contents and ignored attribute
+bodies are outside this pass. Historical parameterized void class initializers
+remain explicitly unsupported. The unchanged decoder's input-bounded allocations
+do not gain a new recoverable host-OOM guarantee.
+
+## Independent evidence
+
+All 168 genuine javac classes are traversed: 890 Code bodies, 31 legal bodyless
+declarations, 25,236 instructions and 173 opcode values. Repeated validation checks
+usage and decoded equality; input metadata remains unchanged. All 165 prior genuine
+class hashes are preserved; three new classes belong to the JDK-only fixture driver.
+
+Eighteen original encodings are separately identified and reproduced by a Java
+emitter. The JDK driver reads their exact bytes with `-Xverify:all`, defines them,
+forces verification by reflective method lookup, then invokes accepted methods.
+Four valid cases return one. Twelve static defects fail at lookup and are rejected
+by the partial Rust service. Two structurally valid type-state defects also fail
+JDK lookup but deliberately pass this Rust stage. Definition succeeds for all 18;
+it is not treated as proof of verification. Historical interface-reference cases
+use majors 51/52; the other sixteen original files use major 65.
+
+The increment adds 51 Rust tests: nine private guards, forty independent public
+synthetic tests and two coordinator corpus/oracle tests. Private mutation coverage
+checks 2,048 bounded cases twice. Adversarial tests include a reused 65,004-unit
+descriptor, 10,000 Same frames after 30,000 local entries, exact independently
+derived accounting, zero/exact/MAX limits, allocation/overflow guards and mutable
+metadata transplants. Full reference execution remains 26,508 distinct rows;
+the 18 new validation outcomes are recorded separately.
+
+## Final native gate
+
+The accepted increment uses fresh target
+`target/verification-code-validation-final-abde6732caba`. Its `evidence.json` and
+`logs/` record exact commands/results. All 45 frozen integration paths were hash
+verified before and after. Final sources are production frozen-v1 (identical to
+APIv2), independent public tests frozen-v2 and coordinator root-v1. The earlier
+public-v1 gate (997 debug / 910 optimized) is preliminary and not acceptance evidence.
+
+| Command/check | Result |
+| --- | --- |
+| `cargo fmt --check` | Passed |
+| `cargo clippy --workspace --all-targets --locked -- -D warnings` | Passed |
+| `cargo test --workspace --locked` | 998 passed, zero failed |
+| `cargo test -p crabspot-verifier -p crabspot-runtime -p crabspot-interpreter --release --locked` | 911 passed: 51 verifier, 436 runtime, 424 interpreter |
+| `python -m unittest discover -s tools -p test_fixture_source.py` | Eight passed |
+| `python tools/check_fixture_sources.py` | 43 canonical Java sources and 21 reference records |
+| `python tools/compile_fixtures.py --check` | 168 genuine classfiles reproduce |
+| `python tools/construction_fixtures.py --check` | Nine previous original encodings reproduce |
+| `python tools/code_validation_reference.py --check` | 18 original encodings and stage-aware JDK outcomes reproduce |
+| Every `tools/*_reference.py --check` | All 21 reference sets reproduce |
+| `cargo run -p crabspot-classfile --example fuzz_parser --locked -- tests/fixtures --iterations 10000` | Zero failures |
+
+Local platform: Windows x86-64, Rust/Cargo 1.98.1, Zulu 21.0.7. Parser smoke uses
+195 initial classfiles, seed 4851011501752864596 and 10,000 cases: 138 accepted,
+9,862 rejected, ten deterministic rechecks and final corpus 256. This is seeded
+parser mutation evidence, not a full verifier fuzzing campaign. Hosted CI for this
+increment is not yet observed; previous records retain their named commit scope.
+
+## Decisions and remaining work
+
+Review corrected wrong fixed ldc category ordering: reject the category before
+following irrelevant Class/String/Handle metadata. Valid-path accounting is
+unchanged. The director clarified three logical handler-boundary predicates,
+including end equal to Code length, and selected-method scope without certifying
+the enclosing class member count. Final independent review added twelve
+MethodHandle/MethodType parameter-slot boundary cases. No source finding remains.
+
+The next work is a separately reviewed full type-state verification contract and
+implementation, followed by deliberate integration with class derivation and
+execution admission. This increment does not complete M2. Full loader constraints,
+VM exception construction, GC, Java libraries/startup, threads/JMM, JNI and JIT
+remain open. Complete Java SE 21 conformance and demonstrated representative
+performance superiority over HotSpot remain the ultimate acceptance conditions.
+
+## Previous accepted checkpoint: session construction
 
 Updated 2026-11-04. The [construction contract](../architecture/m2-construction.md)
 is frozen, all components have passed source review, and the fresh-build

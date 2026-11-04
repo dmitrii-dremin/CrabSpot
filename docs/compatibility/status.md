@@ -22,7 +22,7 @@ completion of that goal.
 | Unknown attributes (4.7.1) | Implemented and tested | Payload preservation, including standard-looking names outside applicable version/location |
 | Resource bounds | Implemented and tested | Default 16 MiB class input, annotation depth 64, one million annotation/value nodes shared across the whole class; depth hard-capped at 64 even if caller requests more |
 | Inspection CLI | Implemented and tested | Escaped metadata, bounded reads, preview opt-in and nonzero argument/input failures; no bytecode execution |
-| Genuine Java 21 fixtures | Implemented and tested | 165 javac classes, with fourteen new construction/driver definitions; nine original class-file version 65 construction encodings are separately marked synthetic. Source/artifact digest manifests and compiler/encoding regeneration preserve all prior 151 class hashes (M1 acceptance used 17); oracle data alone does not establish execution support |
+| Genuine Java 21 fixtures | Implemented and tested | 168 javac classes, with three new validation-driver definitions; nine construction and eighteen Code-validation original encodings are separately marked synthetic. Source/artifact digest manifests and compiler/encoding regeneration preserve all prior 165 class hashes (M1 acceptance used 17); oracle data alone does not establish execution support |
 | Parser fuzzing | Implemented and tested | 108,907,980 seeded cases over 300 seconds, zero failures, exact-source fingerprint; no coverage metrics or proof of panic freedom |
 | Linux/Windows hosted CI | Passed for ea7dc01 | [Linux/Windows run 41859897401](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41859897401) passes every step on both platforms with Rust/Cargo 1.99.1 and Temurin 21.0.13: 947 workspace tests before and after regeneration, 860 optimized tests, 165 javac + 9 original fixtures, 20 references, provenance, strict lint and parser smoke |
 | Rust 1.85 minimum version | Not tested | Manifest declaration; actual local toolchain is Rust 1.98.1 |
@@ -50,11 +50,36 @@ completion of that goal.
 | Single-session initialization (5.5, 4.7.2) | Implemented, tested and approved within the single-session profile | Actual clinit, numeric constants, ordered dependencies, once-only state and supplied Error propagation; 145 JDK outcomes and independent state checks pass locally in debug/release; combined gate passes 838 debug and 751 optimized tests. String constants, VM exception production, threads and startup remain unsupported |
 | Registered static-call resolution (5.4.3.3/4, 6.5.b8) | Implemented, tested and approved within the registered-call profile | All context-backed profiles resolve cross-class b8 to actual MethodId with access/loading/category checks and unchanged standalone behavior. Session initializes only the declarer. 154 distinct JDK rows (217 profile comparisons before repeats) and full retained-state assertions pass debug/release; native/synchronized execution and full loading constraints remain unsupported |
 | Session allocation and constructors (2.9.1, 4.10.1, 6.5.new/invokespecial/putfield) | Implemented, tested and approved within the session profile | New and real constructor Code, private unfinished aliases, precise chaining/final authority and exception boundaries. All 184 JDK comparisons and complete retained graph/state checks pass debug/release; the fresh combined gate passes 947 workspace and 860 optimized tests. Full verifier, library bootstrap, VM exception construction and GC remain unimplemented; full M2 remains open |
+| Whole-method Code validation (4.9.1, selected 4.7.3/4.7.4 representation rules) | Implemented, tested and approved within the partial validation contract | Standalone partial validator checks 890 genuine Code bodies and 31 bodyless declarations across 168 classes. Fifty-one new Rust tests pass debug/release; the final combined gate passes 998 workspace and 911 optimized tests. Eighteen JDK stage-aware cases distinguish twelve rejected static defects, four positives and two deliberately deferred type errors. No flow/type proof, execution permission or implicit runtime gate; full verification remains unimplemented |
 | Full linkage, bytecode verifier and initialization | Not implemented | Subsequent increments; registration and layout planning are not full linkage |
 | Class loading, GC, threads, Java libraries, JNI, Kotlin, Spring Boot, JIT | Not implemented | Subsequent milestones |
 
 No executed test currently remains failing. This statement is limited to the
 recorded tests; it is not proof that no defect exists.
+
+## Whole-method Code validation evidence
+
+The [bounded review](../architecture/m2-code-validation-review.md) approves the increment.
+The final fresh-target gate passes 998 workspace tests and 911 optimized tests
+(51 verifier, 436 runtime, 424 interpreter), formatting and strict lint. The new
+51 tests comprise nine private guards, forty independent public cases and two
+genuine/original integration tests. They exercise complete Code rather than a
+reachable-only instruction walk, including 890 genuine bodies, 31 bodyless methods,
+25,236 instructions and 173 opcode values. Full type-state verification is deferred.
+
+All 168 javac classes, nine prior original construction encodings, eighteen new
+original Code-validation encodings and 21 reference sets reproduce. All 165 prior
+genuine class hashes remain unchanged. Eight Python regressions and provenance
+for 43 Java sources pass. The new JDK oracle records definition/lookup/invocation
+stages: four positive cases invoke successfully, twelve static defects fail lookup,
+and two deferred type-state errors fail JDK lookup while passing the partial Rust
+validator. No Java error object or full-verification certificate is fabricated.
+
+The native Zulu 21.0.7 parser smoke uses 195 inputs and seed 4851011501752864596:
+10,000 cases, 138 accepted, 9,862 rejected, ten rechecks, corpus 256, zero failures.
+Rust/Cargo is 1.98.1 on Windows x86-64. All 45 frozen source/configuration/fixture
+hashes were reverified after the gate. Hosted evidence for this increment is still
+pending; the previous construction CI record remains scoped to ea7dc01.
 
 ## Construction validation
 
