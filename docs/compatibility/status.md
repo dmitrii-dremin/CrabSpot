@@ -15,16 +15,16 @@ completion of that goal.
 
 | Area / JVMS SE 21 clauses | Status | Evidence and boundary |
 | --- | --- | --- |
-| Reader, header and versions (4.1) | Implemented and tested | Checked reads, exact consumption, majors 45Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р вЂ Р В РІР‚С™Р РЋРЎв„ў65, historical/preview policy and configured byte limits |
+| Reader, header and versions (4.1) | Implemented and tested | Checked reads, exact consumption, majors 45Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р РЋРІвЂћСћ65, historical/preview policy and configured byte limits |
 | Constant-pool encodings (4.4) | Implemented and tested | Every tag, wide holes, numeric bits, modified UTF-8, typed indices, version introductions, module/package names and method-handle constraints |
-| Names, descriptors and members (4.2Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р вЂ Р В РІР‚С™Р РЋРЎв„ў4.6) | Implemented and tested | Descriptor grammar/dimensions/slots, duplicate identities, versioned access flags, class/interface/initializer context and Code presence |
+| Names, descriptors and members (4.2Р В Р’В Р вЂ™Р’В Р В Р’В Р Р†Р вЂљР’В Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р РЋРІвЂћСћР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р Р‹Р РЋРІвЂћСћ4.6) | Implemented and tested | Descriptor grammar/dimensions/slots, duplicate identities, versioned access flags, class/interface/initializer context and Code presence |
 | Standard attributes (4.7) | Implemented and tested for parser stage | All 30 bodies below; later-consumer semantics remain separate |
 | Unknown attributes (4.7.1) | Implemented and tested | Payload preservation, including standard-looking names outside applicable version/location |
 | Resource bounds | Implemented and tested | Default 16 MiB class input, annotation depth 64, one million annotation/value nodes shared across the whole class; depth hard-capped at 64 even if caller requests more |
 | Inspection CLI | Implemented and tested | Escaped metadata, bounded reads, preview opt-in and nonzero argument/input failures; no bytecode execution |
 | Genuine Java 21 fixtures | Implemented and tested | 80 classes including array/instance/reference-field bodies, class/interface/special dispatch and cast hierarchies and raw-field oracle metadata; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
 | Parser fuzzing | Implemented and tested | 108,907,980 seeded cases over 300 seconds, zero failures, exact-source fingerprint; no coverage metrics or proof of panic freedom |
-| Linux/Windows hosted CI | Passed for f05fa69 | [run 41798076784](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41798076784) completed all checks on both platforms with Rust 1.99.1 and JDK 21.0.13, including strict lint, 74 regenerated fixtures/eleven oracle sets, debug/optimized tests and fuzz smoke |
+| Linux/Windows hosted CI | Passed for e2e2e22 | [run 41801158397](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41801158397) completed all checks on both platforms with Rust 1.99.1 and JDK 21.0.13, including strict lint, 80 regenerated fixtures/twelve oracle sets, debug/optimized tests and fuzz smoke |
 | Rust 1.85 minimum version | Not tested | Manifest declaration; actual local toolchain is Rust 1.98.1 |
 | Performance superiority over HotSpot | Not demonstrated | Long-term objective; no comparative performance benchmark results are claimed |
 | Bytecode decoder | Implemented and tested | All defined JVM instruction formats, version/operand constraints and static branch destinations; 10 focused tests and malformed-input corpus |
@@ -58,8 +58,8 @@ defenses, hidden descriptor types, loader/UTF-16 boundaries, deep assignment,
 exact shared quotas, current-frame origins and retained effects. The old
 non-null rejection regression now checks the missing-universe boundary.
 Final frozen review approved the increment in docs/architecture/m2-reference-fields-review.md;
-full M2 remains open. Hosted CI for this increment is pending publication;
-the preceding run in the table applies only to its named implementation commit.
+full M2 remains open. Hosted CI passed for e2e2e22 on Linux and Windows;
+that evidence applies to the implementation commit, separately from this update.
 
 ## Standard attribute coverage
 
