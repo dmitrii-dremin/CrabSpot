@@ -1,8 +1,8 @@
-# Accepted checkpoint: reference arguments and results
+# Accepted checkpoint: supplied-Throwable exception dispatch
 
-Updated 2026-11-04. M1 and earlier M2/runtime increments are approved. Bounded
-reference arguments/results and areturn are approved after integrated validation
-and frozen-source review; see docs/architecture/m2-reference-calls-review.md.
+Updated 2026-11-04. M1 and earlier M2/runtime increments are approved. The opt-in
+supplied-Throwable dispatch increment is approved after integrated validation and
+frozen-source review; see docs/architecture/m2-exception-dispatch-review.md.
 Full M2 remains open. Continue autonomously without NanoSpec; ask only when user
 intervention is unavoidable.
 
@@ -18,7 +18,8 @@ milestones, not the endpoint. No performance result is claimed.
 - Java 21 class-file encodings and all 30 standard attributes, lossless UTF-16,
   checked reads and explicit parser limits; metadata inspection CLI.
 - Full instruction-format decoder. Runtime-aware instance execution supports
-  191 opcode values; the earlier heap/static mode retains 179 and numeric APIs 148.
+  191 opcode values; opt-in explicit exception dispatch adds athrow for 192.
+  The earlier heap/static mode retains 179 and numeric APIs 148.
 - Runtime-aware primitive/reference body graphs with shared instruction fuel, explicit iterative
   frames and frame/slot/prepared-code quotas. Registered frames and prepared
   cache entries use complete MethodIds, with each frame's own constant pool,
@@ -105,6 +106,22 @@ matching foreign-loader declarations throughout the receiver hierarchy, includin
 otherwise nonselected private/static declarations. This is an explicit unsupported
 boundary, not full loading-constraint enforcement. Numeric-only budgets are retained.
 
+The opt-in exception profile binds an explicit admitted bootstrap Throwable
+identity and validates supplied ordinary-instance references. Opaque profile/token
+fingerprints reject replaced heaps, universes and layout snapshots. Typed catches
+resolve lazily through the searched method's declaring origin with caller access;
+catch-all avoids resolution. Prepared rows borrow original Code tables by index,
+with eager boundary/shape checks and an aggregate handler limit. Iterative dispatch
+charges every frame probe, row and unwind, searches callers at their invocation
+PC, replaces only the handler operand stack and preserves locals/heap effects.
+
+The new API returns normal values or the exact uncaught reference. All eleven
+existing VM-produced symbolic categories become explicit UnsupportedVmException
+host failures in this profile, including null athrow and catch-access failures.
+No object is fabricated or matching handler silently skipped. Existing APIs retain
+their symbolic outcomes and handler/athrow rejection. Dispatch does not certify
+Throwable constructors, initialized library fields, messages or stack traces.
+
 ## Validation
 
 Final independent checks passed on the verified frozen source:
@@ -113,75 +130,64 @@ Final independent checks passed on the verified frozen source:
 | --- | --- |
 | cargo fmt --check | Passed |
 | Strict workspace/all-target Clippy | Passed |
-| Debug workspace tests | 680 passed, zero failed |
-| Optimized runtime/interpreter tests | 593 passed: 320 runtime + 273 interpreter |
-| Execution comparisons | All 25,325 match in debug and release |
+| Debug workspace tests | 724 passed, zero failed |
+| Optimized runtime/interpreter tests | 637 passed: 341 runtime + 296 interpreter |
+| Execution comparisons | All 25,661 match in debug and release |
 | Separate memory-service roundtrips | 151 array + 151 field cases match in both profiles |
-| Fixture/reference reproduction | 92 classes and all fifteen output sets reproduced |
-| Canonical source provenance | 37 Java sources and fifteen named reference records verified |
+| Fixture/reference reproduction | 98 classes and all sixteen output sets reproduced |
+| Canonical source provenance | 38 Java sources and sixteen named reference records verified |
 | Python provenance regressions | Six passed |
 | Expanded parser smoke | 10,000 cases, zero failures |
 
-This increment adds 49 Rust tests: 22 public and four private runtime cases,
-21 public and one private interpreter case, and the genuine execution/state oracle.
-They cover call-site/resolved/selected identities; intermediate foreign-loader,
-interface/private/static declarations; source-first validation; all-null/unbound
-transfers; inaccessible descriptor types; exact budgets and long shared signatures;
-deep iterative audits and 10,001-frame reference recursion; failure provenance and
-persistent earlier effects. Old reference exclusions now assert the newly supported
-behavior or retained computational/owner/initialization guards. Invalidated contexts
-are deliberately detected earlier by runtime shape preparation as MethodAccess.
+This increment adds 44 Rust tests: eighteen public and three private runtime cases,
+eighteen public and four private interpreter cases, and the genuine execution/state
+oracle. They cover explicit bootstrap/Throwable identity, foreign/replaced snapshots,
+forged tokens/handles, actual cross-loader subclasses, lazy typed/catch-all matching,
+caller access, exact work/name limits, eager structural boundaries, handler caching,
+all eleven unsupported production paths, stack preservation on failed installation,
+iterative unwind accounting/origins, legacy modes and retained effects.
 
-The execution corpus comprises 24,421 earlier cases plus 904 new reference-call
-cases across twenty receiver/method pairs. The new JDK results include 872 successes,
-twelve NullPointerException, sixteen bounds and four ArrayStoreException outcomes.
-Separate source-derived checks inspect retained state, aliases/cycles, every array
-value/type/edge and public counters. Exact helper descriptors and decoded selected
-Code pin reference signatures, areturn and all four invocation forms. Host receivers
-use default storage; only the JDK oracle driver invokes constructors.
+The execution corpus comprises 25,325 earlier cases plus 336 new supplied-exception
+cases across thirty-six type/method pairs. The JDK records 240 numeric completions
+and 96 uncaught identities: nineteen first-object and seventy-seven second-object
+outcomes. Separate source-derived checks inspect saved/first/second references,
+state, repeated child edges and unchanged allocation totals. Decoded genuine Code
+pins typed catch order, catch-all rows, athrow and all four invocation forms. A
+protected call ending exactly at the resume PC proves invocation-PC unwind search.
+Host objects are preseeded/default values with original core metadata; only the JDK
+oracle driver invokes constructors. Implicit VM exceptions are outside this corpus.
 
-A concrete provenance defect was repaired: some historical working-copy CRLF source
-hashes differed from Git's required LF blobs, while CI regeneration concealed that
-mismatch. Sources now use canonical LF. Both generators reject CR bytes before JDK
-calls or metadata writes and still hash exact accepted bytes. Reference records name
-their source; CI checks manifest/reference source hashes and matching JSON/TSV sets
-before regeneration. All 92 compiled class files and fifteen TSV outputs remained
-byte-identical during repair; all 88 previous class hashes remain unchanged.
-
+All 92 previous class hashes remain unchanged. Canonical LF source guards and the
+pre-regeneration source/JSON/TSV provenance checks remain active and pass.
 The unchanged parser's sustained M1 evidence remains in docs/milestones/evidence:
 108,907,980 cases over 300 seconds, zero failures, with exact-source fingerprint.
-The expanded 92-class smoke passed 10,000 cases at seed 4851011501752864596:
-158 accepted, 9,842 rejected, ten deterministic rechecks, corpus 250, zero failures.
+The expanded 98-class smoke passed 10,000 cases at seed 4851011501752864596:
+131 accepted, 9,869 rejected, ten deterministic rechecks, corpus 229, zero failures.
 No finite test proves panic freedom. Rust 1.85, the declared minimum, remains
 untested; local tools are Rust/Cargo 1.98.1 and Zulu OpenJDK 21.0.7.
 
-Implementation 9757382498fdeab72958dd820ffe166d4630a5a9 passed complete Linux/Windows
-[run 41819049792](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41819049792).
-Both job logs were inspected: Rust/Cargo 1.99.1 and Temurin JDK 21.0.13; 680 tests
-against checked-in fixtures, 680 against freshly compiled fixtures, and 593 optimized
-tests. Both runs first passed six Python regressions and the 37-source/15-record
-provenance preflight, then reproduced all 92 fixtures and fifteen output sets.
-Both parser smoke runs report 158 accepted, 9,842 rejected, ten rechecks, corpus 250
-and zero failures at the same 10,000-case seed.
+The preceding reference-call implementation 9757382 passed complete Linux/Windows
+[run 41819049792](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41819049792)
+with Rust/Cargo 1.99.1 and Temurin JDK 21.0.13. Hosted CI for this exception
+increment is pending publication; earlier CI is not attributed to the new source.
 
 ## Reviews, limitations and next work
 
-The exact contract and final approval are docs/architecture/m2-reference-calls.md
-and docs/architecture/m2-reference-calls-review.md. Both component manifests and
-all 29 combined frozen source/evidence hashes were independently verified. The
-technical director is GPT-6 Astra (high); isolated runtime/interpreter workers are
-GPT-6.1 Sol (high). The coordinator owns genuine fixtures, integration and evidence.
-A mapped-file copy refusal left types.rs intact and Admin-owned; its bytes already
-matched the reviewed snapshot, so integration skipped the redundant copy. No ACL
-change, escalation or process termination was needed.
+The exact contract and final approval are docs/architecture/m2-exception-dispatch.md
+and docs/architecture/m2-exception-dispatch-review.md. Component manifests and all
+sixteen combined source/evidence hashes were verified. The technical director is
+GPT-6 Astra (high); isolated runtime/interpreter workers are GPT-6.1 Sol (high).
+The coordinator owns genuine fixtures, integration and evidence. Integration uses
+atomic replacements with explicit backups and verifies Admin ownership.
 
-Next direction is Throwable identity and exception propagation, proposed in
-docs/architecture/m2-exception-dispatch-next.md. An exact materialization/handler
-contract must precede implementation; symbolic tags must not masquerade as
-Throwable objects or silently bypass catches.
+Next direction is class preparation/static state and initialization responsibilities,
+under a separate exact contract. These shared lifecycle requirements precede real
+VM exception materialization and ordinary new/constructor execution. Default storage
+must not be described as initialized class or object state.
+
 Constructor invocation, initialization, static writes, full linkage, verification,
-loading constraints, exception objects/handlers, monitors, native methods, threads,
-GC and Java library integration remain incomplete. Kotlin/Spring Boot is not yet
+loading constraints, VM exception production, monitors, native methods, threads, GC
+and Java library integration remain incomplete. Kotlin/Spring Boot is not yet
 executable. Full M2 and complete JVM conformance remain open; no performance
 superiority has been demonstrated.
 
@@ -212,10 +218,11 @@ python tools/reference_field_reference.py --check
 python tools/reference_array_reference.py --check
 python tools/multidimensional_reference.py --check
 python tools/reference_call_reference.py --check
+python tools/exception_reference.py --check
 cargo run -p crabspot-classfile --example fuzz_parser -- tests/fixtures/classes --iterations 10000
 ```
 
 On this Windows host, add C:/Users/Admin/.cargo/bin to PATH and set
 CARGO_INCREMENTAL=0. Use isolated CARGO_TARGET_DIR and TMP/TEMP directories inside
 the project. The coordinator used target/verification-m2; workers used separate
-reference-calls-runtime-worker and reference-calls-interpreter-worker output directories.
+exception-runtime-worker and exception-interpreter-worker output directories.

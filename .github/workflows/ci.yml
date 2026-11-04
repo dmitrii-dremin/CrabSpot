@@ -69,6 +69,8 @@ jobs:
           python tools/multidimensional_reference.py --check
           python tools/reference_call_reference.py
           python tools/reference_call_reference.py --check
+          python tools/exception_reference.py
+          python tools/exception_reference.py --check
       - name: Format
         run: cargo fmt --check
       - name: Lint

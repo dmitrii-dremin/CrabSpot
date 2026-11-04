@@ -18,7 +18,8 @@ The original numeric entry points handle 148 effective opcode values. The explic
 heap entry point adds 31, for 179 total. The runtime-aware instance entry point
 adds `getfield`, `putfield`, `invokevirtual`, `invokeinterface` and ordinary
 `invokespecial`, plus `checkcast`, `instanceof`, `anewarray`, `aaload` and
-`aastore`, `multianewarray` and `areturn`, for 191 total. `wide` is an encoding prefix for indexed
+`aastore`, `multianewarray` and `areturn`, for 191 total. The opt-in exception
+profile adds `athrow`, for 192 total. `wide` is an encoding prefix for indexed
 loads/stores and increment; heap mode adds two reference local forms to the nine
 numeric wide forms.
 
@@ -127,7 +128,7 @@ for a numeric parameter produces a typed error in every entry point.
 
 Static fields, generalized runtime invocation,
 generalized cross-class static calls, constructor execution,
-exception handlers, monitors and legacy subroutines remain unsupported. Numeric
+VM exception materialization, monitors and legacy subroutines remain unsupported. Numeric
 execution never delegates application bytecode to an installed JVM. The reference
 fixture integration compares results against separately generated OpenJDK records.
 Dynamic constants remain explicitly unsupported, including their resolution and
@@ -153,7 +154,7 @@ frame’s field origin is its declaring ClassId, including when the receiver is 
 subclass or an earlier frame belongs to another class. Cached instance preparation cannot make the root a valid invokestatic
 target. Root and callee limits/fuel have the same meaning as the earlier APIs.
 Interface roots, special initialization names, native/abstract/synchronized
-methods and handlers remain excluded.
+methods remain excluded. This entry point also rejects Code handlers.
 
 Only this runtime-aware API enables `getfield` and `putfield`. Earlier APIs reject
 them even with a configured instance heap. Field operations delegate symbolic
@@ -176,7 +177,7 @@ Each field instruction consumes one shared fuel unit. Completed field writes and
 array allocations persist after every return, symbolic failure or host error;
 failed writes preserve their previous values. This bridge does not implement
 `new`, constructors, getstatic/putstatic, class initialization,
-exception dispatch, monitors, named modules, full verification or complete linkage.
+VM exception materialization, monitors, named modules, full verification or complete linkage.
 
 
 ## Bounded virtual body calls
@@ -205,7 +206,8 @@ Runtime selection supplies the bounded class-resolution/access/override policy,
 including private nonvirtual selection, package-aware transitive overriding and
 abstract-target failure. Signature-polymorphic execution and native binding remain explicit unsupported
 boundaries. Interface/default dispatch is supported within the profile below. Selected
-native/synchronized/handler bodies are rejected before execution. Resolution and
+native/synchronized bodies are rejected before execution. Code handlers require
+the opt-in exception profile below. Resolution and
 staticness precede bytecode null; null precedes abstract-target selection.
 
 Explicit method Java failures map to symbolic `NoSuchMethodError`,
@@ -220,7 +222,7 @@ need not identify an ancestor of the method reporting the error.
 Earlier completed writes and allocations survive every failure. This remains an
 explicit body-graph evaluation profile, without constructor execution, new,
 generalized cross-class
-static calls, lifecycle proof, exception dispatch, complete linkage or JVM startup.
+static calls, lifecycle proof, VM exception materialization, complete linkage or JVM startup.
 
 
 ## Interface and default bodies
@@ -245,7 +247,7 @@ unreachable encodings. Unreachable CP/count semantics are not verified.
 Preparation explicitly distinguishes static bodies, direct instance roots and
 runtime-resolved instances. Direct interface roots stay rejected. Selected
 concrete interface defaults and same-interface private helpers may execute;
-staticness, descriptors, special names, native/synchronized bodies, handlers and
+staticness, descriptors, special names, native/synchronized bodies and
 whole-code decoding retain their earlier guards. Static versus instance mode is
 checked on every cache hit. The same MethodId reached through invokevirtual and
 invokeinterface consumes one prepared-code charge. Interface bodies use their
@@ -259,8 +261,8 @@ access and resolved staticness precede null; null precedes interface membership
 and selection. Nonimplementing ordinary receivers, conflicting defaults, absent
 concrete targets and selected visibility follow the runtime's bounded contract.
 Other invalid handles/metadata, unsupported profiles and policy failures remain
-structured host errors. Constructors, initialization, native binding, handlers
-and monitors remain separate work.
+structured host errors. Constructors, initialization, native binding, VM
+exception production and monitors remain separate work.
 
 
 ## Ordinary special calls
@@ -292,11 +294,11 @@ bodies use their own constant pool, field origin and diagnostics; subsequent
 virtual/interface calls dispatch normally and current-class static helpers retain
 their narrow policy. Receiver local zero, mixed numeric widths, narrow/FP/void
 returns, remaining caller operands, fuel and frame/slot/code/work limits keep the
-earlier rules. Code preparation remains eager and excludes native, synchronized
-and handler bodies. Existing writes and allocations persist after every later
+earlier rules. Code preparation remains eager and excludes native/synchronized
+bodies; handlers require the opt-in profile below. Existing writes and allocations persist after every later
 Java or host failure. No new public execution API, constructor/lifecycle proof,
 class initialization, general static resolution, native
-binding, monitors or exception dispatch is supplied by this increment.
+binding or monitors is supplied by this increment.
 
 
 ## Reference type tests and casts
@@ -341,7 +343,7 @@ share the existing cumulative symbol/name/work limits and do not introduce a
 second type cache. Earlier stores and array allocations persist after cast,
 access, resolution, budget or malformed-operand failures. Constructors,
 initialization, class mirrors, native binding, monitors, verification and Java
-exception-object/handler protocols retain their earlier boundaries.
+exception-object materialization retain their earlier boundaries.
 
 
 ## Checked reference fields
@@ -385,8 +387,8 @@ crate-private guarded commit. Borrowed children enumeration yields each non-null
 logical location in slot order, including repeated aliases and cycles, without
 tracing, recursion, deduplication, allocation or heap quota use. These are graph
 edges, not roots or a collector. Constructor/lifecycle proof, static writes,
-verification, native binding, monitors and exception
-dispatch remain outside this profile.
+verification, native binding, monitors and VM exception
+materialization remain outside this profile.
 
 
 ## Actual reference arrays
@@ -434,8 +436,8 @@ is implied.
 Each instruction consumes one shared fuel unit. Completed allocations, element
 stores and field changes persist after later symbolic outcomes, host failures or
 budget exhaustion; failed allocation/store leaves prior contents intact. This
-increment adds no constructors, initialization, exception
-handlers or generalized JVM invocation.
+increment adds no constructors, initialization, VM exception
+materialization or generalized JVM invocation.
 
 
 ## Bounded multidimensional arrays
@@ -472,7 +474,8 @@ prior elements intact. Once publication succeeds, a later instruction, return,
 exception or exhausted fuel does not roll it back. Fields, casts, normal array
 operations and receiver use see ordinary actual payloads with no special bridge
 representation. Constructor/lifecycle boundaries,
-exception-object allocation and handlers remain unchanged.
+exception-object allocation remains unsupported; handlers require the opt-in
+profile below.
 
 
 ## Checked reference arguments and results
@@ -537,3 +540,75 @@ still consumes one shared fuel unit, and frame/slot/code/context policies remain
 shared. Earlier field/element writes and allocations survive later failures.
 Returned handles remain owned by the supplied heap; returning them does not enable
 use with another heap or imply construction, tracing, collection or initialization.
+
+
+## Explicit supplied-Throwable dispatch
+
+`execute_instance_method_body_with_exceptions(context, profile, method, receiver,
+arguments, options, call_limits, exception_limits)` opts the same body engine into
+`athrow`, ordered handlers and iterative unwind. Its `ExceptionOutcome` is either
+`Returned(Option<Value>)` or `Uncaught(Reference)`. Original entry points and
+`ExecutionOutcome` are unchanged: they reject Code handlers and `athrow`, and retain
+their symbolic VM-produced outcomes. No second execution loop or exception-object
+allocator is introduced.
+
+The caller obtains an opaque `ExceptionProfile` from the runtime using an explicit,
+admitted bootstrap `java/lang/Throwable` ClassId and bound reference universe.
+The wrapper checks that token before even the root frame gate. It identifies an
+unchanged registry/heap/layout/universe snapshot, and can be reused through fresh
+contexts for that same snapshot. It does not certify constructor execution,
+initialized library state, messages, stack traces or the complete Throwable ABI.
+The host supplies the ordinary Throwable instance; the runtime checks its actual
+identity and superclass relationship before issuing a throw token.
+
+Opt-in preparation eagerly decodes Code, then checks an independent aggregate
+handler limit and validates every row's protected range, decoded start/end/target
+boundaries, Class/Utf8 catch shape and non-array spelling. Nonempty tables require
+at least one operand slot. Prepared entries retain only an index into the original
+Code attribute; rows and catch names are not cloned. Cache hits do not recount
+handlers or repeat structural preparation. Legacy handler rejection still precedes
+its original Code-byte/decode stage. These guards are not StackMap verification,
+constructor-state verification or eager catch-class ancestry validation.
+
+`athrow` first pops a typed Reference. A checked non-null supplied Throwable keeps
+its exact identity through catches, rethrow, replacement and uncaught completion.
+Search follows table order and the end-exclusive range. Typed catches resolve only
+when their active row is examined before the first match, using the searched
+frame's declaring origin and caller-access policy. Catch-all skips resolution;
+inactive and later rows cannot trigger missing/inaccessible-type failures.
+
+On a match the engine checks/reserves one operand slot before changing the stack,
+then clears every old operand and slot count and installs only the thrown reference.
+Locals and frame reservation remain. The next handler instruction consumes normal
+fuel. If no row matches, the engine checks its unwind charge and accounting before
+removing the frame, releases its slots, validates its saved caller identity and
+searches the caller at the actual invocation PC. The already advanced resume PC
+is never used for that search. A fully uncaught completion returns the same opaque
+handle to the host, without implying Java thread termination or an uncaught-handler
+callback.
+
+`ExceptionLimits` defaults to 65,536 aggregate prepared rows and 1,000,000 dispatch
+steps. Each searched frame, every row including inactive rows, and each unwind
+including the root costs one dispatch step before acting. The counter is shared by
+all throws/rethrows in that evaluation; arithmetic overflow differs from an ordinary
+inclusive limit failure. Runtime name/ancestry work also consumes the existing
+context policy. Handler installation and search do not consume instruction fuel;
+`athrow` consumes one unit, so a final fueled throw can finish uncaught while an
+entered handler still requires fuel for its next instruction. Existing frame,
+slot and prepared-Code policies retain their meaning.
+
+VM exception production remains unsupported in this profile. All eleven existing
+VM-produced categories, including the method-selection routes and a direct typed
+catch access failure, become `UnsupportedVmException` host errors. Null `athrow`
+likewise requires unsupported NullPointerException production. A catch-all cannot
+turn those tags into a fabricated object, and no handler search runs for them.
+Nested Java-shaped validation errors remain boxed `ExceptionAccess` host errors.
+Host policy, malformed code, unsupported operations and invalid supplied identities
+cannot be caught. Search failures identify the searched declaration and search PC
+with its invocation provenance; throw-validation failures identify the actual
+`athrow` instruction.
+
+Earlier writes and allocations survive caught/uncaught completion and every host
+failure. No allocation, constructor, initialization, monitor release, async
+exception, exception materialization, full loading/verification, Java startup or
+GC guarantee is added. This is bounded dispatch of explicitly supplied instances.

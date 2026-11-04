@@ -4,14 +4,15 @@ use crate::{
 };
 use crabspot_bytecode::{DecodedCode, Operands, decode};
 use crabspot_classfile::{
-    AttributeBody, ClassFile, Constant,
+    AttributeBody, ClassFile, Constant, ExceptionHandler,
     descriptor::{FieldType, parse_method_descriptor},
 };
 use crabspot_runtime::{
-    ArrayAccessError, ArrayJavaError, ClassId, DefinitionRegistry, FieldAccessError,
-    FieldJavaError, FieldResolutionContext, HeapError, InstanceInvocationKind, ManagedHeap,
-    MethodAccessError, MethodId, MethodJavaError, MethodReturnKind, MethodValueShape,
-    PrimitiveArrayKind, Reference, TypeAccessError, TypeJavaError,
+    ArrayAccessError, ArrayJavaError, ClassId, DefinitionRegistry, ExceptionAccessError,
+    ExceptionProfile, FieldAccessError, FieldJavaError, FieldResolutionContext, HeapError,
+    InstanceInvocationKind, ManagedHeap, MethodAccessError, MethodId, MethodJavaError,
+    MethodReturnKind, MethodValueShape, PrimitiveArrayKind, Reference, ThrownException,
+    TypeAccessError, TypeJavaError, VmExceptionKind,
 };
 use std::collections::HashMap;
 
@@ -42,6 +43,78 @@ pub enum ExecutionOutcome {
     IncompatibleClassChangeError,
     NoSuchMethodError,
     AbstractMethodError,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExceptionOutcome {
+    Returned(Option<Value>),
+    Uncaught(Reference),
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ExceptionLimits {
+    pub max_prepared_handlers: usize,
+    pub max_dispatch_steps: u64,
+}
+impl Default for ExceptionLimits {
+    fn default() -> Self {
+        Self {
+            max_prepared_handlers: 65_536,
+            max_dispatch_steps: 1_000_000,
+        }
+    }
+}
+struct ExceptionState<'a> {
+    profile: &'a ExceptionProfile,
+    limits: ExceptionLimits,
+    prepared_handlers: usize,
+    dispatch_steps: u64,
+}
+enum EngineOutcome {
+    Legacy(ExecutionOutcome),
+    Uncaught(Reference),
+}
+fn vm_kind(outcome: ExecutionOutcome) -> Option<VmExceptionKind> {
+    Some(match outcome {
+        ExecutionOutcome::Returned(_) => return None,
+        ExecutionOutcome::ArithmeticException => VmExceptionKind::ArithmeticException,
+        ExecutionOutcome::ClassCastException => VmExceptionKind::ClassCastException,
+        ExecutionOutcome::ArrayStoreException => VmExceptionKind::ArrayStoreException,
+        ExecutionOutcome::NullPointerException => VmExceptionKind::NullPointerException,
+        ExecutionOutcome::ArrayIndexOutOfBoundsException => {
+            VmExceptionKind::ArrayIndexOutOfBoundsException
+        }
+        ExecutionOutcome::NegativeArraySizeException => VmExceptionKind::NegativeArraySizeException,
+        ExecutionOutcome::NoSuchFieldError => VmExceptionKind::NoSuchFieldError,
+        ExecutionOutcome::IllegalAccessError => VmExceptionKind::IllegalAccessError,
+        ExecutionOutcome::IncompatibleClassChangeError => {
+            VmExceptionKind::IncompatibleClassChangeError
+        }
+        ExecutionOutcome::NoSuchMethodError => VmExceptionKind::NoSuchMethodError,
+        ExecutionOutcome::AbstractMethodError => VmExceptionKind::AbstractMethodError,
+    })
+}
+fn vm_completion(
+    outcome: ExecutionOutcome,
+    enabled: bool,
+    pc: u32,
+) -> Result<EngineOutcome, ExecutionError> {
+    if enabled {
+        if let Some(kind) = vm_kind(outcome) {
+            return Err(ExecutionError::new(
+                Some(pc),
+                E::UnsupportedVmException(kind),
+            ));
+        }
+    }
+    Ok(EngineOutcome::Legacy(outcome))
+}
+fn exception_failure(error: ExceptionAccessError, pc: Option<u32>) -> ExecutionError {
+    match error {
+        ExceptionAccessError::Java(kind) => {
+            ExecutionError::new(pc, E::UnsupportedVmException(kind))
+        }
+        error => ExecutionError::new(pc, E::ExceptionAccess(Box::new(error))),
+    }
 }
 
 fn numeric_kind(field: &FieldType) -> Result<ValueKind, ExecutionError> {
@@ -169,6 +242,8 @@ impl CallKind {
 struct PreparedMethod {
     instance: bool,
     shape: MethodValueShape,
+    // Index of the original Code attribute; rows stay borrowed from immutable metadata.
+    handlers: Option<usize>,
     decoded: DecodedCode,
     max_stack: u16,
     max_locals: u16,
@@ -207,6 +282,7 @@ struct Frame {
 }
 enum Action {
     Continue,
+    Throw(ThrownException),
     Call { constant_index: u16, kind: CallKind },
     Return(Option<Value>),
     ArithmeticException,
@@ -586,6 +662,64 @@ pub fn execute_instance_method_body(
     )
 }
 
+/// Opt in to throwing supplied checked Throwable identities and ordered handlers.
+/// VM exception production remains an explicit host unsupported boundary.
+#[allow(clippy::too_many_arguments)] // Exact public contract keeps the independent policies explicit.
+pub fn execute_instance_method_body_with_exceptions(
+    context: &mut FieldResolutionContext<'_>,
+    profile: &ExceptionProfile,
+    method: MethodId,
+    receiver: Reference,
+    arguments: &[Value],
+    options: ExecutionOptions,
+    call_limits: CallLimits,
+    exception_limits: ExceptionLimits,
+) -> Result<ExceptionOutcome, ExecutionError> {
+    context
+        .check_exception_profile(profile)
+        .map_err(|error| exception_failure(error, None))?;
+    let registry = context.registry();
+    registry.method(method).map_err(|error| {
+        ExecutionError::new(
+            None,
+            E::FieldAccess(Box::new(FieldAccessError::Registry(error))),
+        )
+    })?;
+    let class = registry.class(method.owner()).map_err(|error| {
+        ExecutionError::new(
+            None,
+            E::FieldAccess(Box::new(FieldAccessError::Registry(error))),
+        )
+    })?;
+    match execute_engine(
+        class,
+        method.index(),
+        arguments,
+        options,
+        call_limits,
+        Services::Fields {
+            context,
+            root: method,
+            receiver,
+        },
+        Some(ExceptionState {
+            profile,
+            limits: exception_limits,
+            prepared_handlers: 0,
+            dispatch_steps: 0,
+        }),
+    )? {
+        EngineOutcome::Legacy(ExecutionOutcome::Returned(value)) => {
+            Ok(ExceptionOutcome::Returned(value))
+        }
+        EngineOutcome::Uncaught(reference) => Ok(ExceptionOutcome::Uncaught(reference)),
+        EngineOutcome::Legacy(_) => Err(ExecutionError::new(
+            None,
+            E::InvalidMethod("symbolic completion escaped explicit exception profile"),
+        )),
+    }
+}
+
 enum Services<'a, 'registry> {
     None,
     Heap(&'a mut ManagedHeap),
@@ -624,8 +758,25 @@ fn execute_with_services(
     args: &[Value],
     options: ExecutionOptions,
     limits: CallLimits,
-    mut services: Services<'_, '_>,
+    services: Services<'_, '_>,
 ) -> Result<ExecutionOutcome, ExecutionError> {
+    match execute_engine(class, method_index, args, options, limits, services, None)? {
+        EngineOutcome::Legacy(outcome) => Ok(outcome),
+        EngineOutcome::Uncaught(_) => Err(ExecutionError::new(
+            None,
+            E::InvalidMethod("thrown completion escaped legacy body profile"),
+        )),
+    }
+}
+fn execute_engine(
+    class: &ClassFile,
+    method_index: usize,
+    args: &[Value],
+    options: ExecutionOptions,
+    limits: CallLimits,
+    mut services: Services<'_, '_>,
+    mut exceptions: Option<ExceptionState<'_>>,
+) -> Result<EngineOutcome, ExecutionError> {
     let bodies = Bodies {
         standalone: class,
         registry: services.registry(),
@@ -667,6 +818,7 @@ fn execute_with_services(
             Services::Fields { context, root, .. } => Some((&mut **context, *root)),
             _ => None,
         },
+        exceptions.as_mut(),
     )
     .map_err(|error| contextualize(bodies, error, root_key, None))?;
     validate_args(&root, args).map_err(|error| contextualize(bodies, error, root_key, None))?;
@@ -741,24 +893,103 @@ fn execute_with_services(
         let current_class = bodies
             .class(current)
             .map_err(|error| contextualize(bodies, error, current, origin))?;
-        let action = step(current_class, prepared, frame, &mut services)
-            .map_err(|error| contextualize(bodies, error, current, origin))?;
+        let action = step(
+            current_class,
+            prepared,
+            frame,
+            &mut services,
+            exceptions.as_ref().map(|state| state.profile),
+        )
+        .map_err(|error| contextualize(bodies, error, current, origin))?;
         match action {
-            Action::NoSuchFieldError => return Ok(ExecutionOutcome::NoSuchFieldError),
-            Action::IllegalAccessError => return Ok(ExecutionOutcome::IllegalAccessError),
-            Action::IncompatibleClassChangeError => {
-                return Ok(ExecutionOutcome::IncompatibleClassChangeError);
+            Action::NoSuchFieldError => {
+                return vm_completion(ExecutionOutcome::NoSuchFieldError, exceptions.is_some(), pc)
+                    .map_err(|error| contextualize(bodies, error, current, origin));
             }
-            Action::ArrayStoreException => return Ok(ExecutionOutcome::ArrayStoreException),
-            Action::ClassCastException => return Ok(ExecutionOutcome::ClassCastException),
+            Action::IllegalAccessError => {
+                return vm_completion(
+                    ExecutionOutcome::IllegalAccessError,
+                    exceptions.is_some(),
+                    pc,
+                )
+                .map_err(|error| contextualize(bodies, error, current, origin));
+            }
+            Action::IncompatibleClassChangeError => {
+                return vm_completion(
+                    ExecutionOutcome::IncompatibleClassChangeError,
+                    exceptions.is_some(),
+                    pc,
+                )
+                .map_err(|error| contextualize(bodies, error, current, origin));
+            }
+            Action::ArrayStoreException => {
+                return vm_completion(
+                    ExecutionOutcome::ArrayStoreException,
+                    exceptions.is_some(),
+                    pc,
+                )
+                .map_err(|error| contextualize(bodies, error, current, origin));
+            }
+            Action::ClassCastException => {
+                return vm_completion(
+                    ExecutionOutcome::ClassCastException,
+                    exceptions.is_some(),
+                    pc,
+                )
+                .map_err(|error| contextualize(bodies, error, current, origin));
+            }
+            Action::Throw(thrown) => {
+                let state = exceptions
+                    .as_mut()
+                    .ok_or_else(|| contextualize(bodies, operand_error(pc), current, origin))?;
+                let caught = dispatch_throw(
+                    bodies,
+                    &cache,
+                    ActiveFrames {
+                        frames: &mut frames,
+                        reserved: &mut reserved,
+                    },
+                    &mut services,
+                    state,
+                    &thrown,
+                    pc,
+                )?;
+                if !caught {
+                    return Ok(EngineOutcome::Uncaught(thrown.reference()));
+                }
+            }
             Action::Continue => {}
-            Action::ArithmeticException => return Ok(ExecutionOutcome::ArithmeticException),
-            Action::NullPointerException => return Ok(ExecutionOutcome::NullPointerException),
+            Action::ArithmeticException => {
+                return vm_completion(
+                    ExecutionOutcome::ArithmeticException,
+                    exceptions.is_some(),
+                    pc,
+                )
+                .map_err(|error| contextualize(bodies, error, current, origin));
+            }
+            Action::NullPointerException => {
+                return vm_completion(
+                    ExecutionOutcome::NullPointerException,
+                    exceptions.is_some(),
+                    pc,
+                )
+                .map_err(|error| contextualize(bodies, error, current, origin));
+            }
             Action::ArrayIndexOutOfBoundsException => {
-                return Ok(ExecutionOutcome::ArrayIndexOutOfBoundsException);
+                return vm_completion(
+                    ExecutionOutcome::ArrayIndexOutOfBoundsException,
+                    exceptions.is_some(),
+                    pc,
+                )
+                .map_err(|error| contextualize(bodies, error, current, origin));
             }
             Action::NegativeArraySizeException => {
-                return Ok(ExecutionOutcome::NegativeArraySizeException);
+                return vm_completion(
+                    ExecutionOutcome::NegativeArraySizeException,
+                    exceptions.is_some(),
+                    pc,
+                )
+                .map_err(|error| contextualize(bodies, error, current, origin));
             }
             Action::Return(value) => {
                 let completed = frames.pop().ok_or_else(|| {
@@ -780,7 +1011,7 @@ fn execute_with_services(
                         })?;
                     }
                 } else {
-                    return Ok(ExecutionOutcome::Returned(value));
+                    return Ok(EngineOutcome::Legacy(ExecutionOutcome::Returned(value)));
                 }
             }
             Action::Call {
@@ -880,7 +1111,10 @@ fn execute_with_services(
                     let selected = match selection {
                         Ok(method) => method,
                         Err(error) => {
-                            return method_failure(error, pc)
+                            let outcome = method_failure(error, pc).map_err(|error| {
+                                contextualize(bodies, error, current, call_site)
+                            })?;
+                            return vm_completion(outcome, exceptions.is_some(), pc)
                                 .map_err(|error| contextualize(bodies, error, current, call_site));
                         }
                     };
@@ -918,6 +1152,7 @@ fn execute_with_services(
                             }
                             _ => None,
                         },
+                        exceptions.as_mut(),
                     )
                     .map_err(|error| contextualize(bodies, error, target, call_site))?;
                     entry.insert(prepared);
@@ -1011,6 +1246,210 @@ fn execute_with_services(
     }
 }
 
+fn prepared_handler_count(
+    current: usize,
+    additional: usize,
+    limit: usize,
+) -> Result<usize, ExecutionError> {
+    let required = current.checked_add(additional).ok_or_else(|| {
+        ExecutionError::new(
+            None,
+            E::ExceptionAccountingOverflow {
+                resource: "prepared handlers",
+            },
+        )
+    })?;
+    if required > limit {
+        return Err(ExecutionError::new(
+            None,
+            E::ExceptionHandlerLimit { limit, required },
+        ));
+    }
+    Ok(required)
+}
+fn validate_handlers(
+    class: &ClassFile,
+    code: &crabspot_classfile::Code,
+    decoded: &DecodedCode,
+) -> Result<(), ExecutionError> {
+    let invalid =
+        |index, reason| ExecutionError::new(None, E::InvalidExceptionHandler { index, reason });
+    if !code.exception_table.is_empty() && code.max_stack == 0 {
+        return Err(invalid(0, "handler requires at least one operand slot"));
+    }
+    for (index, row) in code.exception_table.iter().enumerate() {
+        let start = u32::from(row.start_pc);
+        let end = u32::from(row.end_pc);
+        let handler = u32::from(row.handler_pc);
+        if start >= end || end > decoded.code_len() {
+            return Err(invalid(index, "invalid protected range"));
+        }
+        if decoded.instruction_at(start).is_none() {
+            return Err(invalid(index, "start is not an instruction boundary"));
+        }
+        if end != decoded.code_len() && decoded.instruction_at(end).is_none() {
+            return Err(invalid(index, "end is not an instruction boundary"));
+        }
+        if decoded.instruction_at(handler).is_none() {
+            return Err(invalid(index, "handler is not an instruction boundary"));
+        }
+        if row.catch_type != 0 {
+            let name = class
+                .constant_pool
+                .class_name(row.catch_type)
+                .map_err(|_| invalid(index, "catch is not a Class/Utf8 constant"))?;
+            if name.units().first() == Some(&91) {
+                return Err(invalid(index, "array catch type is unsupported"));
+            }
+        }
+    }
+    Ok(())
+}
+fn original_handlers<'a>(
+    bodies: Bodies<'a>,
+    method: MethodKey,
+    prepared: &PreparedMethod,
+) -> Result<&'a [ExceptionHandler], ExecutionError> {
+    let invalid = || {
+        ExecutionError::new(
+            None,
+            E::InvalidMethod("missing original prepared handler table"),
+        )
+    };
+    let index = prepared.handlers.ok_or_else(invalid)?;
+    let attribute = bodies
+        .class(method)?
+        .methods
+        .get(method.index())
+        .and_then(|method| method.attributes.get(index))
+        .ok_or_else(invalid)?;
+    let AttributeBody::Code(code) = &attribute.body else {
+        return Err(invalid());
+    };
+    Ok(&code.exception_table)
+}
+fn charge_dispatch(used: &mut u64, limit: u64) -> Result<(), ExecutionError> {
+    let required = used.checked_add(1).ok_or_else(|| {
+        ExecutionError::new(
+            None,
+            E::ExceptionAccountingOverflow {
+                resource: "dispatch steps",
+            },
+        )
+    })?;
+    if required > limit {
+        return Err(ExecutionError::new(
+            None,
+            E::ExceptionDispatchLimit { limit, required },
+        ));
+    }
+    *used = required;
+    Ok(())
+}
+struct ActiveFrames<'a> {
+    frames: &'a mut Vec<Frame>,
+    reserved: &'a mut usize,
+}
+fn unwind_frame(active: &mut ActiveFrames<'_>) -> Result<Option<u32>, ExecutionError> {
+    let frame = active.frames.last().ok_or_else(|| {
+        ExecutionError::new(None, E::InvalidMethod("empty exception frame stack"))
+    })?;
+    let released = active
+        .reserved
+        .checked_sub(frame.reserved_slots)
+        .ok_or_else(|| {
+            ExecutionError::new(
+                None,
+                E::ExceptionAccountingOverflow {
+                    resource: "unwind frame slots",
+                },
+            )
+        })?;
+    let origin = frame.origin;
+    let caller = active
+        .frames
+        .len()
+        .checked_sub(2)
+        .and_then(|index| active.frames.get(index));
+    match (caller, origin) {
+        (Some(caller), Some((key, _))) if caller.method == key => {}
+        (None, None) => {}
+        _ => {
+            return Err(ExecutionError::new(
+                None,
+                E::InvalidMethod("inconsistent exception invocation origin"),
+            ));
+        }
+    }
+    active.frames.pop();
+    *active.reserved = released;
+    Ok(origin.map(|(_, pc)| pc))
+}
+fn dispatch_throw(
+    bodies: Bodies<'_>,
+    cache: &HashMap<MethodKey, PreparedMethod>,
+    mut active: ActiveFrames<'_>,
+    services: &mut Services<'_, '_>,
+    state: &mut ExceptionState<'_>,
+    thrown: &ThrownException,
+    mut search_pc: u32,
+) -> Result<bool, ExecutionError> {
+    loop {
+        let frame = active.frames.last().ok_or_else(|| {
+            ExecutionError::new(None, E::InvalidMethod("empty exception frame stack"))
+        })?;
+        let current = frame.method;
+        let origin = frame.origin;
+        let diagnose = |mut error: ExecutionError| {
+            error.offset = Some(search_pc);
+            contextualize(bodies, error, current, origin)
+        };
+        charge_dispatch(&mut state.dispatch_steps, state.limits.max_dispatch_steps)
+            .map_err(diagnose)?;
+        let prepared = cache.get(&current).ok_or_else(|| {
+            diagnose(ExecutionError::new(
+                None,
+                E::InvalidMethod("missing exception method preparation"),
+            ))
+        })?;
+        let rows = original_handlers(bodies, current, prepared).map_err(diagnose)?;
+        for row in rows {
+            charge_dispatch(&mut state.dispatch_steps, state.limits.max_dispatch_steps)
+                .map_err(diagnose)?;
+            if search_pc < u32::from(row.start_pc) || search_pc >= u32::from(row.end_pc) {
+                continue;
+            }
+            let Services::Fields { context, .. } = services else {
+                return Err(diagnose(operand_error(search_pc)));
+            };
+            let owner = current
+                .owner()
+                .ok_or_else(|| diagnose(operand_error(search_pc)))?;
+            let matches = context
+                .exception_handler_matches(state.profile, owner, row.catch_type, thrown)
+                .map_err(|error| diagnose(exception_failure(error, Some(search_pc))))?;
+            if matches {
+                let frame = active
+                    .frames
+                    .last_mut()
+                    .ok_or_else(|| diagnose(operand_error(search_pc)))?;
+                frame
+                    .stack
+                    .install_exception(thrown.reference(), search_pc)
+                    .map_err(diagnose)?;
+                frame.pc = u32::from(row.handler_pc);
+                return Ok(true);
+            }
+        }
+        charge_dispatch(&mut state.dispatch_steps, state.limits.max_dispatch_steps)
+            .map_err(diagnose)?;
+        match unwind_frame(&mut active).map_err(diagnose)? {
+            Some(pc) => search_pc = pc,
+            None => return Ok(false),
+        }
+    }
+}
+
 #[cfg(test)]
 fn prepare_method(
     class: &ClassFile,
@@ -1019,7 +1458,15 @@ fn prepare_method(
     code_limit: usize,
     mode: Preparation,
 ) -> Result<PreparedMethod, ExecutionError> {
-    prepare_method_with_context(class, method_index, used_code_bytes, code_limit, mode, None)
+    prepare_method_with_context(
+        class,
+        method_index,
+        used_code_bytes,
+        code_limit,
+        mode,
+        None,
+        None,
+    )
 }
 fn prepare_method_with_context(
     class: &ClassFile,
@@ -1028,6 +1475,7 @@ fn prepare_method_with_context(
     code_limit: usize,
     mode: Preparation,
     runtime: Option<(&mut FieldResolutionContext<'_>, MethodId)>,
+    mut exceptions: Option<&mut ExceptionState<'_>>,
 ) -> Result<PreparedMethod, ExecutionError> {
     let instance = mode.is_instance();
     let method = class.methods.get(method_index).ok_or_else(|| {
@@ -1126,11 +1574,12 @@ fn prepare_method_with_context(
     let mut codes = method
         .attributes
         .iter()
-        .filter_map(|attribute| match &attribute.body {
-            AttributeBody::Code(code) => Some(code),
+        .enumerate()
+        .filter_map(|(index, attribute)| match &attribute.body {
+            AttributeBody::Code(code) => Some((index, code)),
             _ => None,
         });
-    let code = codes
+    let (code_index, code) = codes
         .next()
         .ok_or_else(|| ExecutionError::new(None, E::InvalidMethod("missing Code attribute")))?;
     if codes.next().is_some() {
@@ -1139,7 +1588,7 @@ fn prepare_method_with_context(
             E::InvalidMethod("multiple Code attributes"),
         ));
     }
-    if !code.exception_table.is_empty() {
+    if exceptions.is_none() && !code.exception_table.is_empty() {
         return Err(ExecutionError::new(
             None,
             E::UnsupportedMethod("exception handlers require exception dispatch"),
@@ -1167,10 +1616,20 @@ fn prepare_method_with_context(
     }
     let decoded = decode(&code.code, class.version.major)
         .map_err(|error| ExecutionError::new(Some(error.offset), E::Decode(error)))?;
+    if let Some(state) = exceptions.as_mut() {
+        let total = prepared_handler_count(
+            state.prepared_handlers,
+            code.exception_table.len(),
+            state.limits.max_prepared_handlers,
+        )?;
+        validate_handlers(class, code, &decoded)?;
+        state.prepared_handlers = total;
+    }
     *used_code_bytes = required;
     Ok(PreparedMethod {
         instance,
         shape,
+        handlers: exceptions.is_some().then_some(code_index),
         decoded,
         max_stack: code.max_stack,
         max_locals: code.max_locals,
@@ -1182,6 +1641,7 @@ fn step(
     prepared: &PreparedMethod,
     frame: &mut Frame,
     services: &mut Services<'_, '_>,
+    exception_profile: Option<&ExceptionProfile>,
 ) -> Result<Action, ExecutionError> {
     let pc = frame.pc;
     let locals = &mut frame.locals;
@@ -1208,11 +1668,34 @@ fn step(
             E::UnsupportedInstruction(opcode),
         ));
     }
+    if opcode == 0xbf && exception_profile.is_none() {
+        return Err(ExecutionError::new(
+            Some(pc),
+            E::UnsupportedInstruction(opcode),
+        ));
+    }
     let operands = &instruction.operands;
     let mut next = pc
         .checked_add(instruction.length)
         .ok_or_else(|| ExecutionError::new(Some(pc), E::InstructionPointerOutsideCode))?;
     match opcode {
+        0xbf => {
+            let reference = stack.reference(pc)?;
+            if reference.is_null() {
+                return Err(ExecutionError::new(
+                    Some(pc),
+                    E::UnsupportedVmException(VmExceptionKind::NullPointerException),
+                ));
+            }
+            let profile = exception_profile.ok_or_else(|| operand_error(pc))?;
+            let Services::Fields { context, .. } = services else {
+                return Err(operand_error(pc));
+            };
+            let thrown = context
+                .prepare_throw(profile, reference)
+                .map_err(|error| exception_failure(error, Some(pc)))?;
+            return Ok(Action::Throw(thrown));
+        }
         0xc5 => {
             let Operands::MultiANewArray { index, dimensions } = operands else {
                 return Err(operand_error(pc));
@@ -2054,6 +2537,7 @@ mod resource_tests {
                 &prepared,
                 &mut frame,
                 &mut Services::Heap(&mut heap),
+                None,
             ) {
                 Err(error) => error,
                 Ok(_) => panic!("foreign reference accepted"),
@@ -2382,5 +2866,151 @@ mod resource_tests {
                 required: usize::MAX
             }
         );
+    }
+    #[test]
+    fn exception_count_and_dispatch_arithmetic_distinguish_overflow_and_leave_failed_counters() {
+        assert_eq!(
+            prepared_handler_count(1, 2, 2).unwrap_err().kind,
+            E::ExceptionHandlerLimit {
+                limit: 2,
+                required: 3
+            }
+        );
+        assert_eq!(
+            prepared_handler_count(usize::MAX, 1, usize::MAX)
+                .unwrap_err()
+                .kind,
+            E::ExceptionAccountingOverflow {
+                resource: "prepared handlers"
+            }
+        );
+        assert_eq!(
+            prepared_handler_count(usize::MAX, 0, usize::MAX).unwrap(),
+            usize::MAX
+        );
+        let mut used = 1;
+        assert_eq!(
+            charge_dispatch(&mut used, 1).unwrap_err().kind,
+            E::ExceptionDispatchLimit {
+                limit: 1,
+                required: 2
+            }
+        );
+        assert_eq!(used, 1);
+        used = u64::MAX;
+        assert_eq!(
+            charge_dispatch(&mut used, u64::MAX).unwrap_err().kind,
+            E::ExceptionAccountingOverflow {
+                resource: "dispatch steps"
+            }
+        );
+        assert_eq!(used, u64::MAX);
+    }
+    #[test]
+    fn exception_unwind_checks_origin_and_slot_accounting_before_mutating_frames() {
+        fn frame(method: usize, origin: Option<(MethodKey, u32)>) -> Frame {
+            Frame {
+                method: MethodKey::Standalone(method),
+                locals: Locals::new(0),
+                stack: Stack::new(0),
+                pc: 90,
+                origin,
+                reserved_slots: 2,
+            }
+        }
+        for origin in [None, Some((MethodKey::Standalone(8), 17))] {
+            let mut frames = vec![frame(0, None), frame(1, origin)];
+            let mut reserved = 4;
+            assert!(matches!(
+                unwind_frame(&mut ActiveFrames {
+                    frames: &mut frames,
+                    reserved: &mut reserved
+                })
+                .unwrap_err()
+                .kind,
+                E::InvalidMethod(_)
+            ));
+            assert_eq!(frames.len(), 2);
+            assert_eq!(reserved, 4);
+        }
+        let mut frames = vec![frame(0, None)];
+        let mut reserved = 1;
+        assert_eq!(
+            unwind_frame(&mut ActiveFrames {
+                frames: &mut frames,
+                reserved: &mut reserved
+            })
+            .unwrap_err()
+            .kind,
+            E::ExceptionAccountingOverflow {
+                resource: "unwind frame slots"
+            }
+        );
+        assert_eq!(frames.len(), 1);
+        assert_eq!(reserved, 1);
+        let mut frames = vec![
+            frame(0, None),
+            frame(1, Some((MethodKey::Standalone(0), 17))),
+        ];
+        let mut reserved = 4;
+        assert_eq!(
+            unwind_frame(&mut ActiveFrames {
+                frames: &mut frames,
+                reserved: &mut reserved
+            })
+            .unwrap(),
+            Some(17)
+        );
+        assert_eq!(reserved, 2);
+        assert_eq!(
+            unwind_frame(&mut ActiveFrames {
+                frames: &mut frames,
+                reserved: &mut reserved
+            })
+            .unwrap(),
+            None
+        );
+        assert_eq!(reserved, 0);
+        assert!(frames.is_empty());
+    }
+    #[test]
+    fn exception_mapping_keeps_nested_java_host_errors_boxed_and_preserves_legacy_outcomes() {
+        for host in [
+            ExceptionAccessError::Type(Box::new(TypeAccessError::Java(
+                TypeJavaError::IllegalAccess,
+            ))),
+            ExceptionAccessError::Type(Box::new(TypeAccessError::Java(TypeJavaError::ClassCast))),
+            ExceptionAccessError::Context(FieldAccessError::Java(FieldJavaError::NullPointer)),
+        ] {
+            let error = exception_failure(host.clone(), Some(13));
+            assert_eq!(error.kind, E::ExceptionAccess(Box::new(host)));
+            assert_eq!(error.offset, Some(13));
+            assert!(std::error::Error::source(&error).is_some());
+        }
+        for outcome in [
+            ExecutionOutcome::ArithmeticException,
+            ExecutionOutcome::ClassCastException,
+            ExecutionOutcome::ArrayStoreException,
+            ExecutionOutcome::NullPointerException,
+            ExecutionOutcome::ArrayIndexOutOfBoundsException,
+            ExecutionOutcome::NegativeArraySizeException,
+            ExecutionOutcome::NoSuchFieldError,
+            ExecutionOutcome::IllegalAccessError,
+            ExecutionOutcome::IncompatibleClassChangeError,
+            ExecutionOutcome::NoSuchMethodError,
+            ExecutionOutcome::AbstractMethodError,
+        ] {
+            assert!(
+                matches!(vm_completion(outcome,false,13).unwrap(),EngineOutcome::Legacy(value) if value==outcome)
+            );
+            let error = match vm_completion(outcome, true, 13) {
+                Err(error) => error,
+                Ok(_) => panic!("symbolic outcome escaped explicit profile"),
+            };
+            assert_eq!(
+                error.kind,
+                E::UnsupportedVmException(vm_kind(outcome).unwrap())
+            );
+        }
     }
 }

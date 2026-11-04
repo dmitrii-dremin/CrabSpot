@@ -471,3 +471,48 @@ from the shallow public payload-byte total. Dropping failed staging or live tree
 is iterative because edges are opaque handles. No components are constructed or
 initialized, no mirrors are fabricated, and no verification, collection or Java
 OutOfMemoryError behavior is claimed.
+
+## Explicit Throwable validation and catch matching
+
+`prepare_exception_profile` validates a caller-designated bootstrap
+`java/lang/Throwable` ClassId against the bound reference universe and admitted
+graph. The anchor must be a public ordinary nonabstract class directly extending
+the designated Object. Validation charges one node, the complete actual UTF-16
+name and one direct-superclass edge. It performs no resolution callback, heap
+allocation, construction or initialization.
+
+The opaque Copy `ExceptionProfile` retains only the anchor and registry/heap/layout/
+universe fingerprint. `check_exception_profile` rechecks that snapshot without
+lookup work. Fresh contexts over the unchanged heap may reuse it; allocations do
+not invalidate it. A different heap, additional admission, changed universe or
+same-count heap replacement cannot reuse an earlier snapshot.
+
+`prepare_throw` first checks the profile, then validates a non-null ordinary
+instance and its class-only ancestry to the exact Throwable identity. Arrays,
+unrelated instances and invalid handles remain structured host errors. Subclasses
+may use another defining loader when their actual admitted superclass chain
+reaches this anchor. The opaque `ThrownException` preserves the identical handle
+and actual ClassId; it does not certify initialized Throwable library state.
+
+`exception_handler_matches` checks the current declaring origin, token/profile
+match and actual instance again. Catch-all requires no type work or resolution.
+Typed catches require a non-array Class constant, resolve with the declaring
+origin's loader and caller access, and require an ordinary Throwable subclass.
+Matching uses the iterative class-only relation. Complete catch-name units are
+charged on every examination, including binding hits. Symbol/unit limits apply
+before callbacks; consumed work and successful bindings survive later failure.
+
+The interpreter owns ordered range search, lazy examination, frame unwind and
+separate dispatch/handler policies. Only reached in-range typed rows resolve;
+catch-all, uncovered and later rows cannot cause type resolution. The runtime
+maps only direct catch-type IllegalAccess to `Java(IllegalAccessError)`. Nested
+type/context failures keep their host category and error source.
+
+The opt-in engine can catch/rethrow supplied instances or report their uncaught
+identity. It does not materialize any of the eleven `VmExceptionKind` categories;
+they become explicit unsupported host failures in that profile, including null
+athrow. Existing entry points retain their symbolic VM outcomes and reject
+handlers/athrow. No fabricated default object stands for a VM-produced exception.
+Messages, stack traces, constructors, native/monitor/thread startup, asynchronous
+exceptions, full verification, collection and general exception production remain
+outside this bounded service.

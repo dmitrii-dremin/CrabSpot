@@ -6,6 +6,7 @@
 //! classes, or open files.
 //! Default static allocation does not perform full preparation or initialization.
 mod error;
+mod exception;
 mod field;
 mod handles;
 pub mod heap;
@@ -22,6 +23,7 @@ mod types;
 mod values;
 
 pub use error::{HandleKind, RegistryError, RegistryResource};
+pub use exception::{ExceptionAccessError, ExceptionProfile, ThrownException, VmExceptionKind};
 pub use field::{
     FieldAccessError, FieldJavaError, FieldResolutionContext, FieldResolutionOptions,
     FieldResource, ReferenceFieldMismatch,

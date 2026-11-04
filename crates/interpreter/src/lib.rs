@@ -12,7 +12,8 @@ mod tests;
 pub use crabspot_runtime::{Value, ValueKind};
 pub use error::{CallSite, ExecutionError, ExecutionErrorKind, MethodIdentity};
 pub use execute::{
-    CallLimits, ExecutionOptions, ExecutionOutcome, execute_instance_method_body,
+    CallLimits, ExceptionLimits, ExceptionOutcome, ExecutionOptions, ExecutionOutcome,
+    execute_instance_method_body, execute_instance_method_body_with_exceptions,
     execute_static_method_body, execute_static_method_body_with_heap,
     execute_static_method_body_with_limits,
 };

@@ -3,7 +3,7 @@
 An independent JVM implementation in Rust. It parses Java 21 class files, decodes
 JVM instructions, and executes supported primitive/reference method bodies independently in
 Rust, including bounded virtual/interface/super calls across bodies, primitive/reference arrays,
-instance fields, casts and type tests. The long-term goal is a complete
+instance fields, casts, type tests and explicit supplied-Throwable handlers. The long-term goal is a complete
 JVM specification implementation with the required observable behavior of
 conforming JVMs, using HotSpot as the primary reference, and demonstrated
 performance superiority over HotSpot on representative workloads. Java SE 21 is
@@ -33,6 +33,8 @@ cargo run -p crabspot-interpreter --example primitive_array_body -- 17
 cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+python -m unittest discover -s tools -p test_fixture_source.py
+python tools/check_fixture_sources.py
 python tools/compile_fixtures.py --check
 python tools/numeric_reference.py --check
 python tools/floating_reference.py --check
@@ -48,6 +50,7 @@ python tools/reference_field_reference.py --check
 python tools/reference_array_reference.py --check
 python tools/multidimensional_reference.py --check
 python tools/reference_call_reference.py --check
+python tools/exception_reference.py --check
 cargo test -p crabspot-interpreter --test numeric_reference
 cargo test -p crabspot-interpreter --test floating_reference --release
 ```
@@ -77,8 +80,8 @@ and `crabspot-launcher` for command-line inspection.
 The differential tests compare 616 integral, 7,263 floating-point, 126 static-call,
 280 primitive-array, 553 instance-field, 494 virtual-call, 1,337 interface/default,
 450 ordinary special-call, 1,276 cast/type-test, 690 reference-field, 3,948
-reference-array, 7,388 multidimensional-array and 904 reference-call OpenJDK 21
-outcomes with Rust execution,
+reference-array, 7,388 multidimensional-array, 904 reference-call and 336
+supplied-exception OpenJDK 21 outcomes with Rust execution,
 including arithmetic exceptions, signed zero,
 subnormals and NaN classification. The kernel supports bounded same-class static
 helpers, ordinary virtual calls and interface/default dispatch across registered
@@ -127,6 +130,14 @@ without cast-access checks. Null transfers still pay full signature-work charges
 Nominal-reference calls conservatively reject differing declaration loaders and
 matching receiver-hierarchy declarations under another loader; general loading
 constraints remain unimplemented.
+A separate opt-in exception API adds athrow (192 effective opcodes), ordered
+handlers and iterative unwind for already supplied, checked Throwable instances.
+It preserves the thrown handle and searches callers at the invocation PC. Handler
+metadata and dispatch work have explicit limits. All eleven unmaterialized
+VM-produced categories fail explicitly in this profile, including null athrow;
+no exception object is fabricated and no catch is silently bypassed. Earlier APIs
+keep their symbolic outcomes and handler/athrow exclusions. Throwable construction,
+initialized library state and general Java exception production remain unimplemented.
 Host-selected root bodies still require supplied instance storage; they
 do not construct objects or start Java applications. Constructor invocation,
 named-module access, cross-class nests and cross-loader reference loading

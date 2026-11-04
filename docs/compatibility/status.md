@@ -45,34 +45,31 @@ completion of that goal.
 | Reference-array storage and execution | Implemented and tested within body-kernel scope | Typed retained actual arrays, null defaults, context-only checked allocation/read/store and covariant ArrayStoreException; shared quotas with actual Reference element size, generic length and ordered child edges; anewarray/aaload/aastore bring runtime-aware coverage to 189; all 3,948 JDK cases pass in debug/release; multidimensional allocation is covered below; mirrors, lifecycle and GC remain unsupported |
 | Bounded multidimensional allocation | Implemented and tested within body-kernel scope | Runtime-aware c5 brings coverage to 190; complete/partial actual types, all-count sign checks, level-ordered aggregate quotas, atomic work precharge, iterative staging and validated whole-graph publication; 7,388 JDK cases pass in debug/release; host allocation failures remain separate from Java OOM/GC semantics |
 | Reference method arguments/results | Implemented and tested within body-kernel scope | Runtime-aware areturn brings coverage to 191; compact charged shapes, selected-declarer identity checks, null shortcuts, all call forms and exact handle transfer; conservative nominal loader/override boundary; all 904 new JDK outcomes pass in debug/release; full loading constraints and lifecycle remain unsupported |
+| Supplied-Throwable dispatch | Implemented and tested in opt-in body-kernel profile | Explicit checked Throwable identity, lazy ordered catches, catch-all/finally/rethrow and iterative invocation-PC unwind; athrow gives 192 opt-in opcodes while existing runtime mode stays 191; all 336 JDK outcomes pass in debug/release; all eleven unmaterialized VM categories fail explicitly, existing APIs unchanged |
 | Full linkage, bytecode verifier and initialization | Not implemented | Subsequent increments; registration and layout planning are not full linkage |
 | Class loading, GC, threads, Java libraries, JNI, Kotlin, Spring Boot, JIT | Not implemented | Subsequent milestones |
 
 No executed test currently remains failing. This statement is limited to the
 recorded tests; it is not proof that no defect exists.
 
-Latest independent native Windows checks: 680 workspace tests and 593 optimized
+Latest independent native Windows checks: 724 workspace tests and 637 optimized
 runtime/interpreter tests pass, with strict Clippy and formatting clean. All
-25,325 execution comparisons match; separate array and field memory services
-have 151 oracle roundtrips each. All 92 class fixtures and fifteen reference sets
-reproduce, with all 88 prior class hashes unchanged. Forty-nine new Rust tests
-cover reference transfer, loader/audit boundaries, long signatures, exact budgets,
-deep iterative calls, malformed values and retained effects. Final frozen review
-approved the bounded increment in docs/architecture/m2-reference-calls-review.md;
-full M2 remains open.
+25,661 execution comparisons match; separate array and field memory services
+have 151 oracle roundtrips each. All 98 class fixtures and sixteen reference sets
+reproduce, with all 92 previous class hashes unchanged. Forty-four new Rust tests
+cover profile/throw/catch identity, malformed boundaries/tokens, lazy access,
+exact accounting, all unsupported VM-production paths, iterative unwind and
+persistent effects. Final bounded approval is recorded in
+docs/architecture/m2-exception-dispatch-review.md; full M2 remains open.
 
-A source-provenance correction enforces the repository's LF policy before JDK
-calls or metadata writes. Hashes remain over raw accepted bytes. A pre-regeneration
-CI check verifies all 37 source hashes and fifteen named reference records, with
-matching JSON/TSV sets; six Python regressions pass. All compiled class and TSV
-bytes stayed unchanged during repair. This corrects historical CRLF-vs-Git-LF
-metadata, without altering the tested runtime outcomes.
+Canonical source checks verify 38 Java source hashes and sixteen named reference
+records with matching JSON/TSV sets; six Python regressions pass. Sources retain
+LF bytes and raw-byte hashes. Expanded parser smoke completed 10,000 cases with
+zero failures, 131 accepted, 9,869 rejected, ten rechecks and corpus 229.
 
-Implementation 9757382 passed complete [Linux/Windows run 41819049792](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41819049792).
-Both inspected logs show Rust/Cargo 1.99.1 and Temurin 21.0.13, both 680-test debug
-passes, all 593 optimized tests, six Python provenance tests and the pre-regeneration
-source preflight. All fixtures/reference outputs reproduce; both 10,000-case parser
-smoke runs have zero failures. Earlier CI rows retain their named-commit scope.
+Fresh hosted CI is pending publication. The preceding reference-call implementation
+9757382 passed [Linux/Windows run 41819049792](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41819049792)
+with Rust/Cargo 1.99.1 and Temurin 21.0.13; earlier evidence retains its named scope.
 
 ## Standard attribute coverage
 

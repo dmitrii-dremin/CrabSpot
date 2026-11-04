@@ -126,6 +126,35 @@ impl Stack {
         self.slots = required;
         Ok(())
     }
+    pub fn install_exception(
+        &mut self,
+        reference: crabspot_runtime::Reference,
+        offset: u32,
+    ) -> Result<(), ExecutionError> {
+        if self.capacity < 1 {
+            return Err(ExecutionError::new(
+                Some(offset),
+                E::StackOverflow {
+                    required: 1,
+                    capacity: self.capacity,
+                },
+            ));
+        }
+        if self.values.capacity() < 1 {
+            self.values.try_reserve_exact(1).map_err(|_| {
+                ExecutionError::new(
+                    Some(offset),
+                    E::Heap(crabspot_runtime::HeapError::AllocationFailure {
+                        resource: "exception handler operand stack",
+                    }),
+                )
+            })?;
+        }
+        self.values.clear();
+        self.values.push(Value::Reference(reference));
+        self.slots = 1;
+        Ok(())
+    }
     fn peek(&self, depth: usize, offset: u32) -> Result<Value, ExecutionError> {
         self.values
             .len()
@@ -508,5 +537,32 @@ mod tests {
             stack.manipulate(0x59, 0).unwrap_err().kind,
             E::StackOverflow { .. }
         ));
+    }
+    #[test]
+    fn exception_installation_resets_slots_and_preserves_stack_before_capacity_failure() {
+        let mut stack = Stack::new(2);
+        stack.push(Value::Long(19), 0).unwrap();
+        stack.capacity = 0;
+        assert_eq!(
+            stack
+                .install_exception(crabspot_runtime::Reference::null(), 7)
+                .unwrap_err()
+                .kind,
+            E::StackOverflow {
+                required: 1,
+                capacity: 0
+            }
+        );
+        assert_eq!(stack.values, vec![Value::Long(19)]);
+        assert_eq!(stack.slots, 2);
+        stack.capacity = 2;
+        stack
+            .install_exception(crabspot_runtime::Reference::null(), 7)
+            .unwrap();
+        assert_eq!(
+            stack.values,
+            vec![Value::Reference(crabspot_runtime::Reference::null())]
+        );
+        assert_eq!(stack.slots, 1);
     }
 }

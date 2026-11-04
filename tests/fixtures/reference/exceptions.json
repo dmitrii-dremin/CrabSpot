@@ -1,0 +1,8 @@
+{
+  "reference_runtime": "openjdk version \"21.0.7\" 2025-04-15 LTS\nOpenJDK Runtime Environment Zulu21.42+19-CA (build 21.0.7+6-LTS)\nOpenJDK 64-Bit Server VM Zulu21.42+19-CA (build 21.0.7+6-LTS, mixed mode, sharing)",
+  "source": "ExceptionDispatchCases.java",
+  "source_sha256": "d5ca53792ecb883789560d2091325e053ab4ade7e7d2d6793233f1f8f1dc25ed",
+  "class_sha256": "3718fdefa9ec5488fe22e61b708e0fa8bac7624fb0a4fbace04b0a1c9d396420",
+  "results_sha256": "3c57e65f5eea9d3f6a9abdfb17b024f31c74b67cc924ec4a7edf9723e76d5201",
+  "cases": 336
+}

@@ -2,8 +2,8 @@ use crate::ValueKind;
 use crabspot_bytecode::DecodeError;
 use crabspot_classfile::JavaString;
 use crabspot_runtime::{
-    ArrayAccessError, ClassId, FieldAccessError, HeapError, MethodAccessError, PrimitiveArrayKind,
-    TypeAccessError,
+    ArrayAccessError, ClassId, ExceptionAccessError, FieldAccessError, HeapError,
+    MethodAccessError, PrimitiveArrayKind, TypeAccessError, VmExceptionKind,
 };
 use std::fmt;
 
@@ -31,6 +31,23 @@ pub struct CallSite {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExecutionErrorKind {
+    ExceptionAccess(Box<ExceptionAccessError>),
+    UnsupportedVmException(VmExceptionKind),
+    InvalidExceptionHandler {
+        index: usize,
+        reason: &'static str,
+    },
+    ExceptionHandlerLimit {
+        limit: usize,
+        required: usize,
+    },
+    ExceptionDispatchLimit {
+        limit: u64,
+        required: u64,
+    },
+    ExceptionAccountingOverflow {
+        resource: &'static str,
+    },
     MethodIndexOutOfBounds {
         index: usize,
         count: usize,
@@ -167,6 +184,27 @@ impl fmt::Display for ExecutionError {
                 formatter,
                 "primitive array kind {actual:?} is invalid for instruction 0x{opcode:02x}"
             ),
+            ExecutionErrorKind::ExceptionAccess(error) => {
+                write!(formatter, "exception service failed: {error}")
+            }
+            ExecutionErrorKind::UnsupportedVmException(kind) => write!(
+                formatter,
+                "VM exception production is unsupported: {kind:?}"
+            ),
+            ExecutionErrorKind::InvalidExceptionHandler { index, reason } => {
+                write!(formatter, "invalid exception handler #{index}: {reason}")
+            }
+            ExecutionErrorKind::ExceptionHandlerLimit { limit, required } => write!(
+                formatter,
+                "prepared handler limit {limit} exceeded (required {required})"
+            ),
+            ExecutionErrorKind::ExceptionDispatchLimit { limit, required } => write!(
+                formatter,
+                "exception dispatch limit {limit} exceeded (required {required})"
+            ),
+            ExecutionErrorKind::ExceptionAccountingOverflow { resource } => {
+                write!(formatter, "exception accounting overflow: {resource}")
+            }
             ExecutionErrorKind::MethodIndexOutOfBounds { index, count } => {
                 write!(formatter, "method index {index} is outside {count} methods")
             }
@@ -271,6 +309,7 @@ impl fmt::Display for ExecutionError {
 impl std::error::Error for ExecutionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.kind {
+            ExecutionErrorKind::ExceptionAccess(error) => Some(error.as_ref()),
             ExecutionErrorKind::Decode(error) => Some(error),
             ExecutionErrorKind::Heap(error) => Some(error),
             ExecutionErrorKind::FieldAccess(error) => Some(error.as_ref()),

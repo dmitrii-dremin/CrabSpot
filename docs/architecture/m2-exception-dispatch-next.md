@@ -1,6 +1,6 @@
 # Next: Throwable identity and exception propagation
 
-Status: proposed direction on 2026-11-04 after `m2-reference-calls-review.md`. This note does not authorize production changes. An exact runtime/engine/error contract and technical review gate must precede implementation. Full M2 remains open.
+Status: historical direction, superseded by the exact `m2-exception-dispatch.md` contract and its approved `m2-exception-dispatch-review.md` implementation on 2026-11-04. The questions below document the design inputs; they are not additional implementation authorization. Full M2 remains open.
 
 The body engine now carries ordinary references through calls and returns. The next coherent direction is explicit throwing, handler selection and abrupt frame completion. These are prerequisites for useful catch/finally behavior and later constructor/class-initializer failures. Preserve the current engine and actual heap identities; do not bolt on a separate exception interpreter or treat a symbolic outcome tag as a Throwable object.
 

@@ -32,7 +32,7 @@ kinds/defaults, visible/invisible declaration/parameter/type annotations, generi
 type paths and annotated Code, inner/nest classes, records, sealed classes, and
 a module descriptor with requires, exports, opens, uses and provides tables.
 Numeric, floating-point, static-call and hierarchy fixtures bring the manifest to
-92 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
+98 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
 reference descriptors and interface ancestry. Rust hierarchy tests supply an
 explicit synthetic root as test input; this is not a production Object fallback
 or evidence of Java library execution.
@@ -118,3 +118,16 @@ references, field state, complete array payloads/edges and allocation counters.
 The execution test passes against the final integrated frozen implementation in
 debug and release, with technical review complete. Fixture reproduction alone
 does not establish execution compatibility.
+
+ExceptionDispatchCases and five companions add explicit supplied-Throwable throws,
+ordered typed and catch-all handlers, same/cross-frame propagation, finally,
+rethrow/replacement and all existing invocation forms. The 336 JDK rows include
+240 numeric completions and 96 uncaught outcomes identified by the exact supplied
+first/second object. Rust separately checks visible fields, repeated child edges,
+actual exception types and unchanged allocation counts. Emitted handlers pin catch
+order and the invocation/end-exclusive boundary. The tests use
+explicit original core metadata and preseeded host values; Java constructors
+execute only in the oracle driver, and no initialized Throwable library state is
+claimed. Implicit VM exception materialization is outside this profile. Final
+debug/release comparisons and combined validation pass; bounded technical review
+is complete. This does not establish full Java exception support.
