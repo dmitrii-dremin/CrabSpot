@@ -1,5 +1,6 @@
 {
   "reference_runtime": "openjdk version \"21.0.7\" 2025-04-15 LTS\nOpenJDK Runtime Environment Zulu21.42+19-CA (build 21.0.7+6-LTS)\nOpenJDK 64-Bit Server VM Zulu21.42+19-CA (build 21.0.7+6-LTS, mixed mode, sharing)",
+  "source": "InstanceBodyCases.java",
   "source_sha256": "25b2b4d2b1a127b4c8a019dc01a1176cbf4d212df3d96a19bb75336752fec927",
   "class_sha256": "067530ca64050d5eb796064d8c9a99bb6edb404ad6e7d0f8c44e1ce53e51c0ff",
   "results_sha256": "76c749de70e8b5bd1c492e34566cf1b6a42b9067af6066b72e2de79181de37f3",

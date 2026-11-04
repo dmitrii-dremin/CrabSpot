@@ -9,8 +9,9 @@ use crabspot_classfile::{
 };
 use crabspot_runtime::{
     ArrayAccessError, ArrayJavaError, ClassId, DefinitionRegistry, FieldAccessError,
-    FieldJavaError, FieldResolutionContext, HeapError, ManagedHeap, MethodAccessError, MethodId,
-    MethodJavaError, PrimitiveArrayKind, Reference, TypeAccessError, TypeJavaError,
+    FieldJavaError, FieldResolutionContext, HeapError, InstanceInvocationKind, ManagedHeap,
+    MethodAccessError, MethodId, MethodJavaError, MethodReturnKind, MethodValueShape,
+    PrimitiveArrayKind, Reference, TypeAccessError, TypeJavaError,
 };
 use std::collections::HashMap;
 
@@ -167,8 +168,7 @@ impl CallKind {
 }
 struct PreparedMethod {
     instance: bool,
-    parameters: Vec<ValueKind>,
-    return_type: Option<FieldType>,
+    shape: MethodValueShape,
     decoded: DecodedCode,
     max_stack: u16,
     max_locals: u16,
@@ -316,16 +316,16 @@ fn contextualize(
     error
 }
 fn validate_args(prepared: &PreparedMethod, args: &[Value]) -> Result<(), ExecutionError> {
-    if args.len() != prepared.parameters.len() {
+    if args.len() != prepared.shape.parameters.len() {
         return Err(ExecutionError::new(
             None,
             E::ArgumentCount {
-                expected: prepared.parameters.len(),
+                expected: prepared.shape.parameters.len(),
                 actual: args.len(),
             },
         ));
     }
-    for (index, (value, expected)) in args.iter().zip(&prepared.parameters).enumerate() {
+    for (index, (value, expected)) in args.iter().zip(&prepared.shape.parameters).enumerate() {
         if value.kind() != *expected {
             return Err(ExecutionError::new(
                 None,
@@ -409,7 +409,12 @@ fn make_frame(
         reserved_slots: prepared.slots(),
     })
 }
-fn resolve_call(class: &ClassFile, index: u16, offset: u32) -> Result<usize, ExecutionError> {
+fn resolve_call(
+    class: &ClassFile,
+    index: u16,
+    offset: u32,
+    admitted: bool,
+) -> Result<usize, ExecutionError> {
     let invalid =
         |reason| ExecutionError::new(Some(offset), E::InvalidCallReference { index, reason });
     let pool = &class.constant_pool;
@@ -466,8 +471,12 @@ fn resolve_call(class: &ClassFile, index: u16, offset: u32) -> Result<usize, Exe
     let descriptor = pool
         .utf8(*descriptor_index)
         .map_err(|_| invalid("invalid method descriptor index"))?;
-    parse_method_descriptor(descriptor.units())
-        .map_err(|_| invalid("invalid method descriptor"))?;
+    // Immutable registry metadata already passed descriptor grammar validation.
+    // Avoid owning nominal names before the runtime shape operation charges work.
+    if !admitted {
+        parse_method_descriptor(descriptor.units())
+            .map_err(|_| invalid("invalid method descriptor"))?;
+    }
     if name.equals_ascii("<init>") || name.equals_ascii("<clinit>") {
         return Err(ExecutionError::new(
             Some(offset),
@@ -644,7 +653,7 @@ fn execute_with_services(
         _ => None,
     };
     let mut used_code_bytes = 0;
-    let root = prepare_method(
+    let root = prepare_method_with_context(
         class,
         method_index,
         &mut used_code_bytes,
@@ -653,6 +662,10 @@ fn execute_with_services(
             Preparation::DirectInstanceRoot
         } else {
             Preparation::Static
+        },
+        match &mut services {
+            Services::Fields { context, root, .. } => Some((&mut **context, *root)),
+            _ => None,
         },
     )
     .map_err(|error| contextualize(bodies, error, root_key, None))?;
@@ -666,6 +679,19 @@ fn execute_with_services(
                 contextualize(
                     bodies,
                     ExecutionError::new(None, E::FieldAccess(Box::new(error))),
+                    root_key,
+                    None,
+                )
+            })?;
+    }
+    if let Services::Fields { context, root, .. } = &mut services {
+        context
+            .check_method_reference_profile(*root, receiver)
+            .and_then(|()| context.check_method_arguments(*root, args))
+            .map_err(|error| {
+                contextualize(
+                    bodies,
+                    ExecutionError::new(None, E::MethodAccess(Box::new(error))),
                     root_key,
                     None,
                 )
@@ -766,23 +792,34 @@ fn execute_with_services(
                     let origin = current.owner().ok_or_else(|| {
                         ExecutionError::new(Some(pc), E::UnsupportedInstruction(kind.opcode()))
                     })?;
-                    let parameters =
-                        invocation_parameters(current_class, origin, constant_index, kind)
-                            .map_err(|error| {
-                                contextualize(
-                                    bodies,
-                                    ExecutionError::new(Some(pc), E::MethodAccess(Box::new(error))),
-                                    current,
-                                    call_site,
-                                )
-                            })?;
+                    let Services::Fields { context, .. } = &mut services else {
+                        return Err(ExecutionError::new(
+                            Some(pc),
+                            E::UnsupportedInstruction(kind.opcode()),
+                        ));
+                    };
+                    let invocation = match kind {
+                        CallKind::Virtual => InstanceInvocationKind::Virtual,
+                        CallKind::Special => InstanceInvocationKind::Special,
+                        CallKind::Interface { .. } => InstanceInvocationKind::Interface,
+                        CallKind::Static => return Err(operand_error(pc)),
+                    };
+                    let parameters = context
+                        .instance_invocation_shape(origin, constant_index, invocation)
+                        .map_err(|error| {
+                            contextualize(
+                                bodies,
+                                ExecutionError::new(Some(pc), E::MethodAccess(Box::new(error))),
+                                current,
+                                call_site,
+                            )
+                        })?;
                     if let CallKind::Interface { count } = kind {
-                        let expected =
-                            usize::from(parameters.slots)
-                                .checked_add(1)
-                                .ok_or_else(|| {
-                                    contextualize(bodies, operand_error(pc), current, call_site)
-                                })?;
+                        let expected = usize::from(parameters.parameter_slots)
+                            .checked_add(1)
+                            .ok_or_else(|| {
+                                contextualize(bodies, operand_error(pc), current, call_site)
+                            })?;
                         if expected > usize::from(u8::MAX) || usize::from(count) != expected {
                             return Err(contextualize(
                                 bodies,
@@ -792,11 +829,24 @@ fn execute_with_services(
                             ));
                         }
                     }
-                    let kinds = parameters.kinds;
+                    let kinds = parameters.parameters;
                     let caller = frames.last_mut().ok_or_else(|| {
                         ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
                     })?;
-                    let mut args = Vec::with_capacity(kinds.len());
+                    let mut args = Vec::new();
+                    args.try_reserve_exact(kinds.len()).map_err(|_| {
+                        contextualize(
+                            bodies,
+                            ExecutionError::new(
+                                Some(pc),
+                                E::Heap(HeapError::AllocationFailure {
+                                    resource: "call arguments",
+                                }),
+                            ),
+                            current,
+                            call_site,
+                        )
+                    })?;
                     for kind in kinds.iter().rev() {
                         args.push(
                             caller.stack.pop(*kind, pc).map_err(|error| {
@@ -836,8 +886,13 @@ fn execute_with_services(
                     };
                     (MethodKey::Registered(selected), Some(args), Some(receiver))
                 } else {
-                    let index = resolve_call(current_class, constant_index, pc)
-                        .map_err(|error| contextualize(bodies, error, current, call_site))?;
+                    let index = resolve_call(
+                        current_class,
+                        constant_index,
+                        pc,
+                        matches!(services, Services::Fields { .. }),
+                    )
+                    .map_err(|error| contextualize(bodies, error, current, call_site))?;
                     let target = bodies
                         .static_key(current, index)
                         .map_err(|error| contextualize(bodies, error, current, call_site))?;
@@ -847,7 +902,7 @@ fn execute_with_services(
                     .class(target)
                     .map_err(|error| contextualize(bodies, error, target, call_site))?;
                 if let std::collections::hash_map::Entry::Vacant(entry) = cache.entry(target) {
-                    let prepared = prepare_method(
+                    let prepared = prepare_method_with_context(
                         target_class,
                         target.index(),
                         &mut used_code_bytes,
@@ -856,6 +911,12 @@ fn execute_with_services(
                             Preparation::ResolvedInstance
                         } else {
                             Preparation::Static
+                        },
+                        match (&mut services, target) {
+                            (Services::Fields { context, .. }, MethodKey::Registered(method)) => {
+                                Some((&mut **context, method))
+                            }
+                            _ => None,
                         },
                     )
                     .map_err(|error| contextualize(bodies, error, target, call_site))?;
@@ -885,8 +946,22 @@ fn execute_with_services(
                     let caller = frames.last_mut().ok_or_else(|| {
                         ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
                     })?;
-                    let mut args = Vec::with_capacity(prepared.parameters.len());
-                    for kind in prepared.parameters.iter().rev() {
+                    let mut args = Vec::new();
+                    args.try_reserve_exact(prepared.shape.parameters.len())
+                        .map_err(|_| {
+                            contextualize(
+                                bodies,
+                                ExecutionError::new(
+                                    Some(pc),
+                                    E::Heap(HeapError::AllocationFailure {
+                                        resource: "call arguments",
+                                    }),
+                                ),
+                                current,
+                                call_site,
+                            )
+                        })?;
+                    for kind in prepared.shape.parameters.iter().rev() {
                         args.push(
                             caller.stack.pop(*kind, pc).map_err(|error| {
                                 contextualize(bodies, error, current, call_site)
@@ -901,6 +976,32 @@ fn execute_with_services(
                     .ok_or_else(|| ExecutionError::new(None, E::InvalidOperands))?;
                 validate_args(prepared, args)
                     .map_err(|error| contextualize(bodies, error, target, call_site))?;
+                if let (Services::Fields { context, .. }, MethodKey::Registered(method)) =
+                    (&mut services, target)
+                {
+                    if !kind.is_instance() {
+                        context
+                            .check_method_reference_profile(method, None)
+                            .map_err(|error| {
+                                contextualize(
+                                    bodies,
+                                    ExecutionError::new(Some(pc), E::MethodAccess(Box::new(error))),
+                                    target,
+                                    call_site,
+                                )
+                            })?;
+                    }
+                    context
+                        .check_method_arguments(method, args)
+                        .map_err(|error| {
+                            contextualize(
+                                bodies,
+                                ExecutionError::new(Some(pc), E::MethodAccess(Box::new(error))),
+                                target,
+                                call_site,
+                            )
+                        })?;
+                }
                 let callee = make_frame(target, prepared, args, call_site, receiver)
                     .map_err(|error| contextualize(bodies, error, target, call_site))?;
                 frames.push(callee);
@@ -910,12 +1011,23 @@ fn execute_with_services(
     }
 }
 
+#[cfg(test)]
 fn prepare_method(
     class: &ClassFile,
     method_index: usize,
     used_code_bytes: &mut usize,
     code_limit: usize,
     mode: Preparation,
+) -> Result<PreparedMethod, ExecutionError> {
+    prepare_method_with_context(class, method_index, used_code_bytes, code_limit, mode, None)
+}
+fn prepare_method_with_context(
+    class: &ClassFile,
+    method_index: usize,
+    used_code_bytes: &mut usize,
+    code_limit: usize,
+    mode: Preparation,
+    runtime: Option<(&mut FieldResolutionContext<'_>, MethodId)>,
 ) -> Result<PreparedMethod, ExecutionError> {
     let instance = mode.is_instance();
     let method = class.methods.get(method_index).ok_or_else(|| {
@@ -972,20 +1084,45 @@ fn prepare_method(
             E::UnsupportedMethod("synchronized methods require monitor services"),
         ));
     }
-    let descriptor = class
-        .constant_pool
-        .utf8(method.descriptor_index)
-        .map_err(|_| ExecutionError::new(None, E::InvalidDescriptor))?;
-    let descriptor = parse_method_descriptor(descriptor.units())
-        .map_err(|_| ExecutionError::new(None, E::InvalidDescriptor))?;
-    let kinds: Vec<ValueKind> = descriptor
-        .parameters
-        .iter()
-        .map(numeric_kind)
-        .collect::<Result<_, _>>()?;
-    if let Some(field) = &descriptor.return_type {
-        numeric_kind(field)?;
-    }
+    let shape = if let Some((context, method)) = runtime {
+        context
+            .method_value_shape(method)
+            .map_err(|error| ExecutionError::new(None, E::MethodAccess(Box::new(error))))?
+    } else {
+        let descriptor = class
+            .constant_pool
+            .utf8(method.descriptor_index)
+            .map_err(|_| ExecutionError::new(None, E::InvalidDescriptor))?;
+        let descriptor = parse_method_descriptor(descriptor.units())
+            .map_err(|_| ExecutionError::new(None, E::InvalidDescriptor))?;
+        let parameters = descriptor
+            .parameters
+            .iter()
+            .map(numeric_kind)
+            .collect::<Result<_, _>>()?;
+        let result = match descriptor.return_type {
+            None => MethodReturnKind::Void,
+            Some(field) => {
+                numeric_kind(&field)?;
+                match field {
+                    FieldType::Boolean => MethodReturnKind::Boolean,
+                    FieldType::Byte => MethodReturnKind::Byte,
+                    FieldType::Char => MethodReturnKind::Char,
+                    FieldType::Short => MethodReturnKind::Short,
+                    FieldType::Int => MethodReturnKind::Int,
+                    FieldType::Long => MethodReturnKind::Long,
+                    FieldType::Float => MethodReturnKind::Float,
+                    FieldType::Double => MethodReturnKind::Double,
+                    _ => return Err(ExecutionError::new(None, E::UnsupportedDescriptor)),
+                }
+            }
+        };
+        MethodValueShape {
+            parameters,
+            parameter_slots: descriptor.parameter_slots,
+            result,
+        }
+    };
     let mut codes = method
         .attributes
         .iter()
@@ -1033,8 +1170,7 @@ fn prepare_method(
     *used_code_bytes = required;
     Ok(PreparedMethod {
         instance,
-        parameters: kinds,
-        return_type: descriptor.return_type,
+        shape,
         decoded,
         max_stack: code.max_stack,
         max_locals: code.max_locals,
@@ -1064,7 +1200,7 @@ fn step(
     }
     if matches!(
         opcode,
-        0x32 | 0x53 | 0xb4..=0xb7 | 0xb9 | 0xbd | 0xc0 | 0xc1 | 0xc5
+        0x32 | 0x53 | 0xb0 | 0xb4..=0xb7 | 0xb9 | 0xbd | 0xc0 | 0xc1 | 0xc5
     ) && !matches!(services, Services::Fields { .. })
     {
         return Err(ExecutionError::new(
@@ -1657,38 +1793,55 @@ fn step(
             next = branch(decoded, pc, displacement)?;
         }
         0xac => {
-            let Some(field) = &descriptor.return_type else {
-                return Err(ExecutionError::new(Some(pc), E::ReturnTypeMismatch));
+            let value = match descriptor.shape.result {
+                MethodReturnKind::Boolean
+                | MethodReturnKind::Byte
+                | MethodReturnKind::Char
+                | MethodReturnKind::Short
+                | MethodReturnKind::Int => stack.int(pc)?,
+                _ => return Err(ExecutionError::new(Some(pc), E::ReturnTypeMismatch)),
             };
-            if numeric_kind(field)? != ValueKind::Int {
-                return Err(ExecutionError::new(Some(pc), E::ReturnTypeMismatch));
-            }
-            let value = stack.int(pc)?;
-            let narrowed = match field {
-                FieldType::Byte => i32::from(value as i8),
-                FieldType::Char => i32::from(value as u16),
-                FieldType::Short => i32::from(value as i16),
-                FieldType::Boolean => value & 1,
+            let narrowed = match descriptor.shape.result {
+                MethodReturnKind::Byte => i32::from(value as i8),
+                MethodReturnKind::Char => i32::from(value as u16),
+                MethodReturnKind::Short => i32::from(value as i16),
+                MethodReturnKind::Boolean => value & 1,
                 _ => value,
             };
             return Ok(Action::Return(Some(Value::Int(narrowed))));
         }
         0xad => {
-            if descriptor.return_type != Some(FieldType::Long) {
+            if descriptor.shape.result != MethodReturnKind::Long {
                 return Err(ExecutionError::new(Some(pc), E::ReturnTypeMismatch));
             }
             return Ok(Action::Return(Some(Value::Long(stack.long(pc)?))));
         }
         0xae | 0xaf => {
-            let (field, kind) = if opcode == 0xae {
-                (FieldType::Float, ValueKind::Float)
+            let (result, kind) = if opcode == 0xae {
+                (MethodReturnKind::Float, ValueKind::Float)
             } else {
-                (FieldType::Double, ValueKind::Double)
+                (MethodReturnKind::Double, ValueKind::Double)
             };
-            if descriptor.return_type != Some(field) {
+            if descriptor.shape.result != result {
                 return Err(ExecutionError::new(Some(pc), E::ReturnTypeMismatch));
             }
             return Ok(Action::Return(Some(stack.pop(kind, pc)?)));
+        }
+        0xb0 => {
+            if descriptor.shape.result != MethodReturnKind::Reference {
+                return Err(ExecutionError::new(Some(pc), E::ReturnTypeMismatch));
+            }
+            let value = Value::Reference(stack.reference(pc)?);
+            let Services::Fields { context, .. } = services else {
+                return Err(operand_error(pc));
+            };
+            let MethodKey::Registered(method) = frame.method else {
+                return Err(operand_error(pc));
+            };
+            context
+                .check_method_return(method, Some(value))
+                .map_err(|error| ExecutionError::new(Some(pc), E::MethodAccess(Box::new(error))))?;
+            return Ok(Action::Return(Some(value)));
         }
         0xb9 => {
             let Operands::InvokeInterface { index, count } = operands else {
@@ -1715,7 +1868,7 @@ fn step(
             });
         }
         0xb1 => {
-            if descriptor.return_type.is_some() {
+            if descriptor.shape.result != MethodReturnKind::Void {
                 return Err(ExecutionError::new(Some(pc), E::ReturnTypeMismatch));
             }
             return Ok(Action::Return(None));
@@ -1733,85 +1886,6 @@ fn step(
 
 fn is_heap_instruction(opcode: u8) -> bool {
     matches!(opcode,0x01|0x19|0x2a..=0x31|0x33..=0x35|0x3a|0x4b..=0x52|0x54..=0x56|0xa5|0xa6|0xbc|0xbe|0xc6|0xc7)
-}
-struct CallParameters {
-    kinds: Vec<ValueKind>,
-    slots: u16,
-}
-fn invocation_parameters(
-    class: &ClassFile,
-    origin: ClassId,
-    index: u16,
-    kind: CallKind,
-) -> Result<CallParameters, MethodAccessError> {
-    let invalid = || MethodAccessError::InvalidConstant { origin, index };
-    let (class_index, name_and_type_index) =
-        match (kind, class.constant_pool.get(index).map_err(|_| invalid())?) {
-            (
-                CallKind::Virtual | CallKind::Special,
-                Constant::Methodref {
-                    class_index,
-                    name_and_type_index,
-                },
-            )
-            | (
-                CallKind::Interface { .. },
-                Constant::InterfaceMethodref {
-                    class_index,
-                    name_and_type_index,
-                },
-            ) => (*class_index, *name_and_type_index),
-            (
-                CallKind::Special,
-                Constant::InterfaceMethodref {
-                    class_index,
-                    name_and_type_index,
-                },
-            ) if class.version.major >= 52 => (*class_index, *name_and_type_index),
-            _ => return Err(invalid()),
-        };
-    class
-        .constant_pool
-        .class_name(class_index)
-        .map_err(|_| invalid())?;
-    let Constant::NameAndType {
-        name_index,
-        descriptor_index,
-    } = class
-        .constant_pool
-        .get(name_and_type_index)
-        .map_err(|_| invalid())?
-    else {
-        return Err(invalid());
-    };
-    let name = class
-        .constant_pool
-        .utf8(*name_index)
-        .map_err(|_| invalid())?;
-    if name.equals_ascii("<init>") || name.equals_ascii("<clinit>") {
-        return Err(MethodAccessError::UnsupportedSpecialMethod);
-    }
-    let descriptor = class
-        .constant_pool
-        .utf8(*descriptor_index)
-        .map_err(|_| invalid())?;
-    let descriptor = parse_method_descriptor(descriptor.units()).map_err(|_| invalid())?;
-    if descriptor
-        .return_type
-        .as_ref()
-        .is_some_and(|field| numeric_kind(field).is_err())
-    {
-        return Err(MethodAccessError::UnsupportedDescriptor);
-    }
-    let kinds = descriptor
-        .parameters
-        .iter()
-        .map(|field| numeric_kind(field).map_err(|_| MethodAccessError::UnsupportedDescriptor))
-        .collect::<Result<_, _>>()?;
-    Ok(CallParameters {
-        kinds,
-        slots: descriptor.parameter_slots,
-    })
 }
 fn array_failure(error: ArrayAccessError, pc: u32) -> Result<Action, ExecutionError> {
     match error {
@@ -2129,6 +2203,16 @@ mod resource_tests {
             };
             assert_eq!(error.offset, Some(19));
             assert_eq!(error.kind, E::ArrayAccess(Box::new(host)));
+            assert!(std::error::Error::source(&error).is_some());
+        }
+    }
+    #[test]
+    fn method_reference_type_java_errors_remain_host_failures() {
+        for kind in [TypeJavaError::ClassCast, TypeJavaError::IllegalAccess] {
+            let host = MethodAccessError::Type(Box::new(TypeAccessError::Java(kind)));
+            let error = method_failure(host.clone(), 11).unwrap_err();
+            assert_eq!(error.offset, Some(11));
+            assert_eq!(error.kind, E::MethodAccess(Box::new(host)));
             assert!(std::error::Error::source(&error).is_some());
         }
     }

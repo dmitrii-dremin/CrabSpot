@@ -10,6 +10,8 @@ import shutil
 import subprocess
 import tempfile
 
+from fixture_source import read_java_source
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ROOT / "tests" / "fixtures" / "java"
@@ -29,11 +31,12 @@ def main():
     if not executable:
         parser.error("JDK 21 javac is required; set JAVA_HOME or --javac")
     try:
+        sources = sorted(SOURCES.rglob("*.java"))
+        source_hashes = {p.relative_to(SOURCES).as_posix(): hashlib.sha256(read_java_source(p)).hexdigest() for p in sources}
         result = subprocess.run([executable, "-version"], capture_output=True, text=True, check=True)
         version = (result.stdout + result.stderr).strip()
         if not re.fullmatch(r"javac 21(?:[. +\-].*)?", version):
             parser.error(f"reference compiler must be JDK 21; found {version!r}")
-        sources = sorted(SOURCES.rglob("*.java"))
         scratch = ROOT / "target" / "fixture-tool"
         scratch.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="compile-", dir=scratch) as temporary:
@@ -49,7 +52,7 @@ def main():
                 "compiler": version,
                 "release": 21,
                 "flags": ["-encoding", "UTF-8", "-g", "-parameters"],
-                "sources": {p.relative_to(SOURCES).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in sources},
+                "sources": source_hashes,
                 "files": {},
             }
             for path in compiled:

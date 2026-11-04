@@ -1161,7 +1161,7 @@ fn native_and_synchronized_selected_targets_are_returned_for_later_preparation()
 }
 
 #[test]
-fn malformed_symbols_reference_descriptors_and_special_names_are_host_boundaries() {
+fn reference_descriptors_reach_lookup_while_malformed_symbols_and_special_names_fail() {
     let mut registry = registry();
     let loader = registry.create_loader().unwrap();
     object(&mut registry, loader);
@@ -1205,7 +1205,7 @@ fn malformed_symbols_reference_descriptors_and_special_names_are_host_boundaries
             context
                 .select_virtual(owner.class, owner.refs[index], Reference::null())
                 .unwrap_err(),
-            E::UnsupportedDescriptor
+            E::Java(J::NoSuchMethod)
         );
     }
     assert_eq!(

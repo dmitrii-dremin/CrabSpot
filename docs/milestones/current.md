@@ -1,8 +1,8 @@
-# Accepted checkpoint: bounded multidimensional allocation
+# Accepted checkpoint: reference arguments and results
 
-Updated 2026-11-04. M1 and earlier M2/runtime increments through reference arrays
-are approved. Bounded multianewarray is approved after integrated validation and
-frozen-source review; see docs/architecture/m2-multidimensional-arrays-review.md.
+Updated 2026-11-04. M1 and earlier M2/runtime increments are approved. Bounded
+reference arguments/results and areturn are approved after integrated validation
+and frozen-source review; see docs/architecture/m2-reference-calls-review.md.
 Full M2 remains open. Continue autonomously without NanoSpec; ask only when user
 intervention is unavoidable.
 
@@ -18,8 +18,8 @@ milestones, not the endpoint. No performance result is claimed.
 - Java 21 class-file encodings and all 30 standard attributes, lossless UTF-16,
   checked reads and explicit parser limits; metadata inspection CLI.
 - Full instruction-format decoder. Runtime-aware instance execution supports
-  190 opcode values; the earlier heap/static mode retains 179 and numeric APIs 148.
-- Numeric/void body graphs with shared instruction fuel, explicit iterative
+  191 opcode values; the earlier heap/static mode retains 179 and numeric APIs 148.
+- Runtime-aware primitive/reference body graphs with shared instruction fuel, explicit iterative
   frames and frame/slot/prepared-code quotas. Registered frames and prepared
   cache entries use complete MethodIds, with each frame's own constant pool,
   fields, static helpers and diagnostic owner identity.
@@ -38,7 +38,7 @@ milestones, not the endpoint. No performance result is claimed.
   exclusions. Resolution/access/staticness precede null; abstract selection follows.
 - invokevirtual/invokeinterface/ordinary invokespecial in the runtime-aware body
   API, mixed-width numeric arguments,
-  numeric/void returns, static helpers relative to the current declaring class,
+  primitive/reference/void returns, static helpers relative to the current declaring class,
   recursion and persistent completed field/array effects after every exit.
   Symbolic Java outcomes remain distinct from host metadata/policy failures.
 
@@ -94,6 +94,17 @@ fail; positive unreachable sizes do not allocate or consume deeper quotas.
 Complete and partial ranks preserve actual node types and primitive/null defaults.
 Host failures preserve the old heap; no Java OutOfMemoryError or GC claim follows.
 
+Reference arguments/results now cross all supported call forms and host body
+boundaries. Prepared bodies retain compact computational kinds and return tags;
+full descriptors are borrowed and charged before inspection. Non-null values use
+the selected declarer's identity-only descriptor resolution and bounded assignment.
+Null skips target resolution while preserving full signature charges. areturn checks
+the result before removing the callee frame and preserves its exact handle.
+Nominal-reference signatures conservatively reject cross-loader resolution and
+matching foreign-loader declarations throughout the receiver hierarchy, including
+otherwise nonselected private/static declarations. This is an explicit unsupported
+boundary, not full loading-constraint enforcement. Numeric-only budgets are retained.
+
 ## Validation
 
 Final independent checks passed on the verified frozen source:
@@ -102,75 +113,73 @@ Final independent checks passed on the verified frozen source:
 | --- | --- |
 | cargo fmt --check | Passed |
 | Strict workspace/all-target Clippy | Passed |
-| Debug workspace tests | 631 passed, zero failed |
-| Optimized runtime/interpreter tests | 544 passed: 294 runtime + 250 interpreter |
-| Execution comparisons | All 24,421 match in debug and release |
+| Debug workspace tests | 680 passed, zero failed |
+| Optimized runtime/interpreter tests | 593 passed: 320 runtime + 273 interpreter |
+| Execution comparisons | All 25,325 match in debug and release |
 | Separate memory-service roundtrips | 151 array + 151 field cases match in both profiles |
-| Fixture/reference reproduction | 88 classes and all fourteen output sets reproduced |
+| Fixture/reference reproduction | 92 classes and all fifteen output sets reproduced |
+| Canonical source provenance | 37 Java sources and fifteen named reference records verified |
+| Python provenance regressions | Six passed |
 | Expanded parser smoke | 10,000 cases, zero failures |
 
-This increment adds 36 tests: 14 public runtime, five private guards, 16 public
-interpreter and one independent JDK integration. Coverage includes rank 255,
-complete/partial shapes, all eight primitive leaves, abstract/interface leaves,
-negative counts after zero, huge unreachable positive sizes, mixed prior graphs,
-level-ordered quota conflicts, exact atomic bulk work, current-frame resolution,
-stack/fuel/frame/code limits and persistent effects. The private corruption matrix
-has 25 cases; staged-payload and post-arena-reserve injected failures preserve
-nonempty old child edges. All 86 prior class hashes are unchanged. No executed
-test remains failing.
+This increment adds 49 Rust tests: 22 public and four private runtime cases,
+21 public and one private interpreter case, and the genuine execution/state oracle.
+They cover call-site/resolved/selected identities; intermediate foreign-loader,
+interface/private/static declarations; source-first validation; all-null/unbound
+transfers; inaccessible descriptor types; exact budgets and long shared signatures;
+deep iterative audits and 10,001-frame reference recursion; failure provenance and
+persistent earlier effects. Old reference exclusions now assert the newly supported
+behavior or retained computational/owner/initialization guards. Invalidated contexts
+are deliberately detected earlier by runtime shape preparation as MethodAccess.
 
-The complete execution corpus is 24,421 cases: 616 integral, 7,263 floating,
-126 static-call, 280 primitive-array, 402 genuine instance-body, 151 raw-field,
-494 virtual-call, 1,337 interface/default, 450 ordinary-special, 1,276 type,
-690 reference-field, 3,948 reference-array and 7,388 multidimensional cases.
-Separate array and field memory services each have 151 oracle roundtrips,
-not extra execution cases.
+The execution corpus comprises 24,421 earlier cases plus 904 new reference-call
+cases across twenty receiver/method pairs. The new JDK results include 872 successes,
+twelve NullPointerException, sixteen bounds and four ArrayStoreException outcomes.
+Separate source-derived checks inspect retained state, aliases/cycles, every array
+value/type/edge and public counters. Exact helper descriptors and decoded selected
+Code pin reference signatures, areturn and all four invocation forms. Host receivers
+use default storage; only the JDK oracle driver invokes constructors.
 
-The new oracle covers 20 receiver/method pairs: 2,343 successful results and 5,045
-Java failures (3,364 NegativeArraySizeException, 1,666 ArrayIndexOutOfBoundsException
-and 15 ArrayStoreException). JDK rows record independent results/exceptions.
-A source-derived depth-first model, bounded to four fixture levels, checks every
-reachable array identity/type/value/edge, retained field and public counter.
-Production stages breadth-first and never recursively owns child arrays. Decoded
-genuine Code confirms c5 rank/dimension pairs (2,2), (3,2), (3,3), (4,3), (4,4).
-The reference generator caught duplicate inputs from overlapping grids; removing
-duplicate rows retained every unique case. The Java driver remains outside CrabSpot
-execution, and host default receivers do not establish constructor execution.
+A concrete provenance defect was repaired: some historical working-copy CRLF source
+hashes differed from Git's required LF blobs, while CI regeneration concealed that
+mismatch. Sources now use canonical LF. Both generators reject CR bytes before JDK
+calls or metadata writes and still hash exact accepted bytes. Reference records name
+their source; CI checks manifest/reference source hashes and matching JSON/TSV sets
+before regeneration. All 92 compiled class files and fifteen TSV outputs remained
+byte-identical during repair; all 88 previous class hashes remain unchanged.
 
 The unchanged parser's sustained M1 evidence remains in docs/milestones/evidence:
 108,907,980 cases over 300 seconds, zero failures, with exact-source fingerprint.
-The expanded 88-class smoke run passed 10,000 cases at seed 4851011501752864596:
-130 accepted, 9,870 rejected, ten deterministic rechecks, corpus 218, zero failures.
+The expanded 92-class smoke passed 10,000 cases at seed 4851011501752864596:
+158 accepted, 9,842 rejected, ten deterministic rechecks, corpus 250, zero failures.
 No finite test proves panic freedom. Rust 1.85, the declared minimum, remains
 untested; local tools are Rust/Cargo 1.98.1 and Zulu OpenJDK 21.0.7.
 
-Implementation a7539419700ae668853a568af50bbac6e967a09a passed complete Linux/Windows
-[run 41813463546](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41813463546).
-Both job logs were inspected: Rust/Cargo 1.99.1 and Temurin JDK 21.0.13; 631 tests
-against checked-in fixtures, 631 against freshly compiled fixtures, and 544 optimized
-runtime/interpreter tests. All 88 fixtures and fourteen reference sets reproduce.
-Both parser smoke runs report 130 accepted, 9,870 rejected, ten rechecks, corpus 218
-and zero failures at the same 10,000-case seed.
+The preceding multidimensional implementation a753941 passed complete Linux/Windows
+[run 41813463546](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41813463546)
+with Rust/Cargo 1.99.1 and Temurin JDK 21.0.13. Hosted CI for this reference-call
+increment is pending publication; prior CI is not attributed to the new source.
 
 ## Reviews, limitations and next work
 
-The exact contract is docs/architecture/m2-multidimensional-arrays.md. Final director
-review found no blocking semantic defect and approved the frozen increment in
-docs/architecture/m2-multidimensional-arrays-review.md. Workers use isolated
-runtime/interpreter worktrees; the coordinator owns genuine fixtures, reference
-comparisons and integration. The technical director is GPT-6 Astra (high);
-workers are GPT-6.1 Sol (high).
+The exact contract and final approval are docs/architecture/m2-reference-calls.md
+and docs/architecture/m2-reference-calls-review.md. Both component manifests and
+all 29 combined frozen source/evidence hashes were independently verified. The
+technical director is GPT-6 Astra (high); isolated runtime/interpreter workers are
+GPT-6.1 Sol (high). The coordinator owns genuine fixtures, integration and evidence.
+A mapped-file copy refusal left types.rs intact and Admin-owned; its bytes already
+matched the reviewed snapshot, so integration skipped the redundant copy. No ACL
+change, escalation or process termination was needed.
 
-Next direction is reference call arguments/results, outlined in
-m2-reference-calls-next.md under docs/architecture. An exact reviewed contract must
-settle descriptor identity, loader restrictions, host-root validation and argument/
-return budgets before dispatch. No repeated user approval is needed.
-
-Constructor invocation, reference parameters/results, initialization, full linkage,
-verification, loading constraints, exception objects/handlers, monitors, native
-methods, threads, GC and Java library integration remain incomplete. Kotlin/Spring
-Boot is not yet executable. Full M2 and complete JVM conformance remain open;
-no performance superiority has been demonstrated.
+Next direction is Throwable identity and exception propagation, proposed in
+docs/architecture/m2-exception-dispatch-next.md. An exact materialization/handler
+contract must precede implementation; symbolic tags must not masquerade as
+Throwable objects or silently bypass catches.
+Constructor invocation, initialization, static writes, full linkage, verification,
+loading constraints, exception objects/handlers, monitors, native methods, threads,
+GC and Java library integration remain incomplete. Kotlin/Spring Boot is not yet
+executable. Full M2 and complete JVM conformance remain open; no performance
+superiority has been demonstrated.
 
 The user initialized Git and authorized autonomous publication to the CrabSpot
 remote. Preserve interactive-user Git ownership and the Apache 2.0 license.
@@ -182,6 +191,8 @@ cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --quiet
 cargo test -p crabspot-runtime -p crabspot-interpreter --release --quiet
+python -m unittest discover -s tools -p test_fixture_source.py
+python tools/check_fixture_sources.py
 python tools/compile_fixtures.py --check
 python tools/numeric_reference.py --check
 python tools/floating_reference.py --check
@@ -196,10 +207,11 @@ python tools/type_reference.py --check
 python tools/reference_field_reference.py --check
 python tools/reference_array_reference.py --check
 python tools/multidimensional_reference.py --check
+python tools/reference_call_reference.py --check
 cargo run -p crabspot-classfile --example fuzz_parser -- tests/fixtures/classes --iterations 10000
 ```
 
 On this Windows host, add C:/Users/Admin/.cargo/bin to PATH and set
 CARGO_INCREMENTAL=0. Use isolated CARGO_TARGET_DIR and TMP/TEMP directories inside
 the project. The coordinator used target/verification-m2; workers used separate
-multidimensional-runtime-worker and multidimensional-interpreter-worker output directories.
+reference-calls-runtime-worker and reference-calls-interpreter-worker output directories.

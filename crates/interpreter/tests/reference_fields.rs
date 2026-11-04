@@ -1303,7 +1303,7 @@ fn descriptor_resolution_failures_keep_field_error_provenance_and_old_edge_state
     assert_eq!(fixture.heap.children(receiver).unwrap().count(), 0);
 }
 #[test]
-fn checked_edges_do_not_enable_old_field_modes_or_reference_method_signatures() {
+fn checked_edges_preserve_old_field_modes_and_enable_runtime_reference_results() {
     let mut root = ordinary();
     root.field("link", "Lp/T;", 1);
     let field = root.reference(9, "p/T", "link", "Lp/T;");
@@ -1334,8 +1334,8 @@ fn checked_edges_do_not_enable_old_field_modes_or_reference_method_signatures() 
     }
     let method = fixture.method("p/T", "referenceReturn", "()Lp/T;");
     assert_eq!(
-        fixture.run(method, receiver, &[]).unwrap_err().kind,
-        E::UnsupportedDescriptor
+        fixture.run(method, receiver, &[]).unwrap(),
+        returned(Value::Reference(Reference::null()))
     );
     let method = fixture.method("p/T", "numeric", "(I)I");
     assert_eq!(

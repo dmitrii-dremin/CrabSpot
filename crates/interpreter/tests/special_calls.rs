@@ -632,7 +632,7 @@ fn special_void_return_preserves_caller_operands_and_public_field_effects() {
     assert_eq!(fixture.stored("q/Base", "f", "I", receiver), Value::Int(7));
 }
 #[test]
-fn constructor_names_reference_descriptors_and_invalid_cp_tags_reject_before_extraction() {
+fn constructor_names_and_invalid_cp_tags_precede_typed_reference_extraction() {
     for (tag, name, descriptor, expected_special) in
         [(10, "<init>", "()V", true), (10, "v", "([I)I", false)]
     {
@@ -648,11 +648,11 @@ fn constructor_names_reference_descriptors_and_invalid_cp_tags_reject_before_ext
         let error = fixture.run(method, receiver, &[]).unwrap_err();
         assert_eq!(
             error.kind,
-            E::MethodAccess(Box::new(if expected_special {
-                MethodAccessError::UnsupportedSpecialMethod
+            if expected_special {
+                E::MethodAccess(Box::new(MethodAccessError::UnsupportedSpecialMethod))
             } else {
-                MethodAccessError::UnsupportedDescriptor
-            }))
+                E::StackUnderflow
+            }
         );
         assert_eq!(fixture.heap.allocated_instances(), before);
     }

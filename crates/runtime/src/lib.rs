@@ -12,6 +12,7 @@ pub mod heap;
 mod hierarchy;
 pub mod instance;
 mod method;
+mod method_values;
 mod reference;
 mod reference_array;
 mod registry;
@@ -42,6 +43,10 @@ pub use values::{Value, ValueKind};
 
 pub use instance::{InstanceClassKind, InstanceError, InstanceOptions, InstanceResource};
 pub use method::{MethodAccessError, MethodJavaError};
+pub use method_values::{
+    InstanceInvocationKind, MethodReferenceMismatch, MethodReturnKind, MethodValuePosition,
+    MethodValueShape,
+};
 pub use types::{
     ArrayElement, ReferenceType, ReferenceTypeUniverse, TypeAccessError, TypeJavaError,
 };

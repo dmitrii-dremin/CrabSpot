@@ -642,7 +642,7 @@ fn host_receiver_checks_reject_null_arrays_foreign_heaps_and_unrelated_instances
     );
 }
 #[test]
-fn excluded_root_declarations_and_reference_descriptors_fail_before_execution() {
+fn excluded_root_declarations_and_reference_argument_return_guards_fail_before_effects() {
     for (class_flags, method_flags, name, descriptor, handler, expected) in [
         (
             0x21,
@@ -733,7 +733,14 @@ fn excluded_root_declarations_and_reference_descriptors_fail_before_execution() 
         let method = fixture.method("p/T", "m", descriptor);
         assert_eq!(
             fixture.run(method, receiver, &[]).unwrap_err().kind,
-            E::UnsupportedDescriptor
+            if descriptor.starts_with("(") && !descriptor.starts_with("()") {
+                E::ArgumentCount {
+                    expected: 1,
+                    actual: 0,
+                }
+            } else {
+                E::ReturnTypeMismatch
+            }
         );
     }
     let mut class = ordinary();
@@ -1098,7 +1105,7 @@ fn completed_field_and_array_effects_persist_across_every_symbolic_outcome_and_h
 }
 #[test]
 fn unsupported_instruction_families_stay_explicit_and_all_code_is_eagerly_decoded() {
-    for opcode in [0xb2, 0xb3, 0xbb, 0xb0, 0xbf, 0xc2, 0xc3] {
+    for opcode in [0xb2, 0xb3, 0xbb, 0xbf, 0xc2, 0xc3] {
         let mut class = ordinary();
         let index = class.class("p/T");
         let mut code = if matches!(opcode, 0xb2 | 0xb3 | 0xb6 | 0xb7 | 0xbb | 0xbd) {
@@ -1175,7 +1182,7 @@ fn unsupported_instruction_families_stay_explicit_and_all_code_is_eagerly_decode
 }
 
 #[test]
-fn wide_reference_locals_and_static_helper_descriptor_restrictions_share_existing_rules() {
+fn wide_reference_locals_and_static_reference_results_share_existing_rules() {
     let mut class = ordinary();
     class.field("f", "I", 1);
     let field = class.reference(9, "p/T", "f", "I");
@@ -1196,11 +1203,9 @@ fn wide_reference_locals_and_static_helper_descriptor_restrictions_share_existin
         returned(Value::Int(0))
     );
     let method = fixture.method("p/T", "m", "()V");
-    let error = fixture.run(method, receiver, &[]).unwrap_err();
-    assert_eq!(error.kind, E::UnsupportedDescriptor);
     assert_eq!(
-        error.call_site.as_ref().unwrap().method.index,
-        method.index()
+        fixture.run(method, receiver, &[]).unwrap(),
+        O::Returned(None)
     );
 }
 #[test]
@@ -1326,7 +1331,9 @@ fn context_layout_extension_and_unsupported_private_resolution_do_not_become_jav
         )
         .unwrap_err()
         .kind,
-        E::FieldAccess(Box::new(FieldAccessError::ContextChanged))
+        E::MethodAccess(Box::new(crabspot_runtime::MethodAccessError::Context(
+            FieldAccessError::ContextChanged
+        )))
     );
 }
 

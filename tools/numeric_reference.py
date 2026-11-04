@@ -9,6 +9,8 @@ import re
 import shutil
 import subprocess
 
+from fixture_source import read_java_source
+
 ROOT = Path(__file__).resolve().parents[1]
 CLASSES = ROOT / "tests" / "fixtures" / "classes"
 
@@ -32,6 +34,7 @@ def main(fixture_name="NumericCases", result_name="numeric", result_pattern=r"(?
     if not java:
         parser.error("reference JDK 21 required; set JAVA_HOME or --java")
     try:
+        source_bytes = read_java_source(source)
         version_run = subprocess.run([java, "-version"], capture_output=True, text=True, check=True, timeout=30)
         version = (version_run.stdout + version_run.stderr).strip()
         if not re.match(r'(?:openjdk|java) version "21(?:[.\"+\-])', version):
@@ -60,7 +63,8 @@ def main(fixture_name="NumericCases", result_name="numeric", result_pattern=r"(?
         data = ("\n".join(lines) + "\n").encode("utf-8")
         metadata = {
             "reference_runtime": version,
-            "source_sha256": digest(source.read_bytes()),
+            "source": source.relative_to(ROOT / "tests" / "fixtures" / "java").as_posix(),
+            "source_sha256": digest(source_bytes),
             "class_sha256": digest(compiled),
             "results_sha256": digest(data),
             "cases": len(lines),
@@ -70,7 +74,7 @@ def main(fixture_name="NumericCases", result_name="numeric", result_pattern=r"(?
             if results.read_bytes() != data:
                 parser.error("checked-in results differ from the JDK reference")
             recorded = json.loads(metadata_path.read_text(encoding="utf-8"))
-            for key in ("source_sha256", "class_sha256", "results_sha256", "cases"):
+            for key in ("source", "source_sha256", "class_sha256", "results_sha256", "cases"):
                 if recorded.get(key) != metadata[key]:
                     parser.error(f"reference provenance differs for {key}")
         else:

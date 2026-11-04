@@ -1,5 +1,6 @@
 {
   "reference_runtime": "openjdk version \"21.0.7\" 2025-04-15 LTS\nOpenJDK Runtime Environment Zulu21.42+19-CA (build 21.0.7+6-LTS)\nOpenJDK 64-Bit Server VM Zulu21.42+19-CA (build 21.0.7+6-LTS, mixed mode, sharing)",
+  "source": "InterfaceDispatchCases.java",
   "source_sha256": "cc29cb5ba19c6f7916a529336d5e2347e00564eb845f87703cd9b68e3c7c5041",
   "class_sha256": "51fb3a62d2fec72ce39878c7ec81e5e4bbb329a231e2d10783fb61c8127b3c2e",
   "results_sha256": "faca1bd272509088e1a60c0163480275b55c6d08d314ae2f2a4d6d81037a5e67",

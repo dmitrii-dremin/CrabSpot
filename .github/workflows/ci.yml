@@ -29,6 +29,10 @@ jobs:
           rustc --version --verbose
           cargo --version
           javac -version
+      - name: Verify checked-in source provenance
+        run: |
+          python -m unittest discover -s tools -p test_fixture_source.py
+          python tools/check_fixture_sources.py
       - name: Test checked-in reference fixtures
         run: cargo test --workspace --locked
       - name: Compile reference fixtures with JDK 21
@@ -63,6 +67,8 @@ jobs:
           python tools/reference_array_reference.py --check
           python tools/multidimensional_reference.py
           python tools/multidimensional_reference.py --check
+          python tools/reference_call_reference.py
+          python tools/reference_call_reference.py --check
       - name: Format
         run: cargo fmt --check
       - name: Lint

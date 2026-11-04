@@ -1,5 +1,6 @@
 {
   "reference_runtime": "openjdk version \"21.0.7\" 2025-04-15 LTS\nOpenJDK Runtime Environment Zulu21.42+19-CA (build 21.0.7+6-LTS)\nOpenJDK 64-Bit Server VM Zulu21.42+19-CA (build 21.0.7+6-LTS, mixed mode, sharing)",
+  "source": "VirtualCallCases.java",
   "source_sha256": "e29766dd18b5e9c996d65816b5f61ed0d655dd3339fd74afd698fdb214a7d01a",
   "class_sha256": "d54fa48aee008a456d838cb74897909b6f80c6a2fc3c01ca6d6bbcfc26ef0082",
   "results_sha256": "df79ac95326bb3808ff32dfc1023e75266c3cbaf7ad1725c431d838592559267",

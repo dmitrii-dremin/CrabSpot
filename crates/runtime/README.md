@@ -270,7 +270,7 @@ class initialization, verification, named-module/nest services or general Java s
 ## Ordinary special-call selection
 
 `FieldResolutionContext::select_special` resolves a checked Methodref, or an
-InterfaceMethodref from an origin of major 52 or later, for an ordinary numeric/void
+InterfaceMethodref from an origin of major 52 or later, for an ordinary nonconstructor
 call. Initialization names remain explicitly unsupported. Resolution, access and
 resolved staticness precede the defensive symbolic-owner check, then null. Legal
 owners are the current type, a class ancestor, a direct superinterface, or the
@@ -293,6 +293,51 @@ access. All new node/edge/declaration scans use the existing cumulative work bud
 selection retains successful symbol bindings without introducing another cache.
 Native/synchronized methods remain preparation responsibilities. This does not
 construct, initialize or mark an instance as having completed a constructor.
+
+## Reference method arguments and results
+
+Runtime-aware consumers obtain compact computational kinds, JVM parameter slots
+and a `MethodReturnKind` through `method_value_shape` and
+`instance_invocation_shape`. Numeric and reference parameters/results share these
+shapes. The latter checks constant-pool structure without resolving the owner;
+array-owner eligibility remains a selector check after typed operand extraction.
+Shapes neither certify body eligibility nor perform linkage or value assignment.
+Prepared consumers retain no nominal names or array descriptor trees per method.
+
+Signature parsing uses temporary borrowed spans and a fixed maximum of 255
+parameters. A bounded prefix distinguishes numeric-only descriptors before any
+long nominal scan. Each reference-bearing shape, profile, argument or return
+operation charges its full UTF-16 descriptor once, including null values and
+cache hits. Numeric-only operations add no signature work. Resolving a borrowed
+parameter/result span does not charge its name a second time, and shares the
+existing fallible binding and cumulative resource policy.
+
+Selectors conservatively reject nominal signatures when the origin and resolved
+declarer have different defining loaders. After selection, the reference profile
+audits the complete actual receiver superclass/interface graph iteratively. Every
+exact matching declaration, including private/static and intermediate declarations,
+must share the selected declarer's loader. This is an explicit unsupported boundary,
+not general JVM loading constraints or complete preparation. Primitive-leaf array
+signatures impose no nominal constraint. Profile receiver Option shape always
+matches staticness; only nominal instance profiles add receiver traversal/audit.
+
+`check_method_arguments` validates count and all computational kinds before any
+reference resolution. `check_method_return` validates the declared result's Option
+and kind. Non-null values validate their actual heap identity first, then resolve
+the selected declarer's parameter/result using identity-only access and check
+assignment. Inaccessible descriptor types are permitted when the method itself is
+accessible. Actual values from other loaders may be assignable. Null skips universe,
+target resolution and callbacks after signature/profile charges and constraints.
+The helpers do not narrow numeric values or change reference identity, allocate
+objects, initialize classes, or independently approve the reference profile.
+
+Incompatible values report a boxed `MethodReferenceMismatch` with the selected
+MethodId, argument index or return position, and actual source/declared target
+identities. Wrapped type failures preserve their error source; these host failures
+are not fabricated Java exceptions. Later failure retains consumed work, successful
+bindings and all prior heap effects. Standalone numeric interpreter entry points
+continue rejecting reference signatures. Constructors, native binding, initialization,
+full verification, cross-loader loading constraints and collection remain open.
 
 ## Reference types and cast services
 
@@ -326,8 +371,7 @@ replacement and additional admission. New target-name scans charge each UTF-16
 unit even on cache hits; nominal validation, type reductions, graph nodes and every
 edge enqueue share the existing cumulative work limits. Diamond traversal is
 deduplicated and fallibly reserved without recursion or permanent type caches.
-Reference call signatures, constructors, initialization, verification and collection
-remain outside this service.
+Constructors, initialization, verification and collection remain outside this service.
 
 ## Checked non-null instance-reference fields
 
@@ -354,8 +398,8 @@ before one mutation. Public `put_field` continues rejecting all non-null referen
 Stores allocate no heap entries or payload, do not change quotas or identity, and
 do not claim construction or initialization. `children` borrows one handle per
 non-null slot, preserving repeated aliases and cycles without recursion, tracing,
-deduplication or allocation. Static writes and reference call
-signatures, lifecycle protocols and collection remain outside this increment.
+deduplication or allocation. Static writes, lifecycle protocols and collection
+remain outside this increment.
 
 ## Checked reference arrays
 
@@ -392,7 +436,7 @@ generic `length` accepts both payloads and reports expected Array for instances.
 `children` borrows non-null elements in ascending index order, preserving aliases,
 self-edges and cycles without allocation, recursion or tracing. Existing checked
 fields and cast/type services accept actual arrays through the same relation.
-Mirrors, reference call signatures, constructors, initialization, verification and
+Mirrors, constructors, initialization, verification and
 collection remain outside scope.
 
 ## Atomic multidimensional arrays

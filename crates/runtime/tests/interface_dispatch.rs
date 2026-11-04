@@ -951,7 +951,7 @@ fn foreign_unadmitted_and_array_receivers_keep_checked_host_errors() {
 }
 
 #[test]
-fn interface_symbols_keep_reference_and_array_host_boundaries() {
+fn interface_reference_descriptors_reach_lookup_but_array_owners_remain_unsupported() {
     let mut registry = registry();
     let loader = registry.create_loader().unwrap();
     object(&mut registry, loader);
@@ -969,8 +969,8 @@ fn interface_symbols_keep_reference_and_array_host_boundaries() {
     );
     let mut heap = heap(&registry, &[own.class]);
     for (index, expected) in [
-        (0, E::UnsupportedDescriptor),
-        (1, E::UnsupportedDescriptor),
+        (0, E::Java(J::NoSuchMethod)),
+        (1, E::Java(J::NoSuchMethod)),
         (2, E::Context(C::UnsupportedArrayOwner)),
     ] {
         assert_eq!(

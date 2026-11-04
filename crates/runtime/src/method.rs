@@ -1,7 +1,8 @@
 //! Bounded class/interface method resolution and identity-aware selection.
 use crate::{
-    ClassId, FieldAccessError, FieldResolutionContext, HeapError, InstanceError, LoaderId,
-    MethodId, Reference, RegistryError,
+    ClassId, FieldAccessError, FieldResolutionContext, HeapError, InstanceError,
+    InstanceInvocationKind, LoaderId, MethodId, MethodReferenceMismatch, MethodValuePosition,
+    MethodValueShape, Reference, RegistryError, TypeAccessError, ValueKind,
 };
 use crabspot_classfile::{
     Constant, JavaString,
@@ -24,6 +25,27 @@ pub enum MethodJavaError {
 pub enum MethodAccessError {
     Java(MethodJavaError),
     Context(FieldAccessError),
+    Type(Box<TypeAccessError>),
+    UnsupportedLoadingConstraint {
+        origin: ClassId,
+        method: MethodId,
+    },
+    UnsupportedOverrideConstraint {
+        method: MethodId,
+        declaration: MethodId,
+    },
+    ArgumentCount {
+        method: MethodId,
+        expected: usize,
+        actual: usize,
+    },
+    ValueKindMismatch {
+        method: MethodId,
+        position: MethodValuePosition,
+        expected: Option<ValueKind>,
+        actual: Option<ValueKind>,
+    },
+    IncompatibleReference(Box<MethodReferenceMismatch>),
     InvalidConstant {
         origin: ClassId,
         index: u16,
@@ -55,13 +77,47 @@ impl fmt::Display for MethodAccessError {
         match self {
             Self::Java(error) => write!(f, "method access failed: {error:?}"),
             Self::Context(error) => write!(f, "method context failed: {error}"),
+            Self::Type(error) => write!(f, "method reference type validation failed: {error}"),
+            Self::UnsupportedLoadingConstraint { origin, method } => write!(
+                f,
+                "nominal signature resolution from {origin:?} to {method:?} requires unsupported loading constraints"
+            ),
+            Self::UnsupportedOverrideConstraint {
+                method,
+                declaration,
+            } => write!(
+                f,
+                "nominal signature of {method:?} matches {declaration:?} under a different defining loader"
+            ),
+            Self::ArgumentCount {
+                method,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "method {method:?} requires {expected} arguments, found {actual}"
+            ),
+            Self::ValueKindMismatch {
+                method,
+                position,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "method {method:?} {position:?} requires {expected:?}, found {actual:?}"
+            ),
+            Self::IncompatibleReference(mismatch) => write!(
+                f,
+                "method {:?} {:?} reference type {:?} is not assignable to {:?}",
+                mismatch.method, mismatch.position, mismatch.source, mismatch.target
+            ),
             Self::InvalidConstant { origin, index } => write!(
                 f,
                 "constant #{index} in {origin:?} is not a valid method reference for this call kind"
             ),
-            Self::UnsupportedDescriptor => f.write_str(
-                "ordinary body calls require primitive parameters and primitive/void results",
-            ),
+            Self::UnsupportedDescriptor => {
+                f.write_str("method descriptor is unsupported by the selected execution profile")
+            }
             Self::UnsupportedSpecialMethod => {
                 f.write_str("initialization methods are excluded from ordinary virtual body calls")
             }
@@ -90,10 +146,10 @@ impl fmt::Display for MethodAccessError {
 }
 impl std::error::Error for MethodAccessError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        if let Self::Context(error) = self {
-            Some(error)
-        } else {
-            None
+        match self {
+            Self::Context(error) => Some(error),
+            Self::Type(error) => Some(error.as_ref()),
+            _ => None,
         }
     }
 }
@@ -110,6 +166,11 @@ impl From<RegistryError> for MethodAccessError {
 impl From<InstanceError> for MethodAccessError {
     fn from(error: InstanceError) -> Self {
         Self::Context(FieldAccessError::Instance(error))
+    }
+}
+impl From<TypeAccessError> for MethodAccessError {
+    fn from(error: TypeAccessError) -> Self {
+        Self::Type(Box::new(error))
     }
 }
 fn allocation() -> MethodAccessError {
@@ -138,6 +199,7 @@ struct Symbol<'a> {
     owner: &'a JavaString,
     name: &'a JavaString,
     descriptor: &'a JavaString,
+    nominal: bool,
 }
 struct Resolved {
     owner: ClassId,
@@ -187,11 +249,22 @@ impl InterfaceCandidates {
 
 impl<'a> FieldResolutionContext<'a> {
     fn method_symbol(
-        &self,
+        &mut self,
         origin: ClassId,
         index: u16,
         interface: bool,
     ) -> Result<Symbol<'a>, MethodAccessError> {
+        Ok(self
+            .method_symbol_and_signature(origin, index, interface, false)?
+            .0)
+    }
+    fn method_symbol_and_signature(
+        &mut self,
+        origin: ClassId,
+        index: u16,
+        interface: bool,
+        shape_only: bool,
+    ) -> Result<(Symbol<'a>, crate::method_values::Signature<'a>), MethodAccessError> {
         let invalid = || MethodAccessError::InvalidConstant { origin, index };
         let pool = &self.registry().class(origin)?.constant_pool;
         let (class_index, name_and_type_index) = match pool.get(index).map_err(|_| invalid())? {
@@ -206,7 +279,7 @@ impl<'a> FieldResolutionContext<'a> {
             _ => return Err(invalid()),
         };
         let owner = pool.class_name(class_index).map_err(|_| invalid())?;
-        if owner.units().first() == Some(&91) {
+        if !shape_only && owner.units().first() == Some(&91) {
             return Err(FieldAccessError::UnsupportedArrayOwner.into());
         }
         let Constant::NameAndType {
@@ -221,22 +294,43 @@ impl<'a> FieldResolutionContext<'a> {
         if name.equals_ascii("<init>") || name.equals_ascii("<clinit>") {
             return Err(MethodAccessError::UnsupportedSpecialMethod);
         }
-        let parsed = parse_method_descriptor(descriptor.units()).map_err(|_| invalid())?;
-        if parsed
-            .parameters
-            .iter()
-            .any(|field| matches!(field, FieldType::Object(_) | FieldType::Array { .. }))
-            || parsed.return_type.as_ref().is_some_and(|field| {
-                matches!(field, FieldType::Object(_) | FieldType::Array { .. })
-            })
-        {
-            return Err(MethodAccessError::UnsupportedDescriptor);
-        }
-        Ok(Symbol {
-            owner,
-            name,
-            descriptor,
-        })
+        let signature =
+            self.inspect_signature(descriptor.units())
+                .map_err(|error| match error {
+                    MethodAccessError::Context(FieldAccessError::InvalidState(_)) => invalid(),
+                    error => error,
+                })?;
+        Ok((
+            Symbol {
+                owner,
+                name,
+                descriptor,
+                nominal: signature.nominal,
+            },
+            signature,
+        ))
+    }
+    pub fn instance_invocation_shape(
+        &mut self,
+        origin: ClassId,
+        index: u16,
+        kind: InstanceInvocationKind,
+    ) -> Result<MethodValueShape, MethodAccessError> {
+        self.unchanged()?;
+        let definition = self.registry().class(origin)?;
+        self.heap().instance_graph_node(origin)?;
+        let interface = match kind {
+            InstanceInvocationKind::Virtual => false,
+            InstanceInvocationKind::Interface => true,
+            InstanceInvocationKind::Special => match definition.constant_pool.get(index) {
+                Ok(Constant::Methodref { .. }) => false,
+                Ok(Constant::InterfaceMethodref { .. }) if definition.version.major >= 52 => true,
+                _ => return Err(MethodAccessError::InvalidConstant { origin, index }),
+            },
+        };
+        self.method_symbol_and_signature(origin, index, interface, true)?
+            .1
+            .shape()
     }
     fn runtime_package(&self, class: ClassId) -> Result<Package<'a>, MethodAccessError> {
         let registry = self.registry();
@@ -528,6 +622,12 @@ impl<'a> FieldResolutionContext<'a> {
         } else if !self.same_package(origin, declaring)? {
             return Err(MethodAccessError::Java(MethodJavaError::IllegalAccess));
         }
+        if symbol.nominal
+            && self.registry().defining_loader(origin)?
+                != self.registry().defining_loader(declaring)?
+        {
+            return Err(MethodAccessError::UnsupportedLoadingConstraint { origin, method });
+        }
         if flags & 8 != 0 {
             return Err(MethodAccessError::Java(
                 MethodJavaError::IncompatibleClassChange,
@@ -685,7 +785,7 @@ impl<'a> FieldResolutionContext<'a> {
         }
         Err(MethodAccessError::InvalidSpecialOwner { origin, owner })
     }
-    fn require_method_receiver(
+    pub(crate) fn require_method_receiver(
         &mut self,
         actual: ClassId,
         expected: ClassId,
@@ -769,7 +869,34 @@ impl<'a> FieldResolutionContext<'a> {
         if self.registry().method(selected)?.access_flags & 0x400 != 0 {
             return Err(MethodAccessError::Java(MethodJavaError::AbstractMethod));
         }
+        self.selected_reference_profile(selected, &symbol, receiver)?;
         Ok(selected)
+    }
+    fn selected_reference_profile(
+        &mut self,
+        method: MethodId,
+        symbol: &Symbol<'_>,
+        receiver: Reference,
+    ) -> Result<(), MethodAccessError> {
+        let definition = self.registry().class(method.owner())?;
+        let member = self.registry().method(method)?;
+        if definition
+            .constant_pool
+            .utf8(member.name_index)
+            .map_err(RegistryError::Parse)?
+            != symbol.name
+            || definition
+                .constant_pool
+                .utf8(member.descriptor_index)
+                .map_err(RegistryError::Parse)?
+                != symbol.descriptor
+        {
+            return Err(FieldAccessError::InvalidState(
+                "selected method differs from symbolic name/descriptor",
+            )
+            .into());
+        }
+        self.check_method_reference_profile(method, Some(receiver))
     }
     fn select_method(
         &mut self,
@@ -814,6 +941,7 @@ impl<'a> FieldResolutionContext<'a> {
         if flags & 0x400 != 0 {
             return Err(MethodAccessError::Java(MethodJavaError::AbstractMethod));
         }
+        self.selected_reference_profile(selected, &symbol, receiver)?;
         Ok(selected)
     }
 }

@@ -1086,6 +1086,8 @@ fn binding_a_previously_unbound_heap_invalidates_an_existing_execution_context()
         )
         .unwrap_err()
         .kind,
-        E::FieldAccess(Box::new(FieldAccessError::ContextChanged))
+        E::MethodAccess(Box::new(crabspot_runtime::MethodAccessError::Context(
+            FieldAccessError::ContextChanged
+        )))
     );
 }

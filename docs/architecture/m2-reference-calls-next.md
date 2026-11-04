@@ -1,6 +1,6 @@
 # Next: reference arguments and results
 
-Status: proposed direction on 2026-11-04 after the bounded approval in `m2-multidimensional-arrays-review.md`. This note does not authorize implementation. An exact invocation/type/budget contract must precede dispatch. Full M2 remains open.
+Status: this proposal was superseded by the implemented contract `m2-reference-calls.md` and bounded approval `m2-reference-calls-review.md` on 2026-11-04. The remaining text preserves the original design questions; it does not add implementation authority. Full M2 remains open. The next proposed direction is `m2-exception-dispatch-next.md`.
 
 Extend the runtime-aware body graph to reference parameters and results, including areturn, after the array gate. This allows ordinary object and array values to cross existing static-helper, virtual, interface and ordinary-special calls without using fields as an indirect exchange mechanism. Reuse MethodId-keyed prepared bodies, actual reference identities, shared frames and assignment services. Earlier metadata-only numeric and primitive-heap entry points should retain their existing signature boundaries.
 

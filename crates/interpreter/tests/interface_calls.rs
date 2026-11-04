@@ -675,7 +675,7 @@ fn count_mismatch_and_overflow_win_over_stack_extraction_and_runtime_resolution(
     }
 }
 #[test]
-fn wrong_tags_and_unsupported_descriptors_precede_count_while_encoding_checks_are_eager() {
+fn wrong_tags_precede_count_and_reference_descriptors_use_slot_counts_while_decoding_is_eager() {
     for (tag, descriptor, expected_descriptor) in [
         (10, "()I", false),
         (11, "([I)I", true),
@@ -692,10 +692,7 @@ fn wrong_tags_and_unsupported_descriptors_precede_count_while_encoding_checks_ar
         let method = fixture.method("p/T", "m", "()V");
         let error = fixture.run(method, receiver, &[]).unwrap_err();
         if expected_descriptor {
-            assert_eq!(
-                error.kind,
-                E::MethodAccess(Box::new(MethodAccessError::UnsupportedDescriptor))
-            );
+            assert_eq!(error.kind, E::InvalidOperands);
         } else {
             assert!(
                 matches!(error.kind,E::MethodAccess(error) if matches!(*error,MethodAccessError::InvalidConstant {..}))

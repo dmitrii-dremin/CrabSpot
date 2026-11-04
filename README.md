@@ -1,7 +1,7 @@
 # CrabSpot
 
 An independent JVM implementation in Rust. It parses Java 21 class files, decodes
-JVM instructions, and executes supported numeric method bodies independently in
+JVM instructions, and executes supported primitive/reference method bodies independently in
 Rust, including bounded virtual/interface/super calls across bodies, primitive/reference arrays,
 instance fields, casts and type tests. The long-term goal is a complete
 JVM specification implementation with the required observable behavior of
@@ -47,6 +47,7 @@ python tools/type_reference.py --check
 python tools/reference_field_reference.py --check
 python tools/reference_array_reference.py --check
 python tools/multidimensional_reference.py --check
+python tools/reference_call_reference.py --check
 cargo test -p crabspot-interpreter --test numeric_reference
 cargo test -p crabspot-interpreter --test floating_reference --release
 ```
@@ -76,7 +77,8 @@ and `crabspot-launcher` for command-line inspection.
 The differential tests compare 616 integral, 7,263 floating-point, 126 static-call,
 280 primitive-array, 553 instance-field, 494 virtual-call, 1,337 interface/default,
 450 ordinary special-call, 1,276 cast/type-test, 690 reference-field, 3,948
-reference-array and 7,388 multidimensional-array OpenJDK 21 outcomes with Rust execution,
+reference-array, 7,388 multidimensional-array and 904 reference-call OpenJDK 21
+outcomes with Rust execution,
 including arithmetic exceptions, signed zero,
 subnormals and NaN classification. The kernel supports bounded same-class static
 helpers, ordinary virtual calls and interface/default dispatch across registered
@@ -106,8 +108,8 @@ all checks succeed. Partial ranks and zeros preserve JVM array defaults.
 A runtime-aware instance-body API executes getfield/putfield, invokevirtual,
 invokeinterface and ordinary nonconstructor invokespecial through bounded
 loader-aware resolution and an explicit unnamed-module access profile.
-It supports 190 opcode values, including checkcast/instanceof, reference-array
-allocation/load/store and multianewarray; the earlier
+It supports 191 opcode values, including checkcast/instanceof, reference-array
+allocation/load/store, multianewarray and areturn; the earlier
 explicit-heap/static API
 retains 179 and the numeric-only APIs retain 148. Virtual selection handles
 inherited declarations, private/final methods and package-aware overrides. Shared
@@ -118,7 +120,14 @@ letting receiver overrides intercept the call. Reference operations use an expli
 Object/Cloneable/Serializable identity binding and bounded nominal/array assignment;
 null skips target resolution after constant-pool shape checks. Each
 frame uses its declaring class and shares execution limits with the whole call
-graph. Host-selected root bodies still require supplied instance storage; they
+graph. Reference arguments/results preserve opaque identities across all supported
+call forms; compact prepared signatures avoid retaining copied descriptor names.
+Non-null values are checked against the selected declarer's descriptor identity,
+without cast-access checks. Null transfers still pay full signature-work charges.
+Nominal-reference calls conservatively reject differing declaration loaders and
+matching receiver-hierarchy declarations under another loader; general loading
+constraints remain unimplemented.
+Host-selected root bodies still require supplied instance storage; they
 do not construct objects or start Java applications. Constructor invocation,
 named-module access, cross-class nests and cross-loader reference loading
 constraints remain explicit unsupported cases.

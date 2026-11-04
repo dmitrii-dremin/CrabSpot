@@ -15,6 +15,12 @@ python tools/compile_fixtures.py --check
 The script uses `JAVA_HOME/bin/javac`, falling back to PATH. `--javac` selects an
 explicit compiler. It rejects other JDK major versions and does not invoke `java`.
 Scratch output is isolated beneath `target/fixture-tool/` for sandbox compatibility.
+Java source bytes must use LF, as required by `.gitattributes`. Both generators
+reject CRLF and bare CR before invoking the JDK or writing provenance. Digests
+remain SHA-256 of the exact accepted bytes. Each reference record names its source;
+`python tools/check_fixture_sources.py` checks all manifest/reference source hashes
+before regeneration, without requiring a JDK. CI runs that check first so newly
+generated metadata cannot conceal stale checked-in source hashes.
 `--check` compares fresh class bytes and the fixture set without rewriting them;
 byte-for-byte reproducibility is expected with the same compiler, not necessarily
 across different JDK builds. CI tests both checked-in and freshly compiled fixtures.
@@ -26,7 +32,7 @@ kinds/defaults, visible/invisible declaration/parameter/type annotations, generi
 type paths and annotated Code, inner/nest classes, records, sealed classes, and
 a module descriptor with requires, exports, opens, uses and provides tables.
 Numeric, floating-point, static-call and hierarchy fixtures bring the manifest to
-88 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
+92 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
 reference descriptors and interface ancestry. Rust hierarchy tests supply an
 explicit synthetic root as test input; this is not a production Object fallback
 or evidence of Java library execution.
@@ -101,3 +107,14 @@ Code confirms full-rank and partial-rank c5 encodings. A depth-first source mode
 bounded to four levels independently checks reachable types, defaults/mutations,
 children and totals; production stages breadth-first without recursion. The JDK
 rows remain independent return/exception observations, not recorded heap snapshots.
+
+ReferenceCallCases, Base, Child and Contract add reference parameters/results
+through static, virtual, interface/default/private and ordinary-super helpers.
+The 904-row JDK oracle covers mixed Long/Double/reference slots, null/self/array
+identity, typed array covariance, recursive transfer, cycles, bounds/store failures
+and null receivers. Selected Code includes areturn and all four invocation forms.
+The Rust test compares JDK outcomes and separately checks source-derived retained
+references, field state, complete array payloads/edges and allocation counters.
+The execution test passes against the final integrated frozen implementation in
+debug and release, with technical review complete. Fixture reproduction alone
+does not establish execution compatibility.

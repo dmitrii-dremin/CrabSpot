@@ -7,7 +7,7 @@ also evaluates primitive arrays with supported symbolic array exceptions. This k
 invocation, class loading, class initialization, verification or exception-object
 allocation.
 
-The selected method must have exactly one Code attribute, a numeric/void
+The selected standalone method must have exactly one Code attribute, a numeric/void
 descriptor, and no native, abstract or synchronized declaration or exception
 handlers. Initialization methods are excluded. The decoder validates the entire
 instruction stream before evaluation. Unsupported instructions fail when reached.
@@ -18,7 +18,7 @@ The original numeric entry points handle 148 effective opcode values. The explic
 heap entry point adds 31, for 179 total. The runtime-aware instance entry point
 adds `getfield`, `putfield`, `invokevirtual`, `invokeinterface` and ordinary
 `invokespecial`, plus `checkcast`, `instanceof`, `anewarray`, `aaload` and
-`aastore` and `multianewarray`, for 190 total. `wide` is an encoding prefix for indexed
+`aastore`, `multianewarray` and `areturn`, for 191 total. `wide` is an encoding prefix for indexed
 loads/stores and increment; heap mode adds two reference local forms to the nine
 numeric wide forms.
 
@@ -125,7 +125,7 @@ cumulative quotas. Callers may explicitly provide a fresh heap for isolation.
 enabled only inside the explicit heap or instance body graph; a reference argument supplied
 for a numeric parameter produces a typed error in every entry point.
 
-Reference parameters/returns, static fields, generalized runtime invocation,
+Static fields, generalized runtime invocation,
 generalized cross-class static calls, constructor execution,
 exception handlers, monitors and legacy subroutines remain unsupported. Numeric
 execution never delegates application bytecode to an installed JVM. The reference
@@ -140,20 +140,20 @@ increment, not a complete M2 interpreter.
 `execute_instance_method_body(context, MethodId, receiver, arguments, options,
 limits)` selects a registered ordinary non-static class body through a reusable
 `FieldResolutionContext`. The host supplies a checked non-null ordinary instance
-of the declaring class or a subclass. Receiver local zero precedes the numeric
+of the declaring class or a subclass. Receiver local zero precedes the
 arguments at their normal widths. Argument diagnostics keep their original
 argument indices. Private ordinary bodies may be selected explicitly; this is
 not root method access checking, virtual dispatch or Java invocation. Its body
 can perform the bounded virtual calls described below.
 
 Instance mode reuses the same decoder, prepared-method cache, explicit frame
-stack and instruction loop. Numeric static helpers still start their arguments
+stack and instruction loop. Static helpers still start their arguments
 at local zero and must be declared by their current caller’s class. Every
 frame’s field origin is its declaring ClassId, including when the receiver is a
 subclass or an earlier frame belongs to another class. Cached instance preparation cannot make the root a valid invokestatic
 target. Root and callee limits/fuel have the same meaning as the earlier APIs.
 Interface roots, special initialization names, native/abstract/synchronized
-methods, handlers and reference descriptors remain excluded.
+methods and handlers remain excluded.
 
 Only this runtime-aware API enables `getfield` and `putfield`. Earlier APIs reject
 them even with a configured instance heap. Field operations delegate symbolic
@@ -175,13 +175,13 @@ available caller provenance. These outcomes allocate no Java error objects.
 Each field instruction consumes one shared fuel unit. Completed field writes and
 array allocations persist after every return, symbolic failure or host error;
 failed writes preserve their previous values. This bridge does not implement
-`new`, constructors, getstatic/putstatic, class initialization, reference parameters/results,
+`new`, constructors, getstatic/putstatic, class initialization,
 exception dispatch, monitors, named modules, full verification or complete linkage.
 
 
 ## Bounded virtual body calls
 
-Runtime-aware instance mode additionally enables `invokevirtual` for numeric/void
+Runtime-aware instance mode additionally enables `invokevirtual` for supported
 ordinary class methods. The unchanged host API selects the root directly; nested
 virtual instructions use `FieldResolutionContext::select_virtual` to resolve and
 select a checked registered MethodId. Earlier static entry points still reject
@@ -195,7 +195,7 @@ own declaring class's constant pool, return descriptor, field origin and static
 helper policy. Every invocation path checks static/instance mode on cache hits.
 
 Virtual arguments are extracted as typed values from the call-site descriptor.
-The receiver occupies target local zero; numeric arguments follow at their usual
+The receiver occupies target local zero; arguments follow at their usual
 widths. Calls and callee instructions consume the same shared fuel. Frames share
 limits, context lookup budgets, heap effects and the existing iterative call loop;
 recursive and cross-class graphs do not recurse through the host stack. Numeric
@@ -219,7 +219,7 @@ need not identify an ancestor of the method reporting the error.
 
 Earlier completed writes and allocations survive every failure. This remains an
 explicit body-graph evaluation profile, without constructor execution, new,
-reference arguments/results, generalized cross-class
+generalized cross-class
 static calls, lifecycle proof, exception dispatch, complete linkage or JVM startup.
 
 
@@ -236,9 +236,9 @@ supplies no implicit Java library implementation.
 Typed arguments and receivers follow the same call path as virtual class calls.
 At a reached invokeinterface, the encoded count must equal one plus the
 parameters' JVM slot widths. Long/Double contribute two. Correct CP kind, method
-name and supported numeric descriptor are checked first; a count mismatch or a
+name and supported descriptor are checked first; a count mismatch or a
 required count above 255 is InvalidOperands at the invoke offset, before argument
-extraction or runtime resolution. Reference descriptors remain unsupported.
+extraction or runtime resolution. Reference parameters contribute one slot.
 The decoder eagerly rejects zero counts and nonzero reserved bytes, including
 unreachable encodings. Unreachable CP/count semantics are not verified.
 
@@ -259,8 +259,8 @@ access and resolved staticness precede null; null precedes interface membership
 and selection. Nonimplementing ordinary receivers, conflicting defaults, absent
 concrete targets and selected visibility follow the runtime's bounded contract.
 Other invalid handles/metadata, unsupported profiles and policy failures remain
-structured host errors. Constructors, initialization, reference
-arguments/results, native binding, handlers and monitors remain separate work.
+structured host errors. Constructors, initialization, native binding, handlers
+and monitors remain separate work.
 
 
 ## Ordinary special calls
@@ -270,7 +270,7 @@ host entry point, context and frame loop. Calls use `select_special` from the
 current frame's declaring class or interface. Methodref is supported throughout
 the parser's version range; InterfaceMethodref requires the origin to have major
 version 52 or above. Earlier standalone and heap-only entry points still reject
-b7. Wrong CP kind/version, reference descriptors and initialization names fail
+b7. Wrong CP kind/version and initialization names fail
 before typed stack extraction. `<init>` and `<clinit>` remain explicitly
 unsupported: no constructor execution or uninitialized-reference transition is
 performed, and storage is never marked constructed or initialized.
@@ -295,7 +295,7 @@ returns, remaining caller operands, fuel and frame/slot/code/work limits keep th
 earlier rules. Code preparation remains eager and excludes native, synchronized
 and handler bodies. Existing writes and allocations persist after every later
 Java or host failure. No new public execution API, constructor/lifecycle proof,
-class initialization, reference-valued API, general static resolution, native
+class initialization, general static resolution, native
 binding, monitors or exception dispatch is supplied by this increment.
 
 
@@ -339,9 +339,8 @@ reject these opcodes.
 Each instruction consumes one shared fuel unit. Type resolution and relations
 share the existing cumulative symbol/name/work limits and do not introduce a
 second type cache. Earlier stores and array allocations persist after cast,
-access, resolution, budget or malformed-operand failures. Numeric/void method
-signatures, constructors, initialization, class mirrors, native binding,
-monitors, verification and Java
+access, resolution, budget or malformed-operand failures. Constructors,
+initialization, class mirrors, native binding, monitors, verification and Java
 exception-object/handler protocols retain their earlier boundaries.
 
 
@@ -350,10 +349,10 @@ exception-object/handler protocols retain their earlier boundaries.
 The existing runtime-aware putfield now accepts assignment-compatible non-null
 instance and array references through `FieldResolutionContext::write_field`.
 Checked field stores added no opcode or execution API. Current runtime-aware
-coverage is 190 effective opcodes, including the reference-array instructions
+coverage is 191 effective opcodes, including the reference-array instructions
 below. The shared engine still forwards the actual computational Value, typed
 receiver and current declaring origin to the field service. Reference arguments
-and results remain excluded from method descriptors.
+and results use the checked method profile below.
 
 Field resolution/access/loading constraints, staticness, write finality and
 receiver checks retain their earlier order. Wrong computational kinds remain
@@ -386,7 +385,7 @@ crate-private guarded commit. Borrowed children enumeration yields each non-null
 logical location in slot order, including repeated aliases and cycles, without
 tracing, recursion, deduplication, allocation or heap quota use. These are graph
 edges, not roots or a collector. Constructor/lifecycle proof, static writes,
-reference signatures, verification, native binding, monitors and exception
+verification, native binding, monitors and exception
 dispatch remain outside this profile.
 
 
@@ -396,9 +395,8 @@ Runtime-aware instance bodies additionally execute `anewarray`, `aaload` and
 `aastore` through the existing context and shared frame loop. Earlier numeric and
 primitive-heap APIs reject these three opcodes even with a configured heap.
 The bounded multidimensional operation below can also allocate nested arrays.
-Method descriptors and host arguments/results remain
-numeric/void, so these arrays travel through locals, fields, element references
-and implicit receivers inside the body graph.
+Arrays travel through locals, fields, element references, checked method
+arguments/results and implicit receivers inside the body graph.
 
 `anewarray` resolves the component from the current declaring frame's constant
 pool. Component resolution, access and checked rank increment precede negative
@@ -436,7 +434,7 @@ is implied.
 Each instruction consumes one shared fuel unit. Completed allocations, element
 stores and field changes persist after later symbolic outcomes, host failures or
 budget exhaustion; failed allocation/store leaves prior contents intact. This
-increment adds no constructors, initialization, reference signatures, exception
+increment adds no constructors, initialization, exception
 handlers or generalized JVM invocation.
 
 
@@ -473,5 +471,69 @@ element and payload policies. Failed preflight/staging leaves the live heap and
 prior elements intact. Once publication succeeds, a later instruction, return,
 exception or exhausted fuel does not roll it back. Fields, casts, normal array
 operations and receiver use see ordinary actual payloads with no special bridge
-representation. Numeric/void signatures, constructor/lifecycle boundaries,
+representation. Constructor/lifecycle boundaries,
 exception-object allocation and handlers remain unchanged.
+
+
+## Checked reference arguments and results
+
+The runtime-aware `execute_instance_method_body` accepts reference parameters and
+results through existing `Value::Reference` values. The same shared engine carries
+these values through current-class static helpers, virtual/interface/default/private
+and ordinary special calls. Earlier numeric and primitive-heap APIs retain their
+numeric/void signature restriction and reject `areturn` when reached. The instance
+host API still selects an ordinary class root directly; it does not dispatch that
+root or execute constructors, initialization or generalized cross-class static calls.
+
+Prepared bodies retain compact `MethodValueShape` computational kinds, parameter
+slots and `MethodReturnKind`. They retain no owned nominal result names or resolved
+signature types. Runtime-aware preparation obtains this shape at the existing
+descriptor stage after method eligibility; old numeric preparation converts to the
+same tags. Registered static helpers use already validated borrowed CP metadata
+for routing and then the charged shape helper, avoiding an early owned descriptor
+copy. Code caching remains keyed by MethodId and checks static/instance mode on
+every invocation, including cache hits.
+
+Call-site descriptors determine typed reverse extraction and interface slot counts.
+Runtime selectors retain separate resolved and selected identities, checking method
+access/staticness/null/receiver/selection before returning the selected body. The
+selected declaration determines locals and reference argument/result types. Host
+roots preserve computational checks, frame reservation and receiver checks before
+reference profile and argument validation. Static helpers prepare/reserve/extract
+before their profile and argument checks. Arguments consume their usual slots:
+Long/Double two, references one, receiver local zero only for instance bodies.
+
+The bounded nominal-reference profile requires the origin and resolved declarer to
+share a defining loader, then audits the selected signature's receiver closure for
+matching declarations under different loaders. This includes intermediate, private
+and static declarations and may conservatively reject legal non-overrides. These
+are explicit host boundaries, not full JVM loading constraints or class preparation.
+Primitive-leaf array signatures do not impose that nominal-loader restriction.
+Actual argument objects may have different defining loaders when their identities
+are assignable through the admitted graph.
+
+Every reference-bearing public signature operation charges its complete descriptor,
+including null values and cache hits. Numeric-only signatures add no signature work.
+Non-null values require the bound universe and valid actual identity, followed by
+selected-declarer descriptor resolution and assignment. Descriptor identity uses
+its defining loader without cast-style caller-access checks; accessible methods
+can expose inaccessible types. Null skips universe, target resolution and assignment
+after the full signature/profile checks. No resolved-signature cache is introduced.
+
+`areturn` requires runtime mode and a reference result tag, pops a typed Reference,
+and calls `check_method_return` before removing its frame. Failure identifies the
+returning declaration and return offset, preserving invocation provenance. Successful
+return transfers the identical handle to the actual caller or host without a new
+caller cast/resolution; the selector's accepted descriptor identity invariant and
+callee validation establish this bounded transfer. Remaining operand-stack values
+are discarded. Caller-capacity failures retain the established receiving-caller
+and originating-call diagnostics.
+
+Incompatible reference arguments/results, unsupported loading/override profiles and
+nested type failures remain boxed MethodAccess host errors. Only explicit
+MethodJavaError values become Java outcomes; no ClassCastException, ArrayStoreException
+or LinkageError is inferred from a malformed call value. Each invocation and return
+still consumes one shared fuel unit, and frame/slot/code/context policies remain
+shared. Earlier field/element writes and allocations survive later failures.
+Returned handles remain owned by the supplied heap; returning them does not enable
+use with another heap or imply construction, tracing, collection or initialization.

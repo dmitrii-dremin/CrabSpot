@@ -340,7 +340,7 @@ impl<'a> FieldResolutionContext<'a> {
         &mut self,
         field: FieldId,
     ) -> Result<ReferenceType, TypeAccessError> {
-        let universe = self.universe()?;
+        self.universe()?;
         let definition = self.registry().class(field.owner())?;
         let descriptor = definition
             .constant_pool
@@ -351,6 +351,14 @@ impl<'a> FieldResolutionContext<'a> {
         for _ in descriptor {
             self.step()?;
         }
+        self.resolve_reference_span(field.owner(), descriptor)
+    }
+    pub(crate) fn resolve_reference_span(
+        &mut self,
+        owner: ClassId,
+        descriptor: &'a [u16],
+    ) -> Result<ReferenceType, TypeAccessError> {
+        let universe = self.universe()?;
         let name = if descriptor.first() == Some(&76) {
             descriptor
                 .strip_prefix(&[76])
@@ -366,7 +374,7 @@ impl<'a> FieldResolutionContext<'a> {
                 "reference field descriptor required",
             ));
         };
-        self.resolve_type_spelling(field.owner(), name, TypeAccess::IdentityOnly, universe)
+        self.resolve_type_spelling(owner, name, TypeAccess::IdentityOnly, universe)
     }
     pub fn resolve_reference_type(
         &mut self,

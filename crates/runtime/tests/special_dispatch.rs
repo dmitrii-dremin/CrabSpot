@@ -776,7 +776,7 @@ fn interface_reference_version_boundary_and_kind_errors_are_distinct() {
 }
 
 #[test]
-fn special_names_reference_descriptors_and_array_owners_remain_host_boundaries() {
+fn special_reference_descriptors_reach_lookup_but_initializers_and_array_owners_fail() {
     let mut registry = registry();
     let loader = registry.create_loader().unwrap();
     object(&mut registry, loader);
@@ -798,8 +798,8 @@ fn special_names_reference_descriptors_and_array_owners_remain_host_boundaries()
     let mut heap = heap(&registry, &[origin.class]);
     for (index, expected) in [
         (0, E::UnsupportedSpecialMethod),
-        (1, E::UnsupportedDescriptor),
-        (2, E::UnsupportedDescriptor),
+        (1, E::Java(J::NoSuchMethod)),
+        (2, E::Java(J::NoSuchMethod)),
         (3, E::Context(C::UnsupportedArrayOwner)),
     ] {
         assert_eq!(
