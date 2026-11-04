@@ -827,8 +827,7 @@ fn private_final_methods_remain_nonvirtual_and_do_not_prohibit_public_descendant
 }
 
 #[test]
-fn interface_fallback_reports_an_eligible_witness_and_ignores_private_static_or_unrelated_methods()
-{
+fn interface_fallback_selects_defaults_and_ignores_private_static_or_unrelated_methods() {
     for (flags, expected) in [(1, true), (0x401, true), (2, false), (9, false)] {
         let mut registry = registry();
         let loader = registry.create_loader().unwrap();
@@ -864,6 +863,7 @@ fn interface_fallback_reports_an_eligible_witness_and_ignores_private_static_or_
             &[("p/Root", "m", "()I", 10)],
         );
         let mut heap = heap(&registry, &[root.class]);
+        let receiver = heap.allocate_instance(root.class).unwrap();
         let mut resolver = SameLoaderResolver;
         let mut context = FieldResolutionContext::new_unnamed_modules(
             &registry,
@@ -877,13 +877,27 @@ fn interface_fallback_reports_an_eligible_witness_and_ignores_private_static_or_
                 .select_virtual(root.class, root.refs[0], Reference::null())
                 .unwrap_err(),
             if expected {
-                E::UnsupportedInterfaceMethods {
-                    owner: interface.class,
-                }
+                E::Java(J::NullPointer)
             } else {
                 E::Java(J::NoSuchMethod)
             }
         );
+        let result = context.select_virtual(root.class, root.refs[0], receiver);
+        if flags == 1 {
+            assert_eq!(
+                result.unwrap(),
+                method(&registry, interface.class, "m", "()I")
+            );
+        } else {
+            assert_eq!(
+                result.unwrap_err(),
+                E::Java(if expected {
+                    J::AbstractMethod
+                } else {
+                    J::NoSuchMethod
+                })
+            );
+        }
     }
 }
 
@@ -1359,17 +1373,17 @@ fn interface_fallback_visits_indirect_diamonds_once_and_includes_superclass_inte
             .unwrap_err(),
         E::Java(J::NoSuchMethod)
     );
-    assert_eq!(context.lookup_steps() - before, 8);
+    // Four interface edges (including the duplicated K path) are now charged.
+    assert_eq!(context.lookup_steps() - before, 12);
     assert_eq!(
         context
             .select_virtual(child.class, child.refs[0], Reference::null())
             .unwrap_err(),
-        E::UnsupportedInterfaceMethods {
-            owner: eligible.class
-        }
+        E::Java(J::NullPointer)
     );
     assert!(context.registry().class(shared.class).is_ok());
     assert!(context.registry().class(base.class).is_ok());
+    assert!(context.registry().class(eligible.class).is_ok());
 }
 
 #[test]

@@ -132,6 +132,35 @@ impl Default for CallLimits {
         }
     }
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Preparation {
+    Static,
+    DirectInstanceRoot,
+    ResolvedInstance,
+}
+impl Preparation {
+    fn is_instance(self) -> bool {
+        self != Self::Static
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CallKind {
+    Static,
+    Virtual,
+    Interface { count: u8 },
+}
+impl CallKind {
+    fn is_instance(self) -> bool {
+        self != Self::Static
+    }
+    fn opcode(self) -> u8 {
+        match self {
+            Self::Static => 0xb8,
+            Self::Virtual => 0xb6,
+            Self::Interface { .. } => 0xb9,
+        }
+    }
+}
 struct PreparedMethod {
     instance: bool,
     parameters: Vec<ValueKind>,
@@ -174,10 +203,7 @@ struct Frame {
 }
 enum Action {
     Continue,
-    Call {
-        constant_index: u16,
-        virtual_call: bool,
-    },
+    Call { constant_index: u16, kind: CallKind },
     Return(Option<Value>),
     ArithmeticException,
     NullPointerException,
@@ -509,7 +535,7 @@ pub fn execute_static_method_body_with_heap(
 
 /// Evaluate an explicitly selected ordinary instance root without Java root
 /// invocation/dispatch or initialization. Its body may perform supported bounded
-/// virtual resolution/dispatch through the supplied runtime context.
+/// virtual/interface resolution and dispatch through the supplied runtime context.
 pub fn execute_instance_method_body(
     context: &mut FieldResolutionContext<'_>,
     method: MethodId,
@@ -617,7 +643,11 @@ fn execute_with_services(
         method_index,
         &mut used_code_bytes,
         limits.max_prepared_code_bytes,
-        receiver.is_some(),
+        if receiver.is_some() {
+            Preparation::DirectInstanceRoot
+        } else {
+            Preparation::Static
+        },
     )
     .map_err(|error| contextualize(bodies, error, root_key, None))?;
     validate_args(&root, args).map_err(|error| contextualize(bodies, error, root_key, None))?;
@@ -721,23 +751,40 @@ fn execute_with_services(
             }
             Action::Call {
                 constant_index,
-                virtual_call,
+                kind,
             } => {
                 let call_site = Some((current, pc));
-                let (target, mut arguments, receiver) = if virtual_call {
+                let (target, mut arguments, receiver) = if kind.is_instance() {
                     let origin = current.owner().ok_or_else(|| {
-                        ExecutionError::new(Some(pc), E::UnsupportedInstruction(0xb6))
+                        ExecutionError::new(Some(pc), E::UnsupportedInstruction(kind.opcode()))
                     })?;
-                    let kinds = virtual_parameters(current_class, origin, constant_index).map_err(
-                        |error| {
-                            contextualize(
+                    let parameters =
+                        invocation_parameters(current_class, origin, constant_index, kind)
+                            .map_err(|error| {
+                                contextualize(
+                                    bodies,
+                                    ExecutionError::new(Some(pc), E::MethodAccess(Box::new(error))),
+                                    current,
+                                    call_site,
+                                )
+                            })?;
+                    if let CallKind::Interface { count } = kind {
+                        let expected =
+                            usize::from(parameters.slots)
+                                .checked_add(1)
+                                .ok_or_else(|| {
+                                    contextualize(bodies, operand_error(pc), current, call_site)
+                                })?;
+                        if expected > usize::from(u8::MAX) || usize::from(count) != expected {
+                            return Err(contextualize(
                                 bodies,
-                                ExecutionError::new(Some(pc), E::MethodAccess(Box::new(error))),
+                                operand_error(pc),
                                 current,
                                 call_site,
-                            )
-                        },
-                    )?;
+                            ));
+                        }
+                    }
+                    let kinds = parameters.kinds;
                     let caller = frames.last_mut().ok_or_else(|| {
                         ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
                     })?;
@@ -757,10 +804,19 @@ fn execute_with_services(
                     let Services::Fields { context, .. } = &mut services else {
                         return Err(ExecutionError::new(
                             Some(pc),
-                            E::UnsupportedInstruction(0xb6),
+                            E::UnsupportedInstruction(kind.opcode()),
                         ));
                     };
-                    let selected = match context.select_virtual(origin, constant_index, receiver) {
+                    let selection = match kind {
+                        CallKind::Virtual => {
+                            context.select_virtual(origin, constant_index, receiver)
+                        }
+                        CallKind::Interface { .. } => {
+                            context.select_interface(origin, constant_index, receiver)
+                        }
+                        CallKind::Static => return Err(operand_error(pc)),
+                    };
+                    let selected = match selection {
                         Ok(method) => method,
                         Err(error) => {
                             return method_failure(error, pc)
@@ -785,7 +841,11 @@ fn execute_with_services(
                         target.index(),
                         &mut used_code_bytes,
                         limits.max_prepared_code_bytes,
-                        virtual_call,
+                        if kind.is_instance() {
+                            Preparation::ResolvedInstance
+                        } else {
+                            Preparation::Static
+                        },
                     )
                     .map_err(|error| contextualize(bodies, error, target, call_site))?;
                     entry.insert(prepared);
@@ -793,12 +853,12 @@ fn execute_with_services(
                 let prepared = cache.get(&target).ok_or_else(|| {
                     ExecutionError::new(None, E::InvalidMethod("missing prepared call target"))
                 })?;
-                if prepared.instance != virtual_call {
+                if prepared.instance != kind.is_instance() {
                     return Err(contextualize(
                         bodies,
                         ExecutionError::new(
                             Some(pc),
-                            E::UnsupportedMethod(if virtual_call {
+                            E::UnsupportedMethod(if kind.is_instance() {
                                 "instance body must be non-static"
                             } else {
                                 "method must be static"
@@ -844,8 +904,9 @@ fn prepare_method(
     method_index: usize,
     used_code_bytes: &mut usize,
     code_limit: usize,
-    instance: bool,
+    mode: Preparation,
 ) -> Result<PreparedMethod, ExecutionError> {
+    let instance = mode.is_instance();
     let method = class.methods.get(method_index).ok_or_else(|| {
         ExecutionError::new(
             None,
@@ -864,7 +925,7 @@ fn prepare_method(
             E::UnsupportedMethod("special initialization methods are not ordinary method bodies"),
         ));
     }
-    if instance && class.access_flags & 0x0200 != 0 {
+    if mode == Preparation::DirectInstanceRoot && class.access_flags & 0x0200 != 0 {
         return Err(ExecutionError::new(
             None,
             E::UnsupportedMethod("interface instance bodies are unsupported"),
@@ -990,7 +1051,7 @@ fn step(
             E::UnsupportedInstruction(opcode),
         ));
     }
-    if matches!(opcode, 0xb4..=0xb6) && !matches!(services, Services::Fields { .. }) {
+    if matches!(opcode, 0xb4..=0xb6 | 0xb9) && !matches!(services, Services::Fields { .. }) {
         return Err(ExecutionError::new(
             Some(pc),
             E::UnsupportedInstruction(opcode),
@@ -1532,6 +1593,16 @@ fn step(
             }
             return Ok(Action::Return(Some(stack.pop(kind, pc)?)));
         }
+        0xb9 => {
+            let Operands::InvokeInterface { index, count } = operands else {
+                return Err(operand_error(pc));
+            };
+            frame.pc = next;
+            return Ok(Action::Call {
+                constant_index: *index,
+                kind: CallKind::Interface { count: *count },
+            });
+        }
         0xb6 | 0xb8 => {
             let Operands::Constant(index) = operands else {
                 return Err(operand_error(pc));
@@ -1539,7 +1610,11 @@ fn step(
             frame.pc = next;
             return Ok(Action::Call {
                 constant_index: *index,
-                virtual_call: opcode == 0xb6,
+                kind: if opcode == 0xb6 {
+                    CallKind::Virtual
+                } else {
+                    CallKind::Static
+                },
             });
         }
         0xb1 => {
@@ -1562,37 +1637,56 @@ fn step(
 fn is_heap_instruction(opcode: u8) -> bool {
     matches!(opcode,0x01|0x19|0x2a..=0x31|0x33..=0x35|0x3a|0x4b..=0x52|0x54..=0x56|0xa5|0xa6|0xbc|0xbe|0xc6|0xc7)
 }
-fn virtual_parameters(
+struct CallParameters {
+    kinds: Vec<ValueKind>,
+    slots: u16,
+}
+fn invocation_parameters(
     class: &ClassFile,
     origin: ClassId,
     index: u16,
-) -> Result<Vec<ValueKind>, MethodAccessError> {
+    kind: CallKind,
+) -> Result<CallParameters, MethodAccessError> {
     let invalid = || MethodAccessError::InvalidConstant { origin, index };
-    let Constant::Methodref {
-        class_index,
-        name_and_type_index,
-    } = class.constant_pool.get(index).map_err(|_| invalid())?
-    else {
-        return Err(invalid());
-    };
+    let (class_index, name_and_type_index) =
+        match (kind, class.constant_pool.get(index).map_err(|_| invalid())?) {
+            (
+                CallKind::Virtual,
+                Constant::Methodref {
+                    class_index,
+                    name_and_type_index,
+                },
+            )
+            | (
+                CallKind::Interface { .. },
+                Constant::InterfaceMethodref {
+                    class_index,
+                    name_and_type_index,
+                },
+            ) => (*class_index, *name_and_type_index),
+            _ => return Err(invalid()),
+        };
     class
         .constant_pool
-        .class_name(*class_index)
+        .class_name(class_index)
         .map_err(|_| invalid())?;
     let Constant::NameAndType {
         name_index,
         descriptor_index,
     } = class
         .constant_pool
-        .get(*name_and_type_index)
+        .get(name_and_type_index)
         .map_err(|_| invalid())?
     else {
         return Err(invalid());
     };
-    class
+    let name = class
         .constant_pool
         .utf8(*name_index)
         .map_err(|_| invalid())?;
+    if name.equals_ascii("<init>") || name.equals_ascii("<clinit>") {
+        return Err(MethodAccessError::UnsupportedSpecialMethod);
+    }
     let descriptor = class
         .constant_pool
         .utf8(*descriptor_index)
@@ -1605,11 +1699,15 @@ fn virtual_parameters(
     {
         return Err(MethodAccessError::UnsupportedDescriptor);
     }
-    descriptor
+    let kinds = descriptor
         .parameters
         .iter()
         .map(|field| numeric_kind(field).map_err(|_| MethodAccessError::UnsupportedDescriptor))
-        .collect()
+        .collect::<Result<_, _>>()?;
+    Ok(CallParameters {
+        kinds,
+        slots: descriptor.parameter_slots,
+    })
 }
 fn method_failure(error: MethodAccessError, pc: u32) -> Result<ExecutionOutcome, ExecutionError> {
     match error {
@@ -1726,7 +1824,8 @@ mod resource_tests {
             (vec![0x2e, 0xac], 0),
         ] {
             let class = crate::tests::synthetic(&code, "()I", 2, max_locals);
-            let prepared = prepare_method(&class, 0, &mut 0, usize::MAX, false).unwrap();
+            let prepared =
+                prepare_method(&class, 0, &mut 0, usize::MAX, Preparation::Static).unwrap();
             let mut frame =
                 make_frame(MethodKey::Standalone(0), &prepared, &[], None, None).unwrap();
             if code[0] == 0x2a {
@@ -1866,6 +1965,38 @@ mod resource_tests {
         assert!(std::error::Error::source(&error).is_some());
     }
     #[test]
+    fn resolved_interface_preparation_does_not_remove_direct_root_or_static_guards() {
+        let mut class = crate::tests::synthetic(&[0x04, 0xac], "()I", 1, 1);
+        class.access_flags |= 0x0200;
+        class.methods[0].access_flags &= !8;
+        let resolved =
+            prepare_method(&class, 0, &mut 0, usize::MAX, Preparation::ResolvedInstance).unwrap();
+        assert!(resolved.instance);
+        for (mode, expected) in [
+            (
+                Preparation::DirectInstanceRoot,
+                "interface instance bodies are unsupported",
+            ),
+            (Preparation::Static, "method must be static"),
+        ] {
+            let error = match prepare_method(&class, 0, &mut 0, usize::MAX, mode) {
+                Err(error) => error,
+                Ok(_) => panic!("wrong preparation mode admitted"),
+            };
+            assert_eq!(error.kind, E::UnsupportedMethod(expected));
+        }
+        class.methods[0].access_flags |= 8;
+        let error =
+            match prepare_method(&class, 0, &mut 0, usize::MAX, Preparation::ResolvedInstance) {
+                Err(error) => error,
+                Ok(_) => panic!("static selected as instance"),
+            };
+        assert_eq!(
+            error.kind,
+            E::UnsupportedMethod("instance body must be non-static")
+        );
+    }
+    #[test]
     fn instance_frame_receiver_and_argument_capacity_are_checked_privately() {
         for (descriptor, locals, args, expected) in [
             (
@@ -1893,7 +2024,14 @@ mod resource_tests {
             // metadata exercises the frame's independent defensive boundary.
             let mut class = crate::tests::synthetic(&[0xb1], descriptor, 2, 3);
             class.methods[0].access_flags &= !8;
-            let prepared = prepare_method(&class, 0, &mut 0, usize::MAX, true).unwrap();
+            let prepared = prepare_method(
+                &class,
+                0,
+                &mut 0,
+                usize::MAX,
+                Preparation::DirectInstanceRoot,
+            )
+            .unwrap();
             let mut prepared = prepared;
             prepared.max_locals = locals;
             let error = match make_frame(
@@ -1913,7 +2051,7 @@ mod resource_tests {
     fn resource_accounting_overflow_is_a_structured_error() {
         let class = crate::tests::synthetic(&[0xb1], "()V", 1, 0);
         let mut used = usize::MAX;
-        let error = match prepare_method(&class, 0, &mut used, usize::MAX, false) {
+        let error = match prepare_method(&class, 0, &mut used, usize::MAX, Preparation::Static) {
             Err(error) => error,
             Ok(_) => panic!("overflow accepted"),
         };
@@ -1926,7 +2064,7 @@ mod resource_tests {
         );
         assert_eq!(used, usize::MAX);
         let mut used = 0;
-        let prepared = prepare_method(&class, 0, &mut used, 1, false).unwrap();
+        let prepared = prepare_method(&class, 0, &mut used, 1, Preparation::Static).unwrap();
         assert_eq!(used, 1);
         let limits = CallLimits {
             max_frames: usize::MAX,

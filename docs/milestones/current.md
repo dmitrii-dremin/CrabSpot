@@ -1,11 +1,10 @@
-# Accepted checkpoint: ordinary virtual calls
+# Accepted checkpoint: interface/default dispatch
 
-Updated 2026-11-03. M1 and the previously recorded M2/runtime increments, through
-instance-field execution, are approved. Ordinary virtual calls are approved after
-final integrated validation and technical-director review; see
-docs/architecture/m2-virtual-calls-review.md.
-Full M2 remains open. Continue autonomously without NanoSpec; ask the user only
-when intervention is unavoidable.
+Updated 2026-11-04. M1 and the earlier M2/runtime increments, through ordinary
+virtual calls, are approved. Interface/default dispatch is approved after final
+integrated validation and technical-director review; see
+docs/architecture/m2-interface-dispatch-review.md. Full M2 remains open. Continue
+autonomously without NanoSpec; ask only when user intervention is unavoidable.
 
 The long-term objective is complete JVM specification support, required observable
 compatibility with conforming JVMs (HotSpot is the primary reference), and
@@ -19,7 +18,7 @@ milestones, not the endpoint. No performance result is claimed.
 - Java 21 class-file encodings and all 30 standard attributes, lossless UTF-16,
   checked reads and explicit parser limits; metadata inspection CLI.
 - Full instruction-format decoder. Runtime-aware instance execution supports
-  182 opcode values; the earlier heap/static mode retains 179 and numeric APIs 148.
+  183 opcode values; the earlier heap/static mode retains 179 and numeric APIs 148.
 - Numeric/void body graphs with shared instruction fuel, explicit iterative
   frames and frame/slot/prepared-code quotas. Registered frames and prepared
   cache entries use complete MethodIds, with each frame's own constant pool,
@@ -35,99 +34,96 @@ milestones, not the endpoint. No performance result is claimed.
   resolution preserves interface-before-superclass lookup and access/null order.
 - Class-method resolution and ordinary receiver dispatch: inherited declarations,
   private nonvirtual targets, package-aware transitive overrides, protected access,
-  defensive final-override checks and explicit interface/signature-polymorphic
+  defensive final-override checks and explicit signature-polymorphic
   exclusions. Resolution/access/staticness precede null; abstract selection follows.
-- invokevirtual in the runtime-aware body API, mixed-width numeric arguments,
+- invokevirtual/invokeinterface in the runtime-aware body API, mixed-width numeric arguments,
   numeric/void returns, static helpers relative to the current declaring class,
   recursion and persistent completed field/array effects after every exit.
   Symbolic Java outcomes remain distinct from host metadata/policy failures.
+
+Shared interface analysis handles default inheritance, abstract redeclarations,
+diamonds and unrelated default conflicts. Interface resolution and receiver
+selection remain distinct; ordinary class implementations take precedence.
+Concrete interface bodies and private helpers execute only after checked runtime
+selection. Descriptor-aware invokeinterface count checks include receiver and
+category-two slots. Direct interface roots remain unsupported.
 
 Host-selected roots still require supplied storage. No constructor or class
 initializer is run, and the root API is not proof of Java startup or construction.
 
 ## Validation
 
-Final frozen-code checks passed on native Windows:
+Final frozen-source checks passed on native Windows:
 
 | Check | Result |
 | --- | --- |
 | cargo fmt --check | Passed |
 | Strict workspace/all-target Clippy | Passed |
-| Debug workspace tests | 387 passed, zero failed |
-| Optimized runtime/interpreter tests | 300 passed: 164 runtime + 136 interpreter |
-| Execution differential outcomes | All 9,332 match in debug and release |
-| Separate memory-service roundtrips | 151 array + 151 raw-field cases match in both profiles |
-| Java 21 fixtures | All 43 reproduced |
-| Reference output reproduction | All eight sets reproduced |
-| Parser smoke | 10,000 cases, zero failures |
+| Debug workspace tests | 431 passed, zero failed |
+| Optimized runtime/interpreter tests | 344 passed: 188 runtime + 156 interpreter |
+| Execution comparisons | All 10,669 match in debug and release |
+| Separate memory-service roundtrips | 151 array + 151 field cases match in both profiles |
+| Fixture/reference reproduction | 59 classes and all nine reference sets reproduced |
+| Expanded parser smoke | 10,000 cases, zero failures |
 
-This increment adds 46 tests: 24 runtime public and three private, 17 interpreter
-synthetic and one private, plus the independent 494-case integration test. Deep
-resolution and call tests exercise 10,000 classes and 10,000 explicit recursive
-frames. An obsolete unsupported-b6 assertion in an older field test was changed
-to assert the appropriate malformed-Methodref boundary; its coverage was retained.
-No executed test remains failing.
+This increment adds 44 tests: 23 runtime public and one private, 18 interpreter
+public and one private, plus the independent 1,337-case JDK integration test.
+Existing forged-origin checks now include interface selection; prior interface
+unsupported assertions retain their fixtures and check the newly supported
+results. There are no remaining executed test failures. Deep tests use 10,000
+interface nodes and 10,000 explicit frames; count 255 tests cover 254 Int and 127
+Long arguments, and count 256 is rejected before extraction or resolution.
 
-All 43 Java 21 class fixtures and eight reference output sets reproduce locally.
-The new oracle covers 40 receiver/method pairs with 28 null, two arithmetic and
-four negative-array-size outcomes. It includes cross-package non-overrides and
-transitive overrides, cross-class fields/helpers, private/final/inherited calls,
-recursion, arrays and all numeric argument/result kinds. Persistent-field checks
-in the independent integration test are source-derived assertions, separate from
-JDK result rows.
+The new JDK interface/default comparisons span 112 receiver/method pairs.
+The complete execution corpus is now 10,669 cases: 616 integral, 7,263 floating,
+126 static-call, 280 primitive-array, 402 genuine instance-body, 151 raw-field,
+494 virtual-call and 1,337 interface/default cases. The separate array and field
+memory services each have 151 oracle roundtrips, not extra execution cases.
 
-The complete execution corpus is 9,332 comparisons: 616 integral, 7,263 floating,
-126 static-call, 280 primitive-array, 402 genuine instance-body, 151 raw-field
-execution and 494 virtual-call cases. The separate array and raw-field memory
-services each have 151 oracle roundtrips; these are not additional execution cases.
+The new reference records contain 98 null, seven arithmetic and fourteen
+negative-array-size outcomes. Additional state/allocation assertions are derived
+from the original fixture source, separately from JDK result rows. All 59 class
+fixtures and nine reference output sets reproduce with Zulu OpenJDK 21.0.7; all
+43 preexisting class-file hashes are unchanged. Rust tests read checked-in data,
+and production execution never invokes Java.
 
-The accepted field-bridge baseline passed 341 workspace tests and 254 optimized
-runtime/interpreter tests. Its implementation commit d6ef169 passed the complete
-Linux/Windows [run 41726268353](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41726268353).
-The subsequent documentation commit 29c5caa also passed
-[run 41726644013](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41726644013).
-Virtual calls are published as d6558d8. The complete [run 41730095972](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41730095972)
-passed on Linux and Windows with Rust 1.99.1 and Temurin JDK 21.0.13: checked-in
-and regenerated fixture tests, all eight reference sets, formatting, strict
-Clippy, optimized runtime/interpreter tests and parser smoke. Each hosted parser
-smoke completed 10,000 cases with zero failures; the regenerated corpus yielded
-136 accepted, 9,864 rejected, 10 rechecks and corpus 179. This is evidence for the
-implementation commit, recorded separately from this documentation update.
+The parser's unchanged sustained M1 evidence remains in docs/milestones/evidence:
+108,907,980 cases over 300 seconds, zero failures. A new 59-class smoke run passed
+10,000 cases at seed 4851011501752864596: 128 accepted, 9,872 rejected,
+10 deterministic rechecks, corpus 187 and zero failures. No finite test proves
+panic freedom. The 70 classfile tests pass against the expanded corpus.
 
-The local toolchains are Rust/Cargo 1.98.1 and Zulu OpenJDK 21.0.7. Ordinary Rust
-tests consume checked-in fixtures/results; production execution never invokes
-Java. All 36 preexisting class-file hashes were preserved. Rust 1.85, the manifest
-minimum, remains untested.
-
-The unchanged parser's sustained M1 evidence remains in docs/milestones/evidence:
-108,907,980 seeded cases over 300 seconds, zero failures. A fresh 43-class smoke
-run passed 10,000 cases (seed 4851011501752864596): 128 accepted, 9,872 rejected,
-10 deterministic rechecks, corpus 171, zero failures. No finite test proves panic
-freedom.
+The local toolchain is Rust/Cargo 1.98.1. Rust 1.85, the declared minimum, remains
+untested. The accepted virtual-call implementation d6558d8 passed complete
+Linux/Windows [run 41730095972](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41730095972)
+with Rust 1.99.1 and Temurin JDK 21.0.13. Hosted validation for this interface
+increment remains pending publication.
 
 ## Reviews, limitations and next work
 
-The accepted contract is docs/architecture/m2-virtual-calls.md, with final approval
-in docs/architecture/m2-virtual-calls-review.md. No blocking finding remains.
-Review preserved existing transition-site error provenance and added cross-class
-regression coverage; no production correction was required after the compiling
-snapshots. Prior acceptance records remain in docs/architecture.
+The exact interface contract is docs/architecture/m2-interface-dispatch.md.
+Preliminary production and fixture review found a resource-accounting omission:
+self-pair identity comparisons in candidate analysis were performed before
+charging LookupSteps. The charge now precedes every comparison, including self
+pairs. Dispatch results were unaffected. Exact-limit regressions cover that
+boundary, dominance traversal and charging edges before growing pending work.
+The frozen source and tests are approved, with no unresolved finding; see
+docs/architecture/m2-interface-dispatch-review.md.
 
-Next direction: shared maximally-specific interface analysis and invokeinterface,
-outlined in docs/architecture/m2-interface-dispatch-next.md. A concrete reviewed
-contract is required before implementation.
+Next direction: ordinary nonconstructor invokespecial, described in
+docs/architecture/m2-special-calls-next.md. It requires a concrete reviewed contract before implementation. Autonomous continuation is
+already authorized; no additional user permission is required.
 
-Interface/special invocation, reference parameters/results, non-null reference
-stores, reference arrays/assignability, constructors, initialization, full linkage,
-verification, exceptions/handlers, monitors, native methods, threads, GC and Java
-library integration remain incomplete. Kotlin/Spring Boot is not executable.
-Synthetic Object roots are explicit metadata test inputs only.
+Special invocation, reference parameters/results and non-null stores,
+reference-array/assignability services, constructors, initialization, full linkage,
+verification, exception objects/handlers, monitors, native methods, threads, GC
+and Java library integration remain incomplete. Kotlin/Spring Boot is not yet
+executable. Synthetic Object roots are explicit metadata test inputs only.
 
-The technical director is GPT-6 Astra (high); bounded runtime/interpreter workers
-are GPT-6.1 Sol (high), using isolated detached worktrees under target/agent-worktrees.
-The user initialized Git and authorized publication to
-https://github.com/dmitrii-dremin/CrabSpot.git. The repository preserves its Apache
-2.0 license and interactive Windows-user ownership of Git metadata.
+The technical director is GPT-6 Astra (high); runtime/interpreter workers are
+GPT-6.1 Sol (high), using isolated worktrees under target/agent-worktrees. The
+user initialized Git and authorized publication to the CrabSpot remote. The
+repository preserves its Apache 2.0 license and interactive-user Git ownership.
 
 ## Reproduce
 
@@ -144,10 +140,11 @@ python tools/array_reference.py --check
 python tools/field_reference.py --check
 python tools/instance_reference.py --check
 python tools/virtual_reference.py --check
+python tools/interface_dispatch_reference.py --check
 cargo run -p crabspot-classfile --example fuzz_parser -- tests/fixtures/classes --iterations 10000
 ```
 
 On this Windows host, add C:/Users/Admin/.cargo/bin to PATH and set
 CARGO_INCREMENTAL=0. Use isolated CARGO_TARGET_DIR and TMP/TEMP directories inside
 the project. The coordinator used target/verification-m2; workers used separate
-call-runtime-worker and call-interpreter-worker output directories.
+interface-runtime-worker and interface-interpreter-worker output directories.

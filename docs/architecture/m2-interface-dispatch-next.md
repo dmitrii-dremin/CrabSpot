@@ -1,6 +1,6 @@
 # Next interface and default-method increment
 
-Status: design direction only, following the bounded approval in `m2-virtual-calls-review.md`. This does not authorize another implementation. A concrete API/semantic contract and explicit technical authorization are required before dispatch; architectural work needs no further user permission.
+Status: superseded by the implementation-authorized contract `m2-interface-dispatch.md` on 2026-11-04, following the bounded approval in `m2-virtual-calls-review.md`. The rationale below is retained; the concrete contract controls implementation and acceptance.
 
 The next coherent execution step should complete the currently explicit interface-method fallback and add invokeinterface for numeric/void bodies. This reuses registered MethodIds, per-frame constant pools, receiver handles and the shared bounded call engine. It directly expands usable Java dispatch while keeping constructor, initialization and verification responsibilities visible.
 

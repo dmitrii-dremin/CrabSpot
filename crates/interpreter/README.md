@@ -16,7 +16,7 @@ instruction stream before evaluation. Unsupported instructions fail when reached
 
 The original numeric entry points handle 148 effective opcode values. The explicit
 heap entry point adds 31, for 179 total. The runtime-aware instance entry point
-adds `getfield`, `putfield` and `invokevirtual`, for 182 total. `wide` is an encoding prefix for indexed
+adds `getfield`, `putfield`, `invokevirtual` and `invokeinterface`, for 183 total. `wide` is an encoding prefix for indexed
 loads/stores and increment; heap mode adds two reference local forms to the nine
 numeric wide forms.
 
@@ -124,7 +124,7 @@ enabled only inside the explicit heap or instance body graph; a reference argume
 for a numeric parameter produces a typed error in every entry point.
 
 Reference parameters/returns and reference arrays, static fields, runtime invocation,
-generalized cross-class static calls, special/interface calls, constructor execution,
+generalized cross-class static calls, special calls, constructor execution,
 exception handlers, monitors and legacy subroutines remain unsupported. Numeric
 execution never delegates application bytecode to an installed JVM. The reference
 fixture integration compares results against separately generated OpenJDK records.
@@ -172,7 +172,7 @@ available caller provenance. These outcomes allocate no Java error objects.
 Each field instruction consumes one shared fuel unit. Completed field writes and
 array allocations persist after every return, symbolic failure or host error;
 failed writes preserve their previous values. This bridge does not implement
-`new`, constructors, getstatic/putstatic, special/interface invocation,
+`new`, constructors, getstatic/putstatic, special invocation,
 class initialization, reference parameters/results, non-null field stores,
 exception dispatch, monitors, named modules, full verification or complete linkage.
 
@@ -201,8 +201,8 @@ and void returns transfer to the actual caller while preserving other operands.
 
 Runtime selection supplies the bounded class-resolution/access/override policy,
 including private nonvirtual selection, package-aware transitive overriding and
-abstract-target failure. Interface/default resolution, signature-polymorphic
-execution and native binding remain explicit unsupported boundaries. Selected
+abstract-target failure. Signature-polymorphic execution and native binding remain explicit unsupported
+boundaries. Interface/default dispatch is supported within the profile below. Selected
 native/synchronized/handler bodies are rejected before execution. Resolution and
 staticness precede bytecode null; null precedes abstract-target selection.
 
@@ -217,5 +217,45 @@ need not identify an ancestor of the method reporting the error.
 
 Earlier completed writes and allocations survive every failure. This remains an
 explicit body-graph evaluation profile, without constructor execution, new,
-invokespecial/invokeinterface, reference arguments/results, generalized cross-class
+invokespecial, reference arguments/results, generalized cross-class
 static calls, lifecycle proof, exception dispatch, complete linkage or JVM startup.
+
+
+## Interface and default bodies
+
+Runtime-aware mode enables `invokeinterface` through the existing public instance
+entry point and shared frame loop. `select_interface` consumes an
+InterfaceMethodref; `select_virtual` still consumes a Methodref and can resolve
+interface defaults through class fallback. Runtime candidate analysis preserves
+class priority, maximally-specific defaults, abstract redeclarations and diamond
+identity. Public Object fallback requires explicit admitted metadata; this kernel
+supplies no implicit Java library implementation.
+
+Typed arguments and receivers follow the same call path as virtual class calls.
+At a reached invokeinterface, the encoded count must equal one plus the
+parameters' JVM slot widths. Long/Double contribute two. Correct CP kind, method
+name and supported numeric descriptor are checked first; a count mismatch or a
+required count above 255 is InvalidOperands at the invoke offset, before argument
+extraction or runtime resolution. Reference descriptors remain unsupported.
+The decoder eagerly rejects zero counts and nonzero reserved bytes, including
+unreachable encodings. Unreachable CP/count semantics are not verified.
+
+Preparation explicitly distinguishes static bodies, direct instance roots and
+runtime-resolved instances. Direct interface roots stay rejected. Selected
+concrete interface defaults and same-interface private helpers may execute;
+staticness, descriptors, special names, native/synchronized bodies, handlers and
+whole-code decoding retain their earlier guards. Static versus instance mode is
+checked on every cache hit. The same MethodId reached through invokevirtual and
+invokeinterface consumes one prepared-code charge. Interface bodies use their
+own constant pools, field/method origins and owner-aware diagnostics. Their own
+static helpers retain InterfaceMethodref version/kind checks.
+
+Interface-to-interface and default-to-class calls share instruction fuel, active
+frame/slot/code limits, cumulative resolution budgets and persistent heap effects.
+Only explicit MethodJavaError values become symbolic Java outcomes. Resolution,
+access and resolved staticness precede null; null precedes interface membership
+and selection. Nonimplementing ordinary receivers, conflicting defaults, absent
+concrete targets and selected visibility follow the runtime's bounded contract.
+Other invalid handles/metadata, unsupported profiles and policy failures remain
+structured host errors. Constructors, invokespecial, initialization, reference
+arguments/results, native binding, handlers and monitors remain separate work.

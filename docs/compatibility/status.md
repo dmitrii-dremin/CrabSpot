@@ -22,7 +22,7 @@ completion of that goal.
 | Unknown attributes (4.7.1) | Implemented and tested | Payload preservation, including standard-looking names outside applicable version/location |
 | Resource bounds | Implemented and tested | Default 16 MiB class input, annotation depth 64, one million annotation/value nodes shared across the whole class; depth hard-capped at 64 even if caller requests more |
 | Inspection CLI | Implemented and tested | Escaped metadata, bounded reads, preview opt-in and nonzero argument/input failures; no bytecode execution |
-| Genuine Java 21 fixtures | Implemented and tested | 43 classes including array/instance bodies, virtual-call hierarchies and raw-field oracle metadata; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
+| Genuine Java 21 fixtures | Implemented and tested | 59 classes including array/instance bodies, class/interface dispatch hierarchies and raw-field oracle metadata; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
 | Parser fuzzing | Implemented and tested | 108,907,980 seeded cases over 300 seconds, zero failures, exact-source fingerprint; no coverage metrics or proof of panic freedom |
 | Linux/Windows hosted CI | Passed for d6558d8 | [Run 41730095972](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41730095972) completed all checks on both platforms with Rust 1.99.1 and JDK 21.0.13, including strict lint, 43 regenerated fixtures/eight oracle sets, debug/optimized tests and fuzz smoke |
 | Rust 1.85 minimum version | Not tested | Manifest declaration; actual local toolchain is Rust 1.98.1 |
@@ -37,21 +37,23 @@ completion of that goal.
 | Ordinary-instance memory service | Implemented and tested | Atomic multi-plan admission, shared own-field shapes, six quotas, default allocation, owner-qualified numeric/null stores, final protection and borrowed children; 151 raw-putfield JDK cases; no construction/initialization or field-bytecode claim |
 | Runtime field resolution/access | Partially implemented and tested | Explicit unnamed-module context, authoritative loader/name bindings, interface-before-superclass lookup, runtime-package/private/protected checks and three cumulative quotas; named modules, cross-class nest access and cross-loader reference constraints remain unsupported |
 | Instance-field execution bridge | Implemented and tested within body-kernel scope | Registry-backed MethodId and explicit receiver; 181 opcode values, shared engine and bounded static helpers, getfield/putfield with symbolic access/missing/static/null failures; 402 genuine + 151 raw-store JDK outcomes; no constructor or initialization claim |
-| Ordinary virtual-call execution | Implemented and tested within body-kernel scope | Runtime-aware mode adds invokevirtual (182 opcode values), bounded class resolution and package-aware receiver selection, MethodId-keyed cross-class frames and current-frame static helpers; 494 genuine JDK comparisons pass in debug/release; interface/special/signature-polymorphic invocation, reference signatures and lifecycle remain unsupported |
+| Ordinary virtual-call execution | Implemented and tested within body-kernel scope | Runtime-aware mode adds invokevirtual (182 opcode values), bounded class resolution and package-aware receiver selection, MethodId-keyed cross-class frames and current-frame static helpers; 494 genuine JDK comparisons pass in debug/release; special/signature-polymorphic invocation, reference signatures and lifecycle remain unsupported |
+| Interface/default dispatch | Implemented and tested within body-kernel scope | Runtime-aware mode adds invokeinterface (183 opcode values) and completes class Methodref default fallback; shared maximal-interface analysis, class priority, private helpers, count validation, symbolic conflicts/abstract failures; all 1,337 genuine JDK comparisons pass in debug/release |
 | Full linkage, bytecode verifier and initialization | Not implemented | Subsequent increments; registration and layout planning are not full linkage |
 | Class loading, reference-array heap, GC, threads, Java libraries, JNI, Kotlin, Spring Boot, JIT | Not implemented | Subsequent milestones |
 
 No executed test currently remains failing. This statement is limited to the
 recorded tests; it is not proof that no defect exists.
 
-Latest independent native Windows checks: 387 workspace tests and 300 optimized
+Latest independent native Windows checks: 431 workspace tests and 344 optimized
 runtime/interpreter tests pass, with strict Clippy and formatting clean. The
-execution oracle has 9,332 cases; separate array and field memory-service oracles
-have 151 roundtrips each. All 43 class fixtures and eight reference output sets
-reproduce. This increment adds 46 tests, including deep iterative method lookup
-and 10,000-frame recursion. An obsolete unsupported-b6 assertion now checks its
-malformed Methodref error. Final review is recorded in
-`docs/architecture/m2-virtual-calls-review.md`; full M2 remains open.
+execution oracle has 10,669 cases; separate array and field memory-service oracles
+have 151 roundtrips each. All 59 class fixtures and nine reference output sets
+reproduce. This increment adds 44 tests, including deep interface traversal,
+10,000 explicit call frames, exact 255-argument-slot counts and bounded dominance.
+Review corrected a missing self-pair comparison charge; exact-budget regressions
+cover that boundary and pre-enqueue edge accounting. Final review is recorded in
+`docs/architecture/m2-interface-dispatch-review.md`; full M2 remains open.
 
 ## Standard attribute coverage
 

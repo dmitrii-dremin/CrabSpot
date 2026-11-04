@@ -1,4 +1,4 @@
-//! Bounded class-method resolution and package-aware virtual selection.
+//! Bounded class/interface method resolution and identity-aware selection.
 use crate::{
     ClassId, FieldAccessError, FieldResolutionContext, HeapError, InstanceError, LoaderId,
     MethodId, Reference, RegistryError,
@@ -49,14 +49,14 @@ pub enum MethodAccessError {
 impl fmt::Display for MethodAccessError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Java(error) => write!(f, "virtual method access failed: {error:?}"),
-            Self::Context(error) => write!(f, "virtual method context failed: {error}"),
+            Self::Java(error) => write!(f, "method access failed: {error:?}"),
+            Self::Context(error) => write!(f, "method context failed: {error}"),
             Self::InvalidConstant { origin, index } => write!(
                 f,
-                "constant #{index} in {origin:?} is not a valid Methodref"
+                "constant #{index} in {origin:?} is not a valid method reference for this call kind"
             ),
             Self::UnsupportedDescriptor => f.write_str(
-                "virtual body calls require primitive parameters and primitive/void results",
+                "ordinary body calls require primitive parameters and primitive/void results",
             ),
             Self::UnsupportedSpecialMethod => {
                 f.write_str("initialization methods are excluded from ordinary virtual body calls")
@@ -106,7 +106,7 @@ impl From<InstanceError> for MethodAccessError {
 }
 fn allocation() -> MethodAccessError {
     InstanceError::Heap(HeapError::AllocationFailure {
-        resource: "virtual method lookup metadata",
+        resource: "method lookup metadata",
     })
     .into()
 }
@@ -136,26 +136,75 @@ struct Resolved {
     method: MethodId,
     protected_receiver: Option<ClassId>,
 }
+#[derive(Clone, Copy)]
+struct Candidate {
+    method: MethodId,
+    flags: u16,
+}
+struct InterfaceCandidates {
+    declarations: Vec<Candidate>,
+    maximal: Vec<bool>,
+}
+impl InterfaceCandidates {
+    fn unique_default(&self) -> Option<MethodId> {
+        let mut defaults = self
+            .declarations
+            .iter()
+            .zip(&self.maximal)
+            .filter(|(candidate, maximal)| **maximal && candidate.flags & 0x400 == 0)
+            .map(|(candidate, _)| candidate.method);
+        let first = defaults.next()?;
+        defaults.next().is_none().then_some(first)
+    }
+    fn resolution(&self) -> Option<MethodId> {
+        self.unique_default()
+            .or_else(|| self.declarations.first().map(|candidate| candidate.method))
+    }
+    fn selection(&self) -> Result<MethodId, MethodAccessError> {
+        if let Some(method) = self.unique_default() {
+            return Ok(method);
+        }
+        let conflict = self
+            .declarations
+            .iter()
+            .zip(&self.maximal)
+            .any(|(candidate, maximal)| *maximal && candidate.flags & 0x400 == 0);
+        Err(MethodAccessError::Java(if conflict {
+            MethodJavaError::IncompatibleClassChange
+        } else {
+            MethodJavaError::AbstractMethod
+        }))
+    }
+}
 
 impl<'a> FieldResolutionContext<'a> {
-    fn method_symbol(&self, origin: ClassId, index: u16) -> Result<Symbol<'a>, MethodAccessError> {
+    fn method_symbol(
+        &self,
+        origin: ClassId,
+        index: u16,
+        interface: bool,
+    ) -> Result<Symbol<'a>, MethodAccessError> {
         let invalid = || MethodAccessError::InvalidConstant { origin, index };
         let pool = &self.registry().class(origin)?.constant_pool;
-        let Constant::Methodref {
-            class_index,
-            name_and_type_index,
-        } = pool.get(index).map_err(|_| invalid())?
-        else {
-            return Err(invalid());
+        let (class_index, name_and_type_index) = match pool.get(index).map_err(|_| invalid())? {
+            Constant::Methodref {
+                class_index,
+                name_and_type_index,
+            } if !interface => (*class_index, *name_and_type_index),
+            Constant::InterfaceMethodref {
+                class_index,
+                name_and_type_index,
+            } if interface => (*class_index, *name_and_type_index),
+            _ => return Err(invalid()),
         };
-        let owner = pool.class_name(*class_index).map_err(|_| invalid())?;
+        let owner = pool.class_name(class_index).map_err(|_| invalid())?;
         if owner.units().first() == Some(&91) {
             return Err(FieldAccessError::UnsupportedArrayOwner.into());
         }
         let Constant::NameAndType {
             name_index,
             descriptor_index,
-        } = pool.get(*name_and_type_index).map_err(|_| invalid())?
+        } = pool.get(name_and_type_index).map_err(|_| invalid())?
         else {
             return Err(invalid());
         };
@@ -261,26 +310,57 @@ impl<'a> FieldResolutionContext<'a> {
         }
         Ok(exact)
     }
-    fn interface_fallback(
+    // Each edge is charged before growing the pending work list, even when its
+    // target will subsequently be deduplicated. No metadata is cloned.
+    fn enqueue_interfaces(
         &mut self,
-        owner: ClassId,
-        symbol: &Symbol<'_>,
-    ) -> Result<MethodId, MethodAccessError> {
+        class: ClassId,
+        work: &mut Vec<ClassId>,
+        reverse: bool,
+    ) -> Result<(), MethodAccessError> {
+        let len = self.heap().instance_graph_node(class)?.interfaces.len();
+        for edge in 0..len {
+            self.step()?;
+            let index = if reverse { len - 1 - edge } else { edge };
+            let target = self
+                .heap()
+                .instance_graph_node(class)?
+                .interfaces
+                .get(index)
+                .copied()
+                .ok_or(FieldAccessError::InvalidState("interface edge disappeared"))?;
+            reserve(work, 1)?;
+            work.push(target);
+        }
+        Ok(())
+    }
+    fn interface_roots(&mut self, owner: ClassId) -> Result<Vec<ClassId>, MethodAccessError> {
         let mut work = Vec::new();
         let mut current = Some(owner);
         for _ in 0..self.heap().retained_layout_classes() {
-            let Some(class) = current else {
-                break;
-            };
+            let Some(class) = current else { break };
             self.step()?;
+            self.enqueue_interfaces(class, &mut work, false)?;
             let node = self.heap().instance_graph_node(class)?;
-            reserve(&mut work, node.interfaces.len())?;
-            work.extend(node.interfaces.iter().rev().copied());
-            current = node.superclass;
+            // Object is a structural dependency of an interface, not a
+            // superinterface and not a source of inherited interface methods.
+            current = if node.flags & 0x200 != 0 {
+                None
+            } else {
+                node.superclass
+            };
         }
         if current.is_some() {
-            return Err(FieldAccessError::InvalidState("cyclic method owner ancestry").into());
+            return Err(FieldAccessError::InvalidState("cyclic interface root ancestry").into());
         }
+        work.reverse();
+        Ok(work)
+    }
+    fn interface_ancestry(
+        &mut self,
+        mut work: Vec<ClassId>,
+        ancestor: ClassId,
+    ) -> Result<bool, MethodAccessError> {
         let mut visited = HashSet::new();
         while let Some(interface) = work.pop() {
             if visited.contains(&interface) {
@@ -289,23 +369,73 @@ impl<'a> FieldResolutionContext<'a> {
             self.step()?;
             reserve_set(&mut visited, 1)?;
             visited.insert(interface);
+            if interface == ancestor {
+                return Ok(true);
+            }
+            self.enqueue_interfaces(interface, &mut work, true)?;
+        }
+        Ok(false)
+    }
+    fn strict_subinterface(
+        &mut self,
+        descendant: ClassId,
+        ancestor: ClassId,
+    ) -> Result<bool, MethodAccessError> {
+        self.step()?;
+        let mut work = Vec::new();
+        self.enqueue_interfaces(descendant, &mut work, true)?;
+        self.interface_ancestry(work, ancestor)
+    }
+    fn interface_candidates(
+        &mut self,
+        owner: ClassId,
+        symbol: &Symbol<'_>,
+    ) -> Result<InterfaceCandidates, MethodAccessError> {
+        let mut work = self.interface_roots(owner)?;
+        let mut visited = HashSet::new();
+        let mut declarations = Vec::new();
+        while let Some(interface) = work.pop() {
+            if visited.contains(&interface) {
+                continue;
+            }
+            self.step()?;
+            reserve_set(&mut visited, 1)?;
+            visited.insert(interface);
             if let Some(method) = self.declared_method(interface, symbol, false)? {
-                if self.registry().method(method)?.access_flags & 0xa == 0 {
-                    return Err(MethodAccessError::UnsupportedInterfaceMethods {
-                        owner: interface,
-                    });
+                let flags = self.registry().method(method)?.access_flags;
+                if flags & 0xa == 0 {
+                    reserve(&mut declarations, 1)?;
+                    declarations.push(Candidate { method, flags });
                 }
             }
-            let node = self.heap().instance_graph_node(interface)?;
-            reserve(&mut work, node.interfaces.len())?;
-            work.extend(node.interfaces.iter().rev().copied());
+            self.enqueue_interfaces(interface, &mut work, true)?;
         }
-        Err(MethodAccessError::Java(MethodJavaError::NoSuchMethod))
+        let mut maximal = Vec::new();
+        reserve(&mut maximal, declarations.len())?;
+        for candidate in &declarations {
+            let mut dominated = false;
+            for other in &declarations {
+                self.step()?; // candidate-pair comparison, including identity
+                if candidate.method == other.method {
+                    continue;
+                }
+                if self.strict_subinterface(other.method.owner(), candidate.method.owner())? {
+                    dominated = true;
+                    break;
+                }
+            }
+            maximal.push(!dominated);
+        }
+        Ok(InterfaceCandidates {
+            declarations,
+            maximal,
+        })
     }
     fn resolve_method(
         &mut self,
         origin: ClassId,
         symbol: &Symbol<'a>,
+        interface: bool,
     ) -> Result<Resolved, MethodAccessError> {
         let owner = self.resolve_owner(origin, symbol.owner)?;
         if self.registry().class(owner)?.access_flags & 1 == 0
@@ -313,31 +443,55 @@ impl<'a> FieldResolutionContext<'a> {
         {
             return Err(MethodAccessError::Java(MethodJavaError::IllegalAccess));
         }
-        if self.heap().instance_graph_node(owner)?.flags & 0x200 != 0 {
+        if (self.heap().instance_graph_node(owner)?.flags & 0x200 != 0) != interface {
             return Err(MethodAccessError::Java(
                 MethodJavaError::IncompatibleClassChange,
             ));
         }
-        let mut current = Some(owner);
-        let mut found = None;
-        for _ in 0..self.heap().retained_layout_classes() {
-            let Some(class) = current else {
-                break;
-            };
+        let method = if interface {
             self.step()?;
-            if let Some(method) = self.declared_method(class, symbol, true)? {
-                found = Some(method);
-                break;
+            if let Some(method) = self.declared_method(owner, symbol, false)? {
+                method
+            } else {
+                let object = self.heap().instance_graph_node(owner)?.superclass.ok_or(
+                    FieldAccessError::InvalidState("interface has no Object dependency"),
+                )?;
+                self.step()?;
+                let object_method = self.declared_method(object, symbol, false)?;
+                match object_method {
+                    Some(method) if self.registry().method(method)?.access_flags & 9 == 1 => method,
+                    _ => self
+                        .interface_candidates(owner, symbol)?
+                        .resolution()
+                        .ok_or(MethodAccessError::Java(MethodJavaError::NoSuchMethod))?,
+                }
             }
-            current = self.heap().instance_graph_node(class)?.superclass;
-        }
-        let method = match found {
-            Some(method) => method,
-            None if current.is_none() => self.interface_fallback(owner, symbol)?,
-            None => {
-                return Err(
-                    FieldAccessError::InvalidState("cyclic method resolution ancestry").into(),
-                );
+        } else {
+            let mut current = Some(owner);
+            let mut found = None;
+            for _ in 0..self.heap().retained_layout_classes() {
+                let Some(class) = current else {
+                    break;
+                };
+                self.step()?;
+                if let Some(method) = self.declared_method(class, symbol, true)? {
+                    found = Some(method);
+                    break;
+                }
+                current = self.heap().instance_graph_node(class)?.superclass;
+            }
+            match found {
+                Some(method) => method,
+                None if current.is_none() => self
+                    .interface_candidates(owner, symbol)?
+                    .resolution()
+                    .ok_or(MethodAccessError::Java(MethodJavaError::NoSuchMethod))?,
+                None => {
+                    return Err(FieldAccessError::InvalidState(
+                        "cyclic method resolution ancestry",
+                    )
+                    .into());
+                }
             }
         };
         let flags = self.registry().method(method)?.access_flags;
@@ -398,8 +552,9 @@ impl<'a> FieldResolutionContext<'a> {
     ) -> Result<MethodId, MethodAccessError> {
         let chain = self.receiver_chain(actual)?;
         let private = self.registry().method(resolved)?.access_flags & 2 != 0;
+        let interface = self.heap().instance_graph_node(resolved.owner())?.flags & 0x200 != 0;
         let mut selected = resolved;
-        let mut reached = false;
+        let mut reached = interface;
         let mut open = self.registry().method(resolved)?.access_flags & 5 != 0;
         let mut packages = HashSet::new();
         reserve_set(&mut packages, 1)?;
@@ -434,7 +589,7 @@ impl<'a> FieldResolutionContext<'a> {
             if private || !reached || method == resolved {
                 continue;
             }
-            if open || packages.contains(&package) {
+            if interface || open || packages.contains(&package) {
                 selected = method;
                 if !packages.contains(&package) {
                     reserve_set(&mut packages, 1)?;
@@ -451,9 +606,12 @@ impl<'a> FieldResolutionContext<'a> {
             )
             .into());
         }
+        if interface && !private && selected == resolved {
+            return self.interface_candidates(actual, symbol)?.selection();
+        }
         Ok(selected)
     }
-    /// Select one class body using the context's existing graph, bindings and budgets.
+    /// Select one registered body using the context's existing graph, bindings and budgets.
     /// This does not prepare Code, execute native bodies or establish verification.
     pub fn select_virtual(
         &mut self,
@@ -461,16 +619,42 @@ impl<'a> FieldResolutionContext<'a> {
         index: u16,
         receiver: Reference,
     ) -> Result<MethodId, MethodAccessError> {
+        self.select_method(origin, index, receiver, false)
+    }
+    /// Resolve an InterfaceMethodref and select a body using the same bounded
+    /// admitted graph as virtual calls. Code preparation remains a separate step.
+    pub fn select_interface(
+        &mut self,
+        origin: ClassId,
+        index: u16,
+        receiver: Reference,
+    ) -> Result<MethodId, MethodAccessError> {
+        self.select_method(origin, index, receiver, true)
+    }
+    fn select_method(
+        &mut self,
+        origin: ClassId,
+        index: u16,
+        receiver: Reference,
+        interface: bool,
+    ) -> Result<MethodId, MethodAccessError> {
         self.unchanged()?;
         self.registry().class(origin)?;
         self.heap().instance_graph_node(origin)?;
-        let symbol = self.method_symbol(origin, index)?;
-        let resolved = self.resolve_method(origin, &symbol)?;
+        let symbol = self.method_symbol(origin, index, interface)?;
+        let resolved = self.resolve_method(origin, &symbol, interface)?;
         if receiver.is_null() {
             return Err(MethodAccessError::Java(MethodJavaError::NullPointer));
         }
         let actual = self.heap().instance_class(receiver)?;
-        if !self.subclass(actual, resolved.owner)? {
+        if interface {
+            let roots = self.interface_roots(actual)?;
+            if !self.interface_ancestry(roots, resolved.owner)? {
+                return Err(MethodAccessError::Java(
+                    MethodJavaError::IncompatibleClassChange,
+                ));
+            }
+        } else if !self.subclass(actual, resolved.owner)? {
             return Err(FieldAccessError::InvalidReceiver {
                 expected: resolved.owner,
                 actual,
@@ -483,7 +667,11 @@ impl<'a> FieldResolutionContext<'a> {
             }
         }
         let selected = self.select_override(resolved.method, actual, &symbol)?;
-        if self.registry().method(selected)?.access_flags & 0x400 != 0 {
+        let flags = self.registry().method(selected)?.access_flags;
+        if interface && flags & 3 == 0 {
+            return Err(MethodAccessError::Java(MethodJavaError::IllegalAccess));
+        }
+        if flags & 0x400 != 0 {
             return Err(MethodAccessError::Java(MethodJavaError::AbstractMethod));
         }
         Ok(selected)
@@ -593,7 +781,11 @@ mod tests {
             context.select_virtual(forged_origin, 6, receiver),
             Err(MethodAccessError::Context(FieldAccessError::Registry(_)))
         ));
-        let symbol = context.method_symbol(class, 6).unwrap();
+        assert!(matches!(
+            context.select_interface(forged_origin, 6, receiver),
+            Err(MethodAccessError::Context(FieldAccessError::Registry(_)))
+        ));
+        let symbol = context.method_symbol(class, 6, false).unwrap();
         let forged = MethodId {
             owner: class,
             index: usize::MAX,
@@ -623,6 +815,79 @@ mod tests {
             MethodAccessError::Java(MethodJavaError::NoSuchMethod)
                 .source()
                 .is_none()
+        );
+    }
+    #[test]
+    fn resolution_witnesses_do_not_replace_maximal_receiver_selection() {
+        let method = |index| MethodId {
+            owner: ClassId { registry: 1, index },
+            index: 0,
+        };
+        let candidates = InterfaceCandidates {
+            declarations: vec![
+                Candidate {
+                    method: method(0),
+                    flags: 1,
+                },
+                Candidate {
+                    method: method(1),
+                    flags: 0x401,
+                },
+            ],
+            maximal: vec![false, true],
+        };
+        assert_eq!(candidates.resolution(), Some(method(0)));
+        assert_eq!(
+            candidates.selection(),
+            Err(MethodAccessError::Java(MethodJavaError::AbstractMethod))
+        );
+        let candidates = InterfaceCandidates {
+            declarations: vec![
+                Candidate {
+                    method: method(0),
+                    flags: 0x401,
+                },
+                Candidate {
+                    method: method(1),
+                    flags: 1,
+                },
+                Candidate {
+                    method: method(2),
+                    flags: 1,
+                },
+            ],
+            maximal: vec![true, true, true],
+        };
+        assert_eq!(candidates.resolution(), Some(method(0)));
+        assert_eq!(
+            candidates.selection(),
+            Err(MethodAccessError::Java(
+                MethodJavaError::IncompatibleClassChange
+            ))
+        );
+        let candidates = InterfaceCandidates {
+            declarations: vec![
+                Candidate {
+                    method: method(0),
+                    flags: 0x401,
+                },
+                Candidate {
+                    method: method(1),
+                    flags: 1,
+                },
+            ],
+            maximal: vec![true, true],
+        };
+        assert_eq!(candidates.resolution(), Some(method(1)));
+        assert_eq!(candidates.selection(), Ok(method(1)));
+        let empty = InterfaceCandidates {
+            declarations: Vec::new(),
+            maximal: Vec::new(),
+        };
+        assert_eq!(empty.resolution(), None);
+        assert_eq!(
+            empty.selection(),
+            Err(MethodAccessError::Java(MethodJavaError::AbstractMethod))
         );
     }
 }

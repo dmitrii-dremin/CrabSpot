@@ -855,8 +855,9 @@ fn interface_fallback_signature_polymorphism_and_array_owners_remain_explicit() 
     let mut fixture = Fixture::new(vec![interface, root]);
     let receiver = fixture.object("p/T");
     let method = fixture.method("p/T", "m", "()I");
-    assert!(
-        matches!(fixture.run(method,receiver,&[]).unwrap_err().kind,E::MethodAccess(error) if matches!(*error,MethodAccessError::UnsupportedInterfaceMethods {..}))
+    assert_eq!(
+        fixture.run(method, receiver, &[]).unwrap(),
+        returned(Value::Int(1))
     );
     let mut handle = Class::new(
         "java/lang/invoke/MethodHandle",

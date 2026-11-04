@@ -26,7 +26,7 @@ kinds/defaults, visible/invisible declaration/parameter/type annotations, generi
 type paths and annotated Code, inner/nest classes, records, sealed classes, and
 a module descriptor with requires, exports, opens, uses and provides tables.
 Numeric, floating-point, static-call and hierarchy fixtures bring the manifest to
-43 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
+59 class files. HierarchyCases.java covers inherited/hidden fields, static owners,
 reference descriptors and interface ancestry. Rust hierarchy tests supply an
 explicit synthetic root as test input; this is not a production Object fallback
 or evidence of Java library execution.
@@ -51,3 +51,9 @@ VirtualCallBase/Cases/Leaf and the virtualp/virtualq hierarchies exercise ordina
 and package-sensitive virtual dispatch. All receiver fields start at defaults;
 Rust body-graph entry supplies storage explicitly. Public fixture bases avoid
 javac accessibility bridges that would require unsupported invokespecial.
+
+InterfaceDispatchCases.java adds sixteen class/interface definitions for interface
+and default-method dispatch: inheritance, diamonds, a more-specific default,
+class implementations, abstract redeclaration, private interface helpers and
+same-interface static helpers. The explicit JDK driver produces result records;
+Rust supplies default storage and selects ordinary class wrappers as roots.

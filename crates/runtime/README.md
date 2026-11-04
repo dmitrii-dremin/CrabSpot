@@ -221,19 +221,24 @@ Named modules, cross-loader reference loading constraints, cross-class private
 nest access, constructors, verification, class initialization and complete Java
 linking remain outside this profile. The runtime has no interpreter dependency.
 
-## Virtual class-method selection
+## Class and interface method selection
 
-`FieldResolutionContext::select_virtual` resolves a checked Methodref and selects
-an ordinary class MethodId through the same admitted graph, loader/name bindings
+`FieldResolutionContext::select_virtual` resolves a checked Methodref, while
+`select_interface` requires an InterfaceMethodref. Both select a registered class
+or interface MethodId through the same admitted graph, loader/name bindings
 and cumulative work policy as field access. There is no dispatch cache or second
 resolver. The service returns native/synchronized declarations without claiming
 their executable support; a consumer must still prepare and validate Code.
 
 Resolution searches the symbolic class and its superclasses before the complete
 interface closure. Signature-polymorphic names in MethodHandle/VarHandle have
-their specified priority and remain explicitly unsupported. An eligible interface
-declaration is reported as a witness requiring future interface resolution;
-private/static interface declarations alone do not prevent class lookup.
+their specified priority and remain explicitly unsupported. Interface resolution
+checks its own exact declaration, its explicit Object dependency's declared public
+nonstatic method, then its superinterfaces. One shared candidate analysis excludes
+private/static inherited declarations and removes candidates dominated by stricter
+subinterfaces, including abstract redeclarations. Resolution chooses a unique
+concrete maximal declaration when present, otherwise the first eligible declaration
+in deterministic discovery order. That witness does not determine receiver dispatch.
 
 Access and staticness checks precede null. Private same-class calls retain their
 resolved declaration. Other calls select matching nonprivate instance overrides
@@ -242,7 +247,20 @@ bridges remain reachable through later package declarations. Defensive final
 checks include matching ancestors above the resolved method, while private final
 declarations do not participate. Abstract selection follows null checking.
 
+Interface-declared targets use the nearest matching nonprivate instance class
+implementation before considering defaults, even when that declarer does not list
+the interface. Without a class implementation, the full actual receiver interface
+closure must contain exactly one concrete maximal default: multiple defaults yield
+IncompatibleClassChange, and none yields AbstractMethod. Diamond paths are deduplicated
+by identity; private interface calls retain their exact declaration. Interface calls
+check receiver membership by ClassId after null and require a selected public/private
+method before abstractness. Public inherited members do not require the declaring
+interface itself to be accessible.
+
 All scans, receiver ancestry and override-relation work consume the shared lookup
-budget before work. Temporary storage is bounded, iterative and fallibly reserved.
-The service does not implement interface invocation/default selection, constructors,
-native binding, class initialization, verification or general Java startup.
+budget before work. Interface edges are charged before enqueueing even duplicate
+targets; candidate comparisons include self pairs and charge bounded pairwise
+dominance traversals. Temporary storage is iterative and fallibly reserved; no
+transitive-closure matrix or permanent candidate cache is retained.
+The service does not implement constructors, invokespecial, native binding,
+class initialization, verification, named-module/nest services or general Java startup.

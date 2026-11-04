@@ -1,6 +1,6 @@
 # CrabSpot architecture
 
-Status: M1, the M2 decoder/numeric, bounded static-call, primitive-array, instance-field and virtual-call execution increments, and the runtime registry/hierarchy/shared-values/default-static-storage/primitive-array-heap/ordinary-instance-storage increments are approved in separate review records. See `m2-virtual-calls-review.md` for the latest bounded approval. Full M2 and later milestones remain open.
+Status: M1, the M2 decoder/numeric, bounded static-call, primitive-array, instance-field, virtual-call and interface/default-dispatch execution increments, and the runtime registry/hierarchy/shared-values/default-static-storage/primitive-array-heap/ordinary-instance-storage increments are approved in separate review records. See `m2-interface-dispatch-review.md` for the latest bounded approval. Full M2 and later milestones remain open.
 
 `ARCHITECTURE.md` is the project charter. This document refines its initial layout without reducing its roadmap. CrabSpot is an independent Rust JVM project targeting Linux x86-64. The first deliverable reads class files; it does not execute Java programs or claim JVM compatibility. NanoSpec is not used in this project.
 
