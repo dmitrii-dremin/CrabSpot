@@ -1,6 +1,6 @@
 # Checked static state review
 
-Status: approved by the technical director on 2026-11-04 for heap-owned checked static memory and the two opt-in body profiles specified in `m2-static-state.md`. Frozen source review and the coordinator's integrated gate pass. Full M2, complete preparation and initialization remain open. New hosted CI is pending publication.
+Status: approved by the technical director on 2026-11-04 for heap-owned checked static memory and the two opt-in body profiles specified in `m2-static-state.md`. Frozen source review and the coordinator's integrated gate pass. Full M2, complete preparation and initialization remain open. Hosted Linux/Windows CI also passes; see the evidence below.
 
 ## Reviewed behavior
 
@@ -51,7 +51,7 @@ The coordinator independently observed on the frozen combined source:
 - All 104 genuine classes and seventeen reference-output sets reproduce; all previous 98 class hashes remain unchanged. The 39-source/seventeen-record preflight and six Python regressions pass.
 - The expanded corpus passed 10,000 parser mutations: 121 accepted, 9,879 rejected, ten deterministic rechecks, corpus 225 and zero failures; seed 4851011501752864596.
 
-All eighteen source hashes were reverified after the integrated gate. Local validation used Rust/Cargo 1.98.1 and Zulu JDK 21.0.7. New hosted Linux/Windows evidence remains pending publication.
+All eighteen source hashes were reverified after the integrated gate. Local validation used Rust/Cargo 1.98.1 and Zulu JDK 21.0.7. Implementation `e29b74fa47d1a19e8df8dc0153927336007ffab2` subsequently passed complete [Linux/Windows run 41828535972](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41828535972). The coordinator inspected both logs: Rust/Cargo 1.99.1 and Temurin JDK 21.0.13; six Python regressions; 39-source/seventeen-record preflight; 104 reproduced classes and all seventeen reference sets; 768 workspace tests before and after regeneration plus 681 optimized tests (2,217 Rust test executions per platform); strict formatting/lint; and identical 10,000-case parser results with zero failures.
 
 ## Boundary and next direction
 

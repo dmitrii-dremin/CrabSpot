@@ -24,7 +24,7 @@ completion of that goal.
 | Inspection CLI | Implemented and tested | Escaped metadata, bounded reads, preview opt-in and nonzero argument/input failures; no bytecode execution |
 | Genuine Java 21 fixtures | Implemented and tested | 104 classes including primitive/reference/multidimensional-array and instance/reference-field bodies, class/interface/special dispatch and cast hierarchies and raw-field oracle metadata; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
 | Parser fuzzing | Implemented and tested | 108,907,980 seeded cases over 300 seconds, zero failures, exact-source fingerprint; no coverage metrics or proof of panic freedom |
-| Linux/Windows hosted CI | Passed for 215ec91; current static increment pending | [run 41824069552](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41824069552) completed all checks on both platforms with Rust/Cargo 1.99.1 and JDK 21.0.13; new static-state source requires its own hosted run |
+| Linux/Windows hosted CI | Passed for e29b74f | [run 41828535972](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41828535972) completed all checks on both platforms with Rust/Cargo 1.99.1 and JDK 21.0.13, 104 regenerated fixtures/seventeen reference sets, strict lint, debug/optimized tests and fuzz smoke |
 | Rust 1.85 minimum version | Not tested | Manifest declaration; actual local toolchain is Rust 1.98.1 |
 | Performance superiority over HotSpot | Not demonstrated | Long-term objective; no comparative performance benchmark results are claimed |
 | Bytecode decoder | Implemented and tested | All defined JVM instruction formats, version/operand constraints and static branch destinations; 10 focused tests and malformed-input corpus |
@@ -67,10 +67,14 @@ records; six Python regressions pass. Sources retain LF bytes and raw-byte hashe
 Expanded parser smoke completed 10,000 cases with zero failures: 121 accepted,
 9,879 rejected, ten rechecks and corpus 225.
 
-Hosted CI for this static increment is pending publication. Earlier implementation
-`215ec91` passed [Linux/Windows run 41824069552](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41824069552)
-with Rust/Cargo 1.99.1 and Temurin 21.0.13. Its observed counts and scope remain in
-the supplied-Throwable review; they are not attributed to new source.
+Implementation `e29b74f` passed complete
+[Linux/Windows run 41828535972](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41828535972).
+Inspected logs confirm Rust/Cargo 1.99.1 and Temurin 21.0.13, six Python tests,
+39-source/seventeen-record preflight, 104 reproduced classes and all seventeen
+reference sets. Both platforms passed 768 workspace tests against checked-in
+fixtures and again after regeneration, 681 optimized tests, strict formatting/lint
+and parser smoke: 121 accepted, 9,879 rejected, ten rechecks, corpus 225 and zero
+failures over 10,000 cases. Earlier evidence retains its named scope.
 
 ## Standard attribute coverage
 

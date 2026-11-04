@@ -188,10 +188,13 @@ with exact-source fingerprint. No finite test proves panic freedom. Rust 1.85,
 the declared minimum, remains untested. Local tools are Rust/Cargo 1.98.1 and
 Zulu OpenJDK 21.0.7.
 
-Hosted CI for this static increment is pending publication. The preceding
-exception implementation `215ec91` passed complete
-[Linux/Windows run 41824069552](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41824069552)
-with Rust/Cargo 1.99.1 and Temurin JDK 21.0.13; earlier evidence retains its scope.
+Implementation `e29b74fa47d1a19e8df8dc0153927336007ffab2` passed complete
+[Linux/Windows run 41828535972](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41828535972).
+Both job logs were inspected: Rust/Cargo 1.99.1, Temurin JDK 21.0.13, six Python
+regressions, 39-source/seventeen-record preflight, 104 reproduced classes and all
+seventeen reference sets. Each platform passed 768 checked-in and 768 regenerated
+workspace tests plus 681 optimized tests (2,217 Rust test executions), strict
+formatting/lint, and the same 10,000-case parser smoke with zero failures.
 
 ## Reviews, limitations and next work
 
