@@ -880,14 +880,9 @@ fn special_and_static_hits_never_bypass_cached_invocation_modes() {
         let receiver = fixture.object("p/T");
         let method = fixture.method("p/T", "run", "()I");
         let result = fixture.run(method, receiver, &[]);
-        if static_target {
-            assert_eq!(result.unwrap(), O::IncompatibleClassChangeError);
-        } else {
-            assert_eq!(
-                result.unwrap_err().kind,
-                E::UnsupportedMethod("method must be static")
-            );
-        }
+        // Both mismatched invocation modes are rejected by resolution before
+        // a previously prepared target can grant the wrong mode.
+        assert_eq!(result.unwrap(), O::IncompatibleClassChangeError);
     }
 }
 #[test]

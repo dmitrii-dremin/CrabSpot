@@ -54,6 +54,7 @@ python tools/reference_call_reference.py --check
 python tools/exception_reference.py --check
 python tools/static_reference.py --check
 python tools/initialization_reference.py --check
+python tools/cross_static_reference.py --check
 cargo test -p crabspot-interpreter --test numeric_reference
 cargo test -p crabspot-interpreter --test floating_reference --release
 ```
@@ -84,14 +85,18 @@ The differential tests compare 616 integral, 7,263 floating-point, 126 static-ca
 280 primitive-array, 553 instance-field, 494 virtual-call, 1,337 interface/default,
 450 ordinary special-call, 1,276 cast/type-test, 690 reference-field, 3,948
 reference-array, 7,388 multidimensional-array, 904 reference-call, 336
-supplied-exception, 364 static-memory and 145 initialization OpenJDK 21 outcomes
-with Rust execution,
+supplied-exception, 364 static-memory, 145 initialization and 154 cross-class
+static-call OpenJDK 21 outcomes with Rust execution,
 including arithmetic exceptions, signed zero,
-subnormals and NaN classification. The kernel supports bounded same-class static
-helpers, ordinary virtual calls and interface/default dispatch across registered
-bodies. An opt-in session initializes admitted classes through actual clinit bodies
+subnormals and NaN classification. Registered bodies support checked cross-class
+static calls, ordinary virtual calls and interface/default dispatch. Standalone and
+heap-only APIs retain their same-class static-call rules. An opt-in session initializes admitted classes through actual clinit bodies
 and numeric constants. It does not load classes, perform general method resolution,
-run native methods, or call Java. Runtime registration preserves defining-loader
+run native methods, or call Java. Static resolution preserves the actual declaring
+MethodId, checks access/loading before static category, and does not inherit parent
+interface statics. Only the initialization session initializes the resolved owner;
+other body profiles retain host-controlled state. Code caches do not bypass
+origin-sensitive resolution. Runtime registration preserves defining-loader
 identity and immutable metadata, with resource limits and cached source reads;
 registered definitions remain unverified and unlinked. Hierarchy planning checks
 explicitly resolved ancestry and preserves declaring owners in field layouts,

@@ -927,7 +927,7 @@ fn ordinary_calls_reject_initializer_names_and_do_not_inherit_cached_final_autho
     let helper = fixture.method("C", "helper", "()V");
     fixture.run(InitializationLimits::default(), |session, statics| {
         let error = run_root(session, bad, &[], CallLimits::default()).unwrap_err();
-        assert!(matches!(error.kind, E::UnsupportedCall(_)));
+        assert!(matches!(error.kind, E::MethodAccess(ref error) if matches!(**error, crabspot_runtime::MethodAccessError::UnsupportedSpecialMethod)));
         assert_eq!(error.offset, Some(0));
         assert_eq!(session.status(owner).unwrap(), IS::Completed);
         assert_eq!(

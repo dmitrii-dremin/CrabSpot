@@ -1,6 +1,6 @@
 # Next: registered static-call resolution and active use
 
-Status: proposed direction on 2026-11-04 after the bounded initialization approval in `m2-initialization-session-review.md`. No production implementation is authorized by this note. An exact contract must precede worker dispatch.
+Status: historical proposal fulfilled by `m2-static-call-resolution.md` and its approved implementation review `m2-static-call-resolution-review.md` on 2026-11-04. The exact contract governs implemented APIs and responsibilities; this note preserves the preceding design direction. Full M2 remains open.
 
 The new initialization scheduler can suspend a checked static call, initialize its actual declaring owner and resume its arguments through the shared frame engine. The remaining same-class invokestatic restriction prevents ordinary helper/factory calls across admitted classes and makes realistic initializer graphs unnecessarily narrow. The next coherent increment should add lawful registered static-method resolution and reuse that continuation, without adding constructors, String fabrication or another execution loop.
 

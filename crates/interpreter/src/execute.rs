@@ -2159,14 +2159,23 @@ fn run_engine(
                             }
                         };
                         (MethodKey::Registered(selected), Some(args), Some(receiver))
+                    } else if let Services::Fields { context, .. } = &mut services {
+                        let origin = current.owner().ok_or_else(|| operand_error(pc))?;
+                        let target = match context.resolve_static(origin, constant_index) {
+                            Ok(method) => method,
+                            Err(error) => {
+                                let outcome = method_failure(error, pc).map_err(|error| {
+                                    contextualize(bodies, error, current, call_site)
+                                })?;
+                                return vm_completion(outcome, exceptions.is_some(), pc).map_err(
+                                    |error| contextualize(bodies, error, current, call_site),
+                                );
+                            }
+                        };
+                        (MethodKey::Registered(target), None, None)
                     } else {
-                        let index = resolve_call(
-                            current_class,
-                            constant_index,
-                            pc,
-                            matches!(services, Services::Fields { .. }),
-                        )
-                        .map_err(|error| contextualize(bodies, error, current, call_site))?;
+                        let index = resolve_call(current_class, constant_index, pc, false)
+                            .map_err(|error| contextualize(bodies, error, current, call_site))?;
                         let target = bodies
                             .static_key(current, index)
                             .map_err(|error| contextualize(bodies, error, current, call_site))?;

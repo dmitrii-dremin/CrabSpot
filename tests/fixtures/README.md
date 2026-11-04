@@ -166,3 +166,28 @@ claim initialized Java library objects. The final combined implementation passes
 all 145 rows in debug and optimized builds, with the complete integrated validation
 gate passing and bounded technical review approved. All 104 pre-existing class hashes
 remain unchanged; the expanded corpus has 132 classes and 40 Java sources.
+
+
+CrossStaticCases and 18 companions add 154 distinct JDK reference rows. The
+133 session rows cover cross-class calls from ordinary bodies and initializers,
+symbolic-child versus actual-parent ownership, interface/private helpers,
+mixed Long/Double/reference arguments, raw Float/Double results, recursive
+initialization, mutual calls, array identities, initializer Error and ordinary
+method-body throws. Each row uses a fresh JDK loader, with successful repeatable
+calls repeated in that identity. Rust independently checks all 21 static slots,
+24 admitted lifecycle statuses, two supplied Error identities, static/retained
+roots and every allocated array's type, contents and counters.
+
+The other 21 rows execute through all four runtime-aware host-body profiles
+(84 evaluations). CrossStaticPlain has a real initializer that changes trace;
+Rust deliberately leaves it unapplied in these profiles, checks all static defaults
+and confirms a later session still sees every class uninitialized. These are
+explicit body-profile policy assertions, not claims that Java normally skips
+initialization. The 154 distinct rows therefore yield 217 profile comparisons
+before repeat calls. Reference outcomes are 113 Int, seven Long, seven Float,
+seven Double and twenty exact uncaught supplied-Error identities.
+
+The new oracle passes debug/release; combined validation passes with 151 class
+fixtures, 41 canonical Java sources and 19 reference sets. All 132 previous class
+hashes remain unchanged. Constructors, reflection and loader creation still run
+only in the reference driver. Frozen-source review and bounded technical approval are complete.

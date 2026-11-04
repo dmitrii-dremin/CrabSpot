@@ -1,127 +1,134 @@
-# Current checkpoint: single-session class initialization
+# Current checkpoint: registered cross-class static calls
 
-Updated 2026-11-04. M1 and earlier M2/runtime increments are approved. The new
-initialization increment passes its independent combined gate and frozen-source
-review. [Bounded approval](../architecture/m2-initialization-session-review.md)
-is recorded; full M2 remains open.
-Continue autonomously without NanoSpec; ask only when user intervention is needed.
+Updated 2026-11-04. M1 and earlier bounded M2/runtime increments are approved.
+The static-call increment passes frozen-source review and its independent combined
+gate. [Bounded approval](../architecture/m2-static-call-resolution-review.md) is
+recorded; full M2 remains open. Continue
+autonomously without NanoSpec; ask only when user intervention is necessary.
 
-The ultimate goal remains complete Java SE 21 JVM conformance, required observable
-compatibility with conforming JVMs, and demonstrated performance superiority over
-HotSpot on a reviewed representative suite. Kotlin/Spring Boot are integration
-milestones. No performance result or full JVM compatibility is claimed.
+The ultimate objective remains complete Java SE 21 JVM conformance, required
+observable compatibility with conforming JVMs, and demonstrated performance
+superiority over HotSpot on a reviewed representative suite. Kotlin/Spring Boot
+are integration milestones. No performance or complete-conformance result is claimed.
 
 ## Implemented scope
 
-Five crates provide class-file parsing, instruction decoding, a bounded interpreter,
-checked runtime services and a metadata inspection launcher. M1 covers all 30
-standard class-file attributes. The interpreter retains earlier numeric, array,
-instance-field, virtual/interface/special-call, cast, reference-transfer,
-supplied-Throwable and explicit static-memory profiles. Static plus exception
-execution supports 194 opcode values; initialization uses that existing instruction
-surface. Earlier profiles and their eligibility rules remain unchanged.
+Five crates provide Java 21 class-file parsing, complete instruction-format decoding,
+a bounded interpreter, checked runtime services and a metadata inspection launcher.
+The existing primitive/reference, array, instance-field, virtual/interface/special,
+exception, static-memory and initialization profiles remain available. The opt-in
+static/Throwable instruction surface remains 194 opcodes; this change extends
+registered invokestatic resolution without adding an opcode or execution loop.
 
-The new InitializationSession exclusively borrows an admitted runtime context and
-permanently claims its heap. It installs numeric ConstantValue entries, including
-nonfinal statics and exact raw floating bits, then initializes the superclass and
-qualifying default-method interfaces in prescribed order. Interface initialization
-alone does not initialize its ancestors. Metadata planning traverses ancestors even
-when a child interface has already completed. Actual clinit frames run in the same
-iterative engine and share instruction, frame, slot, Code and handler limits.
+FieldResolutionContext::resolve_static resolves a symbolic method to its actual
+MethodId through the existing class/interface lookup, access and conservative
+loading checks, then requires a static result. It preserves defining-loader package
+identity, protected/private rules and interface-static noninheritance. It does not
+skip a nearer nonstatic declaration or perform receiver dispatch. Public members
+of a nonpublic declaring parent can remain accessible through a lawful public
+symbolic owner. Nominal signatures crossing origin/declarer loaders still return
+an explicit unsupported loading-constraint result, even for null arguments.
 
-Private lifecycle records distinguish in-progress, completed, erroneous and aborted
-classes. Recursive use in the same evaluation observes partial state; successful
-later requests do not rerun initialization. getstatic/putstatic and supported
-same-class invokestatic retain their selected operations and operands while
-initialization runs. They do not repeat fuel charges, resolution or stack pops.
-Actual declaring clinit frames may write their own final statics; ordinary helpers
-and other initializers may not. Root static methods are validated before their
-owner is initialized and become active only afterward.
+Every context-backed body profile now uses this resolver for b8, including
+same-class calls. Standalone and heap-only APIs retain their previous same-class
+resolver and budgets. The registered path deliberately gains shared resolution
+work and structured method errors; existing instance-call phase order, charges
+and diagnostics remain unchanged. A prepared-Code cache hit still performs
+origin-sensitive resolution, and actual MethodId identity prevents aliases from
+being rebound to the caller's class.
 
-A supplied Error escaping a clinit retains its exact handle and fails dependent
-initializations. A caller may catch it at the original active-use instruction.
-A non-Error escape requires an unavailable wrapper and fails explicitly. Later
-erroneous use likewise reports unsupported NoClassDefFoundError production.
-Host errors and panics abort every remaining active initialization without erasing
-completed classes, erroneous causes, installed constants or earlier effects.
-Aborted classes cannot retry; unrelated classes remain usable. Dropping a session
-does not reset its heap claim. This is the supported single-session procedure,
-not concurrent initialization, complete linking, construction or Java startup.
+The engine retains its preparation and frame/slot checks before argument pops,
+then validates mixed-width values through the actual declaration. In an
+InitializationSession it suspends the checked call, initializes the actual owner,
+and resumes once without repeating resolution, argument extraction or fuel debit.
+An inherited static call through a child does not initialize that symbolic child.
+Each callee uses its own constant pool and declaring identity. Initializer Error
+propagation searches the original b8 PC; an ordinary callee throw uses normal
+frame dispatch. Existing completed, erroneous and aborted session states persist.
+
+The underlying initialization procedure remains single-owner and numeric-constant
+only, with permanent heap claims, real clinit frames, superclass/default ordering,
+recursive partial state and allocation-free abort cleanup. Other body profiles
+remain explicit host-controlled execution and do not automatically initialize classes.
 
 ## Independent validation
 
-All 48 frozen implementation, fixture and configuration file hashes were rechecked
-after the gate. Component manifests additionally cover worker READMEs.
+All 37 frozen implementation, fixture and configuration hashes were rechecked
+after the gate. Worker component manifests additionally cover READMEs.
 
 | Check | Result |
 | --- | --- |
 | cargo fmt --check | Passed |
 | Strict workspace/all-target Clippy | Passed |
-| Debug workspace tests | 838 passed, zero failed |
-| Optimized runtime/interpreter tests | 751 passed: 388 runtime + 363 interpreter |
-| Execution comparisons | All 26,170 match in debug and release |
+| Debug workspace tests | 882 passed, zero failed |
+| Optimized runtime/interpreter tests | 795 passed: 410 runtime + 385 interpreter |
+| Distinct execution-reference rows | All 26,324 match in debug and release |
 | Separate memory-service roundtrips | 151 array + 151 field cases match |
-| Fixture/reference reproduction | 132 classes and all 18 output sets reproduced |
-| Canonical source provenance | 40 Java sources and 18 named reference records verified |
+| Fixture/reference reproduction | 151 classes and all 19 output sets reproduced |
+| Canonical provenance | 41 Java sources and 19 named reference records verified |
 | Python provenance regressions | Six passed |
 | Expanded parser smoke | 10,000 cases, zero failures |
 
-The increment adds 70 Rust tests: 16 public and six private runtime tests,
-29 primary and five private interpreter tests, 12 independent boundary tests,
-and two genuine/raw reference integration tests. Coverage includes permanent claim
-and failed-constructor ordering, exact quotas and overflow, scalar continuation
-validation, atomic constant installation, ignored historical initializer flags,
-unsupported parameterized initializers, actual final-write authority, all eleven
-VM-exception routes, host panic cleanup, deferred store checks, caller push overflow,
-retained Error ordering, and a 10,000-class iterative dependency chain with zero
-Java frames and instruction fuel. Review tightened scalar token revalidation,
-constant-range completeness and responsible-class diagnostics. Fallible reusable
-one-entry token storage avoids inflating every frame by the full static token.
+The increment adds 44 Rust tests: 21 public and one private runtime test,
+20 interpreter tests and two root oracle tests. Runtime cases cover own/inherited/
+hidden static declarations, interface/Object/default fallback, access and loader
+boundaries, malformed tags/version/special names, exact budgets, stale/foreign
+identities and a 10,000-class iterative traversal. Interpreter cases cover all
+profiles, cache authorization, mixed reference/category-two calls, nested call
+forms, preflight ordering, caller/callee provenance and initialization failures.
 
-The new JDK oracle has 145 rows: 90 genuine scenarios across 18 methods and
-55 original raw Z/B/C/S/I ConstantValue encodings. Results contain 141 numeric
-returns and four uncaught exact supplied-Error identities. Each genuine row uses
-a fresh JDK loader; repeatable successful roots reuse that identity. Rust uses a
-fresh heap/session and independently checks all 38 static slots, 32 admitted class
-statuses, two supplied Error handles, retained/static roots and allocation counts.
-Raw probes use nonfinal constants and direct getstatic/ireturn, avoiding javac
-folding or narrowing that could conceal storage errors. Constructors, reflection
-and loaders run only in the reference driver. Rust does not fabricate Java errors.
+Seven old registered-policy tests across six files were migrated to the precise
+new resolution outcomes. An old public cross-owner rejection became eligible;
+its cache-authorization regression now uses a private cross-owner helper that
+must still fail. Standalone tests were preserved. Review found no production
+behavior defect; staged corrections were limited to explicit contracts, policy
+expectations, test assertions and documentation.
 
-All 104 prior class hashes remain unchanged. Expanded parser smoke used seed
-4851011501752864596: 134 accepted, 9,866 rejected, ten deterministic rechecks,
+The 154 new distinct JDK rows comprise 133 fresh-loader initialization scenarios
+and 21 ordinary-body scenarios. The latter execute through four host-controlled
+profiles: 84 evaluations, or 217 new profile comparisons including session rows,
+before repeat calls. These counts must not be conflated with unique reference rows.
+Outcomes are 113 Int, seven Long, seven Float, seven Double and twenty uncaught
+supplied Error identities (nine first and eleven second).
+
+Rust independently checks all 21 static locations, 24 admitted lifecycle statuses,
+static/retained roots, exact supplied handles and array kinds/contents/counters.
+Source metadata pins symbolic-child inheritance, interface/private method tags
+and mixed-width descriptors. A real initializer on CrossStaticPlain deliberately
+remains unapplied in the four host-body profiles; default-state and fresh-session
+assertions verify that boundary. JDK constructors, reflection and class loaders
+remain reference-driver operations; Rust uses explicit supplied objects.
+
+All 132 previous class hashes remain unchanged. Parser smoke used seed
+4851011501752864596: 110 accepted, 9,890 rejected, ten deterministic rechecks,
 corpus 256 and zero failures. The unchanged parser's sustained M1 evidence remains
-108,907,980 cases over 300 seconds with zero failures and an exact-source digest.
-Finite testing is not proof of panic freedom. Local checks used Windows x86-64,
+108,907,980 cases over 300 seconds, zero failures and an exact-source digest.
+Finite tests are not proof of panic freedom. Local checks used Windows x86-64,
 Rust/Cargo 1.98.1 and Zulu OpenJDK 21.0.7. Rust 1.85 remains untested.
 
-Implementation `6dbbef4ad399f9d0f5938b3bea2485e08e45eff4` passed complete
-[Linux/Windows run 41839995587](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41839995587).
-Both job logs were inspected: Rust/Cargo 1.99.1, Temurin JDK 21.0.13, six Python
-regressions, 40-source/18-record preflight, 132 reproduced fixtures and all 18
-reference sets. Each platform passed 838 checked-in and 838 regenerated workspace
-tests plus 751 optimized tests (2,427 Rust test executions), strict formatting/lint,
-and parser smoke: 134 accepted, 9,866 rejected, ten rechecks, corpus 256 and zero
-failures over 10,000 cases at seed 4851011501752864596.
+Hosted evidence for this increment is pending publication. The previous
+initialization implementation 6dbbef4 passed both Linux and Windows in
+[run 41839995587](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41839995587).
+That earlier run does not validate the new static-call implementation.
 
-## Review, limits and next work
+## Review, limitations and next work
 
-The exact contract is [m2-initialization-session.md](../architecture/m2-initialization-session.md).
-GPT-6 Astra (high) owns technical interpretation and review. GPT-6.1 Sol (high)
-workers used separate mutable worktrees and output directories; the coordinator
-owns genuine fixtures, integration and independent evidence. Atomic integration
-verified file hashes and preserved the interactive Admin account's ownership.
+The exact contract is [m2-static-call-resolution.md](../architecture/m2-static-call-resolution.md).
+GPT-6 Astra (high) owns interpretation and review; GPT-6.1 Sol (high) workers used
+separate mutable worktrees/output directories. Root owns genuine fixtures,
+integration and independent evidence. Hash-checked atomic integration preserved
+Admin ownership. The user authorized autonomous review and publication.
 
-String ConstantValue materialization, VM-created exceptions/wrappers, constructors,
-new, general cross-class static invocation, full verification/linking/loading
-constraints, concurrent initialization, monitors, native methods, Java libraries,
-threads, GC and application startup remain incomplete. Kotlin/Spring Boot cannot
-run. Host-supplied object storage is not a construction or initialized-library claim.
+Full loading constraints, named modules/nests, native/synchronized invocation,
+String constants, constructed VM errors/wrappers, constructors/new, full verification,
+concurrent initialization, monitors, Java libraries, threads, GC and application
+startup remain incomplete. Kotlin/Spring Boot cannot run. No object-construction
+or initialized-library claim follows from host-supplied storage.
 
-The proposed next coherent increment is checked cross-class invokestatic resolution
-feeding the existing initialization continuation. It requires an exact reviewed
-contract before implementation. The user authorized autonomous implementation,
-review and publication; milestone acceptance remains bounded by actual evidence.
+The proposed next increment is new/constructor execution with an explicit
+uninitialized-reference protocol, reviewed constructor chaining/final-field
+authority and abrupt-exit alias rules. An exact contract must settle its verifier
+boundary before production dispatch. Full M2 and the ultimate goal remain open.
 
 ## Reproduce
 
@@ -150,10 +157,11 @@ python tools/reference_call_reference.py --check
 python tools/exception_reference.py --check
 python tools/static_reference.py --check
 python tools/initialization_reference.py --check
+python tools/cross_static_reference.py --check
 cargo run -p crabspot-classfile --example fuzz_parser -- tests/fixtures/classes --iterations 10000
 ```
 
 On this Windows host, add C:/Users/Admin/.cargo/bin to PATH, set
 CARGO_INCREMENTAL=0, and use separate CARGO_TARGET_DIR and TMP/TEMP directories.
 Coordinator output is target/verification-m2; worker outputs are
-target/init-runtime-worker and target/init-interpreter-worker.
+target/static-call-runtime-worker and target/static-call-interpreter-worker.

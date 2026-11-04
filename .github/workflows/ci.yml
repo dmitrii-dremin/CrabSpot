@@ -75,6 +75,8 @@ jobs:
           python tools/static_reference.py --check
           python tools/initialization_reference.py
           python tools/initialization_reference.py --check
+          python tools/cross_static_reference.py
+          python tools/cross_static_reference.py --check
       - name: Format
         run: cargo fmt --check
       - name: Lint

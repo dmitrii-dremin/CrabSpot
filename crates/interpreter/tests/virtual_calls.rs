@@ -598,14 +598,9 @@ fn cache_hits_never_convert_static_and_instance_invocation_modes() {
         let receiver = fixture.object("p/T");
         let method = fixture.method("p/T", "m", "()I");
         let result = fixture.run(method, receiver, &[]);
-        if static_target {
-            assert_eq!(result.unwrap(), O::IncompatibleClassChangeError);
-        } else {
-            assert_eq!(
-                result.unwrap_err().kind,
-                E::UnsupportedMethod("method must be static")
-            );
-        }
+        // Both mismatched invocation modes are rejected by resolution before
+        // a previously prepared target can grant the wrong mode.
+        assert_eq!(result.unwrap(), O::IncompatibleClassChangeError);
     }
 }
 #[test]
@@ -1074,12 +1069,16 @@ fn static_helpers_after_crossing_classes_cannot_use_a_root_owner_cache_shortcut(
     code.extend(op(0xb6, call));
     code.push(0xac);
     root.method("m", "()I", 1, &code, 1, 1);
-    root.method("helper", "()I", 9, &[0x04, 0xac], 1, 0);
+    root.method("helper", "()I", 10, &[0x04, 0xac], 1, 0);
     let mut fixture = Fixture::new(vec![base, root]);
     let receiver = fixture.object("p/T");
     let method = fixture.method("p/T", "m", "()I");
     let error = fixture.run(method, receiver, &[]).unwrap_err();
-    assert!(matches!(error.kind, E::UnsupportedCall(_)));
+    assert!(
+        matches!(error.kind, E::MethodAccess(ref error) if matches!(**error,
+        MethodAccessError::UnsupportedNestAccess { origin, owner }
+        if origin == fixture.classes["q/Base"] && owner == fixture.classes["p/T"]))
+    );
     assert_eq!(
         error.method.as_ref().unwrap().owner,
         Some(fixture.classes["q/Base"])

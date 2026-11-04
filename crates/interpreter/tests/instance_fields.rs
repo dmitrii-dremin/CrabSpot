@@ -798,13 +798,12 @@ fn instance_root_cannot_be_reentered_through_invokestatic_even_when_prepared_cac
     let mut fixture = Fixture::new(vec![class]);
     let receiver = fixture.object("p/T");
     let method = fixture.method("p/T", "m", "(I)I");
-    let error = fixture.run(method, receiver, &[Value::Int(7)]).unwrap_err();
-    assert_eq!(error.kind, E::UnsupportedMethod("method must be static"));
-    assert_eq!(error.offset, Some(1));
-    assert_eq!(error.method.unwrap().index, method.index());
-    let site = error.call_site.unwrap();
-    assert_eq!(site.offset, 1);
-    assert_eq!(site.method.index, method.index());
+    // Registered b8 now rejects the instance declaration during resolution,
+    // before any prepared-cache entry can turn it into a static body.
+    assert_eq!(
+        fixture.run(method, receiver, &[Value::Int(7)]).unwrap(),
+        O::IncompatibleClassChangeError
+    );
 }
 #[test]
 fn numeric_static_helpers_share_array_services_fuel_slots_and_code_cache_with_instance_root() {

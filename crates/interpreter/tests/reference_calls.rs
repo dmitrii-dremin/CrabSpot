@@ -994,9 +994,8 @@ fn one_selected_interface_body_reuses_code_across_b6_b7_b9_and_preserves_cache_m
     assert_eq!(
         fixture
             .run(method, receiver, &[Value::Reference(other)])
-            .unwrap_err()
-            .kind,
-        E::UnsupportedMethod("method must be static")
+            .unwrap(),
+        O::IncompatibleClassChangeError
     );
 }
 #[test]

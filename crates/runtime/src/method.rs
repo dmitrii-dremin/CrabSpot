@@ -119,7 +119,7 @@ impl fmt::Display for MethodAccessError {
                 f.write_str("method descriptor is unsupported by the selected execution profile")
             }
             Self::UnsupportedSpecialMethod => {
-                f.write_str("initialization methods are excluded from ordinary virtual body calls")
+                f.write_str("initialization methods are excluded from ordinary calls")
             }
             Self::UnsupportedSignaturePolymorphic { method } => write!(
                 f,
@@ -539,6 +539,22 @@ impl<'a> FieldResolutionContext<'a> {
         symbol: &Symbol<'a>,
         interface: bool,
     ) -> Result<Resolved, MethodAccessError> {
+        let resolved = self.resolve_method_common(origin, symbol, interface)?;
+        if self.registry().method(resolved.method)?.access_flags & 8 != 0 {
+            return Err(MethodAccessError::Java(
+                MethodJavaError::IncompatibleClassChange,
+            ));
+        }
+        Ok(resolved)
+    }
+    // Symbolic lookup, member access and loading constraints are shared by all
+    // call kinds. Category checks follow them, without receiver selection here.
+    fn resolve_method_common(
+        &mut self,
+        origin: ClassId,
+        symbol: &Symbol<'a>,
+        interface: bool,
+    ) -> Result<Resolved, MethodAccessError> {
         let owner = self.resolve_owner(origin, symbol.owner)?;
         if self.registry().class(owner)?.access_flags & 1 == 0
             && !self.same_package(origin, owner)?
@@ -628,16 +644,35 @@ impl<'a> FieldResolutionContext<'a> {
         {
             return Err(MethodAccessError::UnsupportedLoadingConstraint { origin, method });
         }
-        if flags & 8 != 0 {
-            return Err(MethodAccessError::Java(
-                MethodJavaError::IncompatibleClassChange,
-            ));
-        }
         Ok(Resolved {
             owner,
             method,
             protected_receiver,
         })
+    }
+    /// Resolve a registered ordinary static declaration. This performs no body
+    /// preparation, receiver dispatch or class initialization.
+    pub fn resolve_static(
+        &mut self,
+        origin: ClassId,
+        index: u16,
+    ) -> Result<MethodId, MethodAccessError> {
+        self.unchanged()?;
+        let definition = self.registry().class(origin)?;
+        self.heap().instance_graph_node(origin)?;
+        let interface = match definition.constant_pool.get(index) {
+            Ok(Constant::Methodref { .. }) => false,
+            Ok(Constant::InterfaceMethodref { .. }) if definition.version.major >= 52 => true,
+            _ => return Err(MethodAccessError::InvalidConstant { origin, index }),
+        };
+        let symbol = self.method_symbol(origin, index, interface)?;
+        let resolved = self.resolve_method_common(origin, &symbol, interface)?;
+        if self.registry().method(resolved.method)?.access_flags & 8 == 0 {
+            return Err(MethodAccessError::Java(
+                MethodJavaError::IncompatibleClassChange,
+            ));
+        }
+        Ok(resolved.method)
     }
     fn receiver_chain(&mut self, mut class: ClassId) -> Result<Vec<ClassId>, MethodAccessError> {
         let mut chain = Vec::new();
@@ -1081,6 +1116,63 @@ mod tests {
                 index: 0
             }
         );
+    }
+    #[test]
+    fn static_resolution_checks_forged_origins_before_cp_and_preserves_work() {
+        let (registry, class) = fixture();
+        let plan = build_hierarchy(
+            &registry,
+            class,
+            &mut SameLoaderResolver,
+            HierarchyOptions::default(),
+        )
+        .unwrap();
+        let mut heap =
+            ManagedHeap::new_with_instances(HeapOptions::default(), InstanceOptions::default())
+                .unwrap();
+        heap.admit_instance_layouts(&registry, &[&plan]).unwrap();
+        let mut resolver = SameLoaderResolver;
+        let mut context = FieldResolutionContext::new_unnamed_modules(
+            &registry,
+            &mut heap,
+            &mut resolver,
+            FieldResolutionOptions::default(),
+        )
+        .unwrap();
+        let before = context.lookup_steps();
+        for origin in [
+            ClassId {
+                registry: class.registry,
+                index: usize::MAX,
+            },
+            ClassId {
+                registry: 0,
+                index: class.index,
+            },
+        ] {
+            assert!(matches!(
+                context.resolve_static(origin, 0),
+                Err(MethodAccessError::Context(FieldAccessError::Registry(_)))
+            ));
+            assert_eq!(context.lookup_steps(), before);
+        }
+        for index in [0, 1, u16::MAX] {
+            assert_eq!(
+                context.resolve_static(class, index),
+                Err(MethodAccessError::InvalidConstant {
+                    origin: class,
+                    index
+                })
+            );
+            assert_eq!(context.lookup_steps(), before);
+        }
+        assert_eq!(
+            context.resolve_static(class, 6),
+            Err(MethodAccessError::Java(
+                MethodJavaError::IncompatibleClassChange
+            ))
+        );
+        assert_eq!(context.lookup_steps() - before, 2);
     }
     #[test]
     fn context_java_errors_are_not_implicitly_reclassified_and_keep_sources() {

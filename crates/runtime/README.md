@@ -269,6 +269,34 @@ transitive-closure matrix or permanent candidate cache is retained.
 The service does not implement constructors, native binding,
 class initialization, verification, named-module/nest services or general Java startup.
 
+## Registered static-call resolution
+
+`FieldResolutionContext::resolve_static` returns the actual declaring static
+MethodId through the shared class/interface resolver. Methodref is accepted at
+every supported version; InterfaceMethodref requires an origin of major 52 or
+later. Symbolic-owner access, full method resolution, member access and the nominal
+origin/declarer loader boundary precede the static-category check. A nearer
+instance declaration, Object fallback, default or abstract interface candidate
+therefore produces IncompatibleClassChange rather than a second static-only search.
+Parent-interface static/private declarations are not inherited. Public members of
+an inaccessible declaring parent remain usable through a lawful public owner.
+
+Protected access follows the actual member's static flag: a protected static has
+no symbolic-owner comparability requirement, while a protected instance result
+retains that access check before its category failure. No receiver, override/final
+audit, Code preparation, object allocation or class initialization occurs here.
+Native/synchronized statics resolve without a claim of executable support.
+
+Every resolution uses the same cumulative signature, node, declaration, interface
+edge and candidate work, and the same successful loader/name bindings. Prepared
+Code caching cannot replace origin-sensitive authorization. There is no persistent
+method-resolution cache. Registered consumers use this path even for same-class
+static calls; standalone ClassFile execution retains its earlier same-class service.
+Reference-bearing signatures keep their full per-inspection charge and conservative
+origin/actual-declarer nominal loading constraint; numeric and primitive-leaf-array
+signatures retain their existing policy. Full linking, native binding, nest access
+and general JVM startup remain outside this bounded service.
+
 ## Ordinary special-call selection
 
 `FieldResolutionContext::select_special` resolves a checked Methodref, or an

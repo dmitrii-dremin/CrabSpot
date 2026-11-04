@@ -22,7 +22,7 @@ completion of that goal.
 | Unknown attributes (4.7.1) | Implemented and tested | Payload preservation, including standard-looking names outside applicable version/location |
 | Resource bounds | Implemented and tested | Default 16 MiB class input, annotation depth 64, one million annotation/value nodes shared across the whole class; depth hard-capped at 64 even if caller requests more |
 | Inspection CLI | Implemented and tested | Escaped metadata, bounded reads, preview opt-in and nonzero argument/input failures; no bytecode execution |
-| Genuine Java 21 fixtures | Implemented and tested | 132 classes including initialization and primitive/reference/multidimensional-array and instance/reference-field bodies, class/interface/special dispatch and cast hierarchies and raw-field oracle metadata; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
+| Genuine Java 21 fixtures | Implemented and tested | 151 classes including cross-class static calls, initialization and primitive/reference/multidimensional-array and instance/reference-field bodies, class/interface/special dispatch and cast hierarchies and raw-field oracle metadata; source/artifact digest manifest and compiler regeneration (M1 acceptance used 17); oracle data alone does not establish execution support |
 | Parser fuzzing | Implemented and tested | 108,907,980 seeded cases over 300 seconds, zero failures, exact-source fingerprint; no coverage metrics or proof of panic freedom |
 | Linux/Windows hosted CI | Passed for 6dbbef4 | [Linux/Windows run 41839995587](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41839995587) passed every step on both platforms with Rust/Cargo 1.99.1 and Temurin 21.0.13: 132 fixtures/18 reference sets, 838 workspace tests before and after regeneration, 751 optimized tests, provenance, strict lint and parser smoke |
 | Rust 1.85 minimum version | Not tested | Manifest declaration; actual local toolchain is Rust 1.98.1 |
@@ -48,6 +48,7 @@ completion of that goal.
 | Supplied-Throwable dispatch | Implemented and tested in opt-in body-kernel profile | Explicit checked Throwable identity, lazy ordered catches, catch-all/finally/rethrow and iterative invocation-PC unwind; athrow gives 192 opt-in opcodes while existing runtime mode stays 191; all 336 JDK outcomes pass in debug/release; all eleven unmaterialized VM categories fail explicitly, existing APIs unchanged |
 | Checked static state and body access (5.4.2, 6.5.b2/b3 memory behavior) | Implemented and tested in explicit memory profile | Unique heap-owned locations, defaults, atomic value-preserving extension, typed checked stores, final protection and alias-preserving roots; static-only/composed profiles support 193/194 opcodes; 364 JDK outcomes plus retained-state assertions pass debug/release; ConstantValue, clinit and Java active-use initialization remain unapplied |
 | Single-session initialization (5.5, 4.7.2) | Implemented, tested and approved within the single-session profile | Actual clinit, numeric constants, ordered dependencies, once-only state and supplied Error propagation; 145 JDK outcomes and independent state checks pass locally in debug/release; combined gate passes 838 debug and 751 optimized tests. String constants, VM exception production, threads and startup remain unsupported |
+| Registered static-call resolution (5.4.3.3/4, 6.5.b8) | Implemented, tested and approved within the registered-call profile | All context-backed profiles resolve cross-class b8 to actual MethodId with access/loading/category checks and unchanged standalone behavior. Session initializes only the declarer. 154 distinct JDK rows (217 profile comparisons before repeats) and full retained-state assertions pass debug/release; native/synchronized execution and full loading constraints remain unsupported |
 | Full linkage, bytecode verifier and initialization | Not implemented | Subsequent increments; registration and layout planning are not full linkage |
 | Class loading, GC, threads, Java libraries, JNI, Kotlin, Spring Boot, JIT | Not implemented | Subsequent milestones |
 
@@ -107,8 +108,31 @@ failures over 10,000 cases at seed 4851011501752864596.
 
 [Bounded technical approval](../architecture/m2-initialization-session-review.md)
 is recorded. This remains a single-session subset. String constants, generated wrappers and
-NCDFE, constructors, general static-method resolution, concurrent initialization,
+NCDFE, constructors, full loading constraints, concurrent initialization,
 loading and Java startup are unsupported. Full M2 and conformance remain open.
+
+## Registered static-call evidence
+
+[Bounded technical approval](../architecture/m2-static-call-resolution-review.md)
+is recorded; full M2 remains open.
+
+The frozen combined gate passes formatting, strict workspace/all-target Clippy,
+882 debug workspace tests and 795 optimized tests (410 runtime, 385 interpreter).
+All 26,324 distinct execution-reference rows match. The new 154 rows consist of
+133 initialization-session and 21 ordinary-body cases; the latter run in four
+profiles, giving 217 new profile comparisons before successful repeat calls.
+Forty-four new Rust tests cover checked resolution, access/category/loading order,
+actual declaration identity, per-call work, interface static noninheritance,
+prepared-Code aliases, reference/argument checks and initialization continuations.
+Seven earlier registered-policy regressions were migrated narrowly; standalone
+and heap-only behavior and instance-call resolver budgets remain unchanged.
+
+All 151 class fixtures and 19 output sets reproduce; 41 source records and six
+Python regressions pass. All 132 prior class hashes are unchanged. Parser smoke
+at seed 4851011501752864596 reports 110 accepted, 9,890 rejected, ten rechecks,
+corpus 256 and zero failures over 10,000 cases. All 37 integrated source/fixture/
+configuration hashes were reverified after the gate. These are local Windows
+results using Rust/Cargo 1.98.1 and Zulu 21.0.7; new hosted evidence is pending.
 
 ## Standard attribute coverage
 

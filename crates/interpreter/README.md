@@ -34,7 +34,7 @@ numeric wide forms.
 | Shifts | `ishl`, `ishr`, `iushr`, `lshl`, `lshr`, `lushr` with masked int distances |
 | Conversions/comparison | All 12 conversions between int/long/float/double; `i2b`, `i2c`, `i2s`; `lcmp`, `fcmpl/g`, `dcmpl/g` |
 | Control flow | Six unary int conditionals, six int comparison conditionals, `goto`, `goto_w`, `tableswitch`, `lookupswitch` |
-| Bounded body calls | `invokestatic` only for ordinary static numeric methods declared by the supplied class/interface; no inherited or cross-class lookup or runtime initialization |
+| Numeric standalone body calls | `invokestatic` only for ordinary static numeric methods declared by the supplied class/interface; registered runtime profiles use the checked static resolution described below |
 | Returns | `ireturn`, `lreturn`, `freturn`, `dreturn`, `return`; int returns narrow declared byte/short/char/boolean results |
 
 `execute_static_method_body_with_heap` and `execute_instance_method_body` additionally enable:
@@ -65,8 +65,8 @@ is not a runtime constant pool or class loader.
 Symbolic owner matching uses semantic Java names, including constant-pool aliases,
 and target lookup matches both name and descriptor. Methodref owners must be
 classes; InterfaceMethodref owners must be interfaces with class-file version 52
-or later. Missing declarations are explicit errors and never trigger inherited
-lookup.
+or later. Standalone and heap-only missing declarations remain explicit errors
+without inherited lookup; registered calls use checked runtime resolution.
 
 `execute_static_method_body_with_limits` adds `CallLimits`. The original entry
 point delegates with defaults: 256 active frames, 1,000,000 aggregate frame slots,
@@ -150,9 +150,9 @@ not root method access checking, virtual dispatch or Java invocation. Its body
 can perform the bounded virtual calls described below.
 
 Instance mode reuses the same decoder, prepared-method cache, explicit frame
-stack and instruction loop. Static helpers still start their arguments
-at local zero and must be declared by their current callerвЂ™s class. Every
-frameвЂ™s field origin is its declaring ClassId, including when the receiver is a
+stack and instruction loop. Registered static calls start their arguments
+at local zero and resolve their actual declaring MethodId through the context.
+Every frame's field origin is its declaring ClassId, including when the receiver is a
 subclass or an earlier frame belongs to another class. Cached instance preparation cannot make the root a valid invokestatic
 target. Root and callee limits/fuel have the same meaning as the earlier APIs.
 Interface roots, special initialization names, native/abstract/synchronized
@@ -160,7 +160,7 @@ methods remain excluded. This entry point also rejects Code handlers.
 
 Only this runtime-aware API enables `getfield` and `putfield`. Earlier APIs reject
 them even with a configured instance heap. Field operations delegate symbolic
-resolution, access and receiver relationships to the contextвЂ™s explicit unnamed
+resolution, access and receiver relationships to the contextР Р†Р вЂљРІвЂћСћs explicit unnamed
 module profile. Exact owner-qualified storage preserves inherited hiding, raw
 floating bits and the approved Z/B/C/S store conversions. Final writes fail;
 reference fields retain null defaults and support the checked stores described
@@ -170,8 +170,8 @@ identity branches and all supported primitive-array operations remain available.
 Explicit field Java failures become symbolic `NoSuchFieldError`,
 `IllegalAccessError`, `IncompatibleClassChangeError` or the existing
 `NullPointerException`. Resolution/access, staticness and write finality precede
-bytecode null dereferences. Other context failuresвЂ”including unsupported nest or
-loading constraints, invalid receivers, changed layouts and resource exhaustionвЂ”
+bytecode null dereferences. Other context failuresР Р†Р вЂљРІР‚Сњincluding unsupported nest or
+loading constraints, invalid receivers, changed layouts and resource exhaustionР Р†Р вЂљРІР‚Сњ
 remain boxed `ExecutionErrorKind::FieldAccess` errors with method, instruction and
 available caller provenance. These outcomes allocate no Java error objects.
 
@@ -223,8 +223,7 @@ need not identify an ancestor of the method reporting the error.
 
 Earlier completed writes and allocations survive every failure. This remains an
 explicit body-graph evaluation profile, without constructor execution, new,
-generalized cross-class
-static calls, lifecycle proof, VM exception materialization, complete linkage or JVM startup.
+lifecycle proof, VM exception materialization, complete linkage or JVM startup.
 
 
 ## Interface and default bodies
@@ -293,7 +292,7 @@ outcomes and ordering.
 Special, virtual and interface paths share one prepared entry per MethodId.
 Static-versus-instance eligibility remains checked on every cache hit. Selected
 bodies use their own constant pool, field origin and diagnostics; subsequent
-virtual/interface calls dispatch normally and current-class static helpers retain
+virtual/interface calls dispatch normally and registered static calls retain
 their narrow policy. Receiver local zero, mixed numeric widths, narrow/FP/void
 returns, remaining caller operands, fuel and frame/slot/code/work limits keep the
 earlier rules. Code preparation remains eager and excludes native/synchronized
@@ -484,11 +483,11 @@ profile below.
 
 The runtime-aware `execute_instance_method_body` accepts reference parameters and
 results through existing `Value::Reference` values. The same shared engine carries
-these values through current-class static helpers, virtual/interface/default/private
+these values through registered static calls, virtual/interface/default/private
 and ordinary special calls. Earlier numeric and primitive-heap APIs retain their
 numeric/void signature restriction and reject `areturn` when reached. The instance
 host API still selects an ordinary class root directly; it does not dispatch that
-root or execute constructors, initialization or generalized cross-class static calls.
+root, execute constructors or automatically initialize classes.
 
 Prepared bodies retain compact `MethodValueShape` computational kinds, parameter
 slots and `MethodReturnKind`. They retain no owned nominal result names or resolved
@@ -721,7 +720,7 @@ fields. A helper, ordinary body, or another class's initializer has no such auth
 Recursive C-to-D-to-C requests observe the existing partial values and never reset
 constants or re-enter an already active initializer.
 
-In this session, getstatic/putstatic and supported same-class invokestatic trigger
+In this session, getstatic/putstatic and supported registered invokestatic trigger
 initialization of the actual declaring owner. Each active-use instruction consumes
 fuel once. Static operations retain their checked selector token, original PC,
 next PC and optional popped value; b8 retains its checked target and typed mixed
@@ -760,5 +759,69 @@ root/no-body errors without fabricated bytecode locations.
 Earlier body/static/exception entry points retain their original gates and never
 automatically run initialization, apply constants or gain final-write authority.
 The session adds no threads, wait/notify initialization protocol, VM exception
-construction, class-loader creation, generalized cross-class static invocation,
+construction, class-loader creation, complete runtime-constant-pool linkage,
 Java startup, native binding, monitors or complete lifecycle guarantee.
+
+
+## Registered cross-class static calls
+
+Every registered runtime-aware profile resolves each `invokestatic` through
+`context.resolve_static(current_declaring_class, cp_index)`. The returned MethodId
+names the actual static declaration, including a superclass declaration reached
+through a symbolic subclass. All instance-body, supplied-Throwable, static-memory,
+composed static/Throwable and InitializationSession paths use this service. No new
+public entry point, opcode or execution loop is introduced. The opcode coverage
+counts above remain unchanged. Standalone ClassFile and heap-only execution retain
+the original same-class resolver, numeric descriptors, errors and budgets.
+
+Methodref and version-52-or-later InterfaceMethodref carry the caller's immutable
+CP spelling. The context checks owner identity/kind, ordinary name/descriptor,
+access and conservative loading constraints, then static category. Class lookup
+can find inherited declarations; an eligible instance/default/abstract result
+produces IncompatibleClassChangeError rather than being bypassed for a static
+ancestor. Interface static methods must actually be declared by the symbolic
+interface: a child interface does not inherit its parent's statics. A private
+static interface helper is permitted only from that same declaring interface.
+Runtime packages include defining-loader identity; protected static access uses
+class ancestry without a receiver restriction. Unsupported nest/loader boundaries,
+array owners and special initialization names remain explicit host errors.
+
+Resolution runs before target preparation, frame/slot limits and typed argument
+pops. A cache miss then prepares the actual owner's Code as ordinary Static,
+retaining native/abstract/synchronized/special-name exclusions and eager decoding.
+Every cache hit still checks initializer/static eligibility. The cache key is the
+full MethodId, so aliases and inherited symbolic owners share Code preparation,
+while distinct defining identities remain distinct. Every call repeats its
+origin-sensitive resolution/access/loading work and value checks; the prepared
+cache is not an authorization or runtime-constant-pool cache.
+
+After preparation and reservation, arguments are reverse-popped in the prepared
+computational shape, restored to descriptor order and checked against the actual
+declaring method. There is no receiver or local-zero displacement. Shapes retain
+only kinds and compact return tags. Nominal caller/declarer signatures require
+one defining loader even for eventual null arguments; primitive-leaf array
+signatures do not impose that conservative boundary. Value assignment and areturn
+use the selected declarer's loader without extra caller access checks on hidden
+descriptor types. Raw float/double representations, reference identities,
+category-two locals and subword return narrowing retain their established rules.
+
+Host-controlled profiles activate the target without running class initialization
+or applying constants; their field/exception capability gates remain unchanged.
+Only InitializationSession requests the actual MethodId owner's initialization.
+Its existing pending call retains the target, typed arguments, next PC and original
+invoke PC. Resumption does not resolve, pop, validate arguments or debit fuel again.
+A symbolic subclass remains Uninitialized when only an inherited static declaration
+is actively used. Cross-class C-to-D-to-C requests observe partial state, while
+completed calls remain once-only and preserve earlier field effects.
+
+An Error escaping target initialization is caught against the caller's original
+b8 PC; a later throw from the ordinary target body uses normal callee dispatch.
+Sticky Erroneous/Aborted state and retained roots follow the existing session rules.
+Only direct MethodAccessError::Java values become the established symbolic results
+or, with the supplied-Throwable/session policy, UnsupportedVmException before
+handler search. Nested Java-shaped Context/Type failures remain boxed MethodAccess
+host errors. Diagnostics keep caller resolution/pops at the invoke site, target
+preparation/return failures at the real target and actual caller transition origins.
+No constructors, native binding, monitors, String materialization, VM exception
+construction, complete loading constraints, persistent resolution/failure caching
+or Java startup are added.

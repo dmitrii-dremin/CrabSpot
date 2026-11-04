@@ -882,13 +882,9 @@ fn same_interface_static_and_instance_cache_hits_never_bypass_mode_checks() {
         let receiver = fixture.object("p/T");
         let method = fixture.method("p/T", "m", "()I");
         let result = fixture.run(method, receiver, &[]);
-        if static_target {
-            assert_eq!(result.unwrap(), O::IncompatibleClassChangeError);
-        } else {
-            let error = result.unwrap_err();
-            assert_eq!(error.kind, E::UnsupportedMethod("method must be static"));
-            assert_eq!(error.method.unwrap().owner, Some(fixture.classes["q/I"]));
-        }
+        // Both mismatched invocation modes are rejected by resolution before
+        // a previously prepared target can grant the wrong mode.
+        assert_eq!(result.unwrap(), O::IncompatibleClassChangeError);
     }
 }
 #[test]
