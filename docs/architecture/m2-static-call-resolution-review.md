@@ -1,6 +1,6 @@
 # Registered static-call resolution review
 
-Status: approved by the technical director on 2026-11-04 for the bounded registered static-call increment specified in `m2-static-call-resolution.md`. Frozen source review and the independent integrated gate pass. Full M2 and complete JVM linkage remain open; fresh hosted CI is pending publication.
+Status: approved by the technical director on 2026-11-04 for the bounded registered static-call increment specified in `m2-static-call-resolution.md`. Frozen source review and the independent integrated gate pass. Full M2 and complete JVM linkage remain open; fresh Linux/Windows CI passed for 8ef7f43, with inspected evidence below.
 
 ## Reviewed behavior
 
@@ -39,8 +39,20 @@ The coordinator completed the independent gate on the frozen implementation:
 - All 151 genuine class fixtures and nineteen reference-output sets reproduce; all 132 previous class hashes remain unchanged. The forty-one-source/nineteen-record preflight and six Python provenance regressions pass.
 - The expanded corpus passes 10,000 parser mutations: 110 accepted, 9,890 rejected, ten deterministic rechecks, corpus 256 and zero failures; seed 4851011501752864596.
 
-All 37 combined source hashes were reverified after the gate; whitespace checking passes. Forty-four Rust tests were added: twenty-two runtime, twenty interpreter and two root-oracle tests. Local validation used Rust/Cargo 1.98.1 and Zulu JDK 21.0.7. Fresh hosted Linux/Windows evidence remains pending publication and must be recorded separately.
+All 37 combined source hashes were reverified after the gate; whitespace checking passes. Forty-four Rust tests were added: twenty-two runtime, twenty interpreter and two root-oracle tests. Local validation used Rust/Cargo 1.98.1 and Zulu JDK 21.0.7. Subsequent hosted Linux/Windows validation is recorded separately below.
 
 ## Boundary
 
 This approval extends registered static invocation over admitted metadata. It does not establish complete loading constraints, persistent runtime-constant-pool linkage/failure caching, nestmates, native binding, synchronization, constructors, String materialization, VM exception construction, Java startup, full M2 or the ultimate conformance/performance target. The next direction is `m2-construction-next.md`; its exact contract must precede implementation.
+
+
+## Hosted validation
+
+Implementation `8ef7f43da98f8a7f7018c9d4e9504e9464752054` passed complete
+[Linux/Windows run 41845390025](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41845390025).
+Both job logs were inspected: Rust/Cargo 1.99.1, Temurin JDK 21.0.13, six Python
+regressions, 41-source/19-record preflight, 151 reproduced fixtures and all 19
+reference sets. Each platform passed 882 checked-in and 882 regenerated workspace
+tests plus 795 optimized tests (2,559 Rust test executions), strict formatting/lint,
+and parser smoke: 110 accepted, 9,890 rejected, ten rechecks, corpus 256 and zero
+failures over 10,000 cases at seed 4851011501752864596.

@@ -106,10 +106,14 @@ corpus 256 and zero failures. The unchanged parser's sustained M1 evidence remai
 Finite tests are not proof of panic freedom. Local checks used Windows x86-64,
 Rust/Cargo 1.98.1 and Zulu OpenJDK 21.0.7. Rust 1.85 remains untested.
 
-Hosted evidence for this increment is pending publication. The previous
-initialization implementation 6dbbef4 passed both Linux and Windows in
-[run 41839995587](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41839995587).
-That earlier run does not validate the new static-call implementation.
+Implementation `8ef7f43da98f8a7f7018c9d4e9504e9464752054` passed complete
+[Linux/Windows run 41845390025](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/41845390025).
+Both job logs were inspected: Rust/Cargo 1.99.1, Temurin JDK 21.0.13, six Python
+regressions, 41-source/19-record preflight, 151 reproduced fixtures and all 19
+reference sets. Each platform passed 882 checked-in and 882 regenerated workspace
+tests plus 795 optimized tests (2,559 Rust test executions), strict formatting/lint,
+and parser smoke: 110 accepted, 9,890 rejected, ten rechecks, corpus 256 and zero
+failures over 10,000 cases at seed 4851011501752864596.
 
 ## Review, limitations and next work
 
