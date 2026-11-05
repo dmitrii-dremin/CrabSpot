@@ -1,4 +1,53 @@
-# Current checkpoint: whole-method Code validation
+# Current checkpoint: modern method verification
+
+Updated 2026-11-05. The new verifier checks a selected method against immutable
+loader-scoped hierarchy and member facts. It covers class-file majors 51РІР‚вЂњ65,
+including stack maps, exception edges, constructors and all modern instruction
+transfers. The director approved this bounded increment for publication on 2026-11-05.
+[Acceptance review](../architecture/m2-type-state-verification-review.md).
+The next approved planning task is a [class-level type proof](../architecture/m2-class-type-verification-next.md).
+
+## Corpus and reference outcomes
+
+- All 935 genuine Code bodies and 31 bodyless declarations passed local method
+  verification. The 174 javac classes include a module descriptor. The Code
+  decoder walked 26,945 instructions across 175 opcode values.
+- The original-bytecode suite supplies 69 class encodings and 57 JDK 21 cases.
+  Twenty-nine reached invocation, 23 failed at reflective lookup with VerifyError
+  and five failed definition for overriding a final method. Rust checks the
+  selected declaration, including the overriding method in each definition failure.
+- The older 18-case suite now distinguishes 12 structural failures and two type
+  failures in the modern checker, with four methods accepted.
+- The Zulu 21.0.7 reference supplied 122 JDK metadata projections, 614 fields
+  and 3,250 methods. Rust checked ordered metadata against original JDK input.
+  Only genuine methods and explicitly selected original test cases count as proofs.
+  The probes deliberately omit one class named `absent/Missing`.
+- Full class verification, historical inference, loading constraints and VM startup
+  remain open. Performance comparisons require a separately reviewed suite.
+
+Reproduction uses the commands in the project README, including
+`python tools/type_state_reference.py --check`,
+`python tools/type_verification_facts.py --check` and
+`cargo test -p crabspot-verifier --release --locked`. The contract records the
+JDK evidence and the accepted amendment for handler stack maps containing Top.
+
+## Native gate results
+
+Rust/Cargo 1.98.1 and Zulu JDK 21.0.7 passed all 35 commands from a fresh
+target, including formatting, strict all-target Clippy, 1,071 workspace tests,
+984 optimized tests (124 verifier, 436 runtime, 424 interpreter), and ten
+Python fixture-provenance regressions. All 22 reference sets reproduced.
+The input manifests and source bytes matched all 235 recorded hashes before
+and after this run.
+
+The first smoke run stopped at the harness's 256-seed limit. The revised harness
+retains up to 512 inputs of up to 64 KiB each. A separate example test checks
+both the final permitted seed and the first excess seed. The accepted smoke
+command used all 392 seeds and seed 4851011501752864596. Of 10,000 mutations,
+113 parsed and 9,887 were rejected. All ten deterministic rechecks agreed,
+505 inputs remained in the corpus, and the run recorded zero failures.
+
+## Previous checkpoint: whole-method Code validation
 
 Updated 2026-11-04. The [contract](../architecture/m2-code-validation.md) is frozen;
 production and independent-test components passed technical review. The final

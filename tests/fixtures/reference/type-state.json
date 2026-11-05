@@ -1,0 +1,15 @@
+{
+  "cases": 57,
+  "driver_classes": {
+    "fixtures/TypeStateCases$GraphLoader.class": "aa4d0d5e97441e5df7dbdecf1ce586bc1fb809b62727208106ab67a722873607",
+    "fixtures/TypeStateCases.class": "63ccfc41e7ac1f2f3a21f89cbc7998f14412e645c7fbb8563816aad631011ed1"
+  },
+  "options": [
+    "-Xverify:all"
+  ],
+  "original_manifest_sha256": "ec0c4bbb7345cf63f50ef03f364e8e55e020fb592dc42bd79ccfb62038b84a09",
+  "results_sha256": "668afd670c362b0fd47517350f89d62f8b6b49e6c35cd06340ddac9bd2168aae",
+  "runtime": "openjdk version \"21.0.7\" 2025-04-15 LTS\nOpenJDK Runtime Environment Zulu21.42+19-CA (build 21.0.7+6-LTS)\nOpenJDK 64-Bit Server VM Zulu21.42+19-CA (build 21.0.7+6-LTS, mixed mode, sharing)",
+  "source": "TypeStateCases.java",
+  "source_sha256": "333b1991a8844b873c4cd1fad3e09e752c97d5f3114116eb9b5eba0df95ffe99"
+}

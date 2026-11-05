@@ -39,4 +39,5 @@ version = "0.1.0"
 dependencies = [
  "crabspot-bytecode",
  "crabspot-classfile",
+ "crabspot-runtime",
 ]

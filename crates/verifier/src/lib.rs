@@ -3,6 +3,8 @@
 mod inspect;
 mod scan;
 mod stack_maps;
+mod state;
+pub use state::*;
 
 use crabspot_bytecode::{DecodeError, DecodedCode};
 use crabspot_classfile::{ClassFile, Code, Member};

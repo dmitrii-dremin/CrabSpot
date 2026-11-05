@@ -51,11 +51,24 @@ completion of that goal.
 | Registered static-call resolution (5.4.3.3/4, 6.5.b8) | Implemented, tested and approved within the registered-call profile | All context-backed profiles resolve cross-class b8 to actual MethodId with access/loading/category checks and unchanged standalone behavior. Session initializes only the declarer. 154 distinct JDK rows (217 profile comparisons before repeats) and full retained-state assertions pass debug/release; native/synchronized execution and full loading constraints remain unsupported |
 | Session allocation and constructors (2.9.1, 4.10.1, 6.5.new/invokespecial/putfield) | Implemented, tested and approved within the session profile | New and real constructor Code, private unfinished aliases, precise chaining/final authority and exception boundaries. All 184 JDK comparisons and complete retained graph/state checks pass debug/release; the fresh combined gate passes 947 workspace and 860 optimized tests. Full verifier, library bootstrap, VM exception construction and GC remain unimplemented; full M2 remains open |
 | Whole-method Code validation (4.9.1, selected 4.7.3/4.7.4 representation rules) | Implemented, tested and approved within the partial validation contract | Standalone partial validator checks 890 genuine Code bodies and 31 bodyless declarations across 168 classes. Fifty-one new Rust tests pass debug/release; the final combined gate passes 998 workspace and 911 optimized tests. Eighteen JDK stage-aware cases distinguish twelve rejected static defects, four positives and two deliberately deferred type errors. No flow/type proof, execution permission or implicit runtime gate; full verification remains unimplemented |
-| Full linkage, bytecode verifier and initialization | Not implemented | Subsequent increments; registration and layout planning are not full linkage |
+| Modern selected-method type verification (4.10.1) | Implemented and approved for the selected-method contract | Stack-map-guided independent Rust proof for majors 51РІР‚вЂњ65 under explicit loader facts. All 935 genuine bodies and 31 bodyless methods pass locally; 57 stage probes cover constructor, handler, access, override and missing-fact behavior. Whole-class aggregation, legacy inference and execution gates remain open. |
+| Full linkage, whole-class verification and initialization | Partial | Single-session initialization and selected-method checks cover bounded profiles. Historical inference, class-wide verification and loading constraints remain open. |
 | Class loading, GC, threads, Java libraries, JNI, Kotlin, Spring Boot, JIT | Not implemented | Subsequent milestones |
 
 No executed test currently remains failing. This statement is limited to the
 recorded tests; it is not proof that no defect exists.
+
+## Modern method verification evidence
+
+The local Windows suite covers every modern effective opcode (198) and all
+11 legal wide encodings. It checks each instruction's verification transfer,
+including instructions that the runtime cannot execute. The 57 stage probes
+distinguish verification failures from later execution failures. In one pair,
+a method can return a cast value as Object while the cast's target definition
+is missing. HotSpot returns null on the null path and reports NoClassDefFoundError
+at invocation on the non-null path. CrabSpot verifies both methods using the
+supplied facts. The [current milestone](../milestones/current.md) records the
+native gate, counts, corpus and remaining whole-class obligations.
 
 ## Whole-method Code validation evidence
 

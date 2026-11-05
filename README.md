@@ -58,10 +58,24 @@ python tools/cross_static_reference.py --check
 python tools/construction_fixtures.py --check
 python tools/construction_reference.py --check
 python tools/code_validation_reference.py --check
+python tools/type_state_reference.py --check
+cargo build -p crabspot-launcher
+python tools/type_verification_facts.py --check
 cargo test -p crabspot-verifier --release
 cargo test -p crabspot-interpreter --test numeric_reference
 cargo test -p crabspot-interpreter --test floating_reference --release
 ```
+
+The standalone verifier can check a selected method from a class-file version
+51–65 definition using caller-supplied loader and hierarchy facts. Reference
+tests cover stack maps, instruction transfers, exception handlers and
+constructors, including methods the interpreter cannot execute. See the
+[method verification contract](docs/architecture/m2-type-state-verification.md).
+
+The checked-in JDK metadata capture records the exact reference build. To
+reproduce the suite with a different JDK 21 build, regenerate the Java fixtures,
+type-state reference and JDK fact projections with that build before using the
+`--check` commands. Each projection records its JDK resource and original digest.
 
 On Windows, ensure `%USERPROFILE%\.cargo\bin` is on PATH and the MSVC C++ build
 tools are installed. Linux x86-64 remains the initial deployment target; CI is

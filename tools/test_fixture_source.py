@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from fixture_source import read_java_source
 from check_fixture_sources import verify
+from type_verification_facts import parse_facts
 
 
 class FixtureSourceTests(unittest.TestCase):
@@ -72,6 +73,52 @@ class FixtureSourceTests(unittest.TestCase):
 
     def test_original_code_validation_provenance_and_artifact_changes(self):
         self.check_original_provenance_and_artifact_changes("code-validation")
+
+    def test_type_state_facts_require_closed_hierarchy_and_distinct_declarations(self):
+        def units(name):
+            return name.encode("utf-16-be").hex()
+
+        row = ["C", "bootstrap", units("java/lang/Object"), "65", "0", "33", "", "a" * 64,
+               "jrt:/java.base/java/lang/Object.class"]
+        field = ["F", "1", units("value"), units("I")]
+        method = ["M", "1", units("value"), units("()I"), "1"]
+
+        def capture(*rows):
+            return parse_facts(("\n".join("\t".join(r) for r in rows) + "\n").encode())
+
+        data = capture(row, field, method)["java/lang/Object"]
+        self.assertEqual(data["methods"], [(1, "value", "()I", True)])
+        self.assertEqual(data["fields"], [(1, "value", "I")])
+        for rows in ((row, row), (row, field, field), (row, method, method),
+                     (row, method, field), (row, ["I", units("absent/Interface")]),
+                     (row, [*method[:-1], "2"]), ([*row[:1], "application", *row[2:]],)):
+            with self.subTest(rows=rows), self.assertRaises(ValueError):
+                capture(*rows)
+
+    def test_stale_checked_in_type_state_inputs_and_oracles_fail_preflight(self):
+        # Use scratch copies so even failing checks leave the repository artifacts intact.
+        import shutil
+        project = Path(__file__).resolve().parents[1]
+        fixture_root = self.root / "tests/fixtures"
+        for name in ("java", "classes", "construction", "code-validation", "type-state",
+                     "type-state-facts", "reference"):
+            shutil.copytree(project / "tests/fixtures" / name, fixture_root / name, dirs_exist_ok=True)
+        # setUp's deliberately minimal example is separate from the real manifest.
+        for extra in (self.source, self.record, self.record.with_suffix(".tsv")):
+            extra.unlink()
+        (self.root / "tools").mkdir()
+        shutil.copyfile(project / "tools/type_state_encodings.py", self.root / "tools/type_state_encodings.py")
+        verify(self.root)
+        for relative in ("type-state/probe/TopReturn.class", "reference/type-state.tsv",
+                         "classes/fixtures/TypeStateCases.class", "type-state-facts/requested.txt",
+                         "type-state-facts/classes/java/lang/Object.class"):
+            with self.subTest(relative=relative):
+                path = fixture_root / relative
+                original = path.read_bytes()
+                path.write_bytes(original + b"x")
+                with self.assertRaisesRegex(ValueError, "type-state"):
+                    verify(self.root)
+                path.write_bytes(original)
 
     def check_original_provenance_and_artifact_changes(self, name):
         directory = self.root / "tests/fixtures" / name

@@ -8,7 +8,7 @@ use std::{
 };
 
 const MAX_INPUT: usize = 64 * 1024;
-const MAX_CORPUS: usize = 256;
+const MAX_CORPUS: usize = 512;
 
 struct Random(u64);
 impl Random {
@@ -89,7 +89,9 @@ fn corpus_files(path: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
                 .is_some_and(|value| value == "class")
         {
             if files.len() == MAX_CORPUS {
-                return Err("corpus contains more than 256 class files".to_owned());
+                return Err(format!(
+                    "corpus contains more than {MAX_CORPUS} class files"
+                ));
             }
             files.push(entry.path());
         }
@@ -248,5 +250,30 @@ fn main() -> std::process::ExitCode {
             eprintln!("fuzz_parser: {error}");
             std::process::ExitCode::FAILURE
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn seed_collection_accepts_the_last_slot_and_reports_the_first_excess_file() {
+        let directory =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/classes/referencep");
+        let mut fixture_paths = Vec::new();
+        corpus_files(&directory, &mut fixture_paths).unwrap();
+        assert!(!fixture_paths.is_empty());
+        let slots = MAX_CORPUS - fixture_paths.len();
+        let mut paths = vec![PathBuf::new(); slots];
+        corpus_files(&directory, &mut paths).unwrap();
+        assert_eq!(paths.len(), MAX_CORPUS);
+        assert_eq!(&paths[slots..], fixture_paths);
+        let mut paths = vec![PathBuf::new(); slots + 1];
+        assert_eq!(
+            corpus_files(&directory, &mut paths).unwrap_err(),
+            format!("corpus contains more than {MAX_CORPUS} class files")
+        );
+        assert_eq!(paths.len(), MAX_CORPUS);
     }
 }

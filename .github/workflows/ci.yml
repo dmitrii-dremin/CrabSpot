@@ -47,6 +47,20 @@ jobs:
         run: |
           python tools/code_validation_reference.py
           python tools/code_validation_reference.py --check
+      - name: Generate type-state verification probes with the current JDK
+        run: python tools/type_state_reference.py
+      - name: Check type-state probe reproducibility
+        run: python tools/type_state_reference.py --check
+      - name: Compare this JDK's verification stages with the committed reference
+        run: git diff --exit-code -- tests/fixtures/reference/type-state.tsv
+      - name: Build independent JDK metadata inspector
+        run: cargo build -p crabspot-launcher --locked
+      - name: Capture this JDK's verifier metadata
+        run: python tools/type_verification_facts.py
+      - name: Reproduce this JDK's verifier metadata
+        run: python tools/type_verification_facts.py --check
+      - name: Verify regenerated type-state provenance
+        run: python tools/check_fixture_sources.py
       - name: Generate and verify numeric reference output with this JDK
         run: |
           python tools/numeric_reference.py
@@ -99,5 +113,7 @@ jobs:
         run: cargo test -p crabspot-runtime --release --locked
       - name: Code validation in optimized builds
         run: cargo test -p crabspot-verifier --release --locked
+      - name: Check parser fuzz seed limits
+        run: cargo test -p crabspot-classfile --example fuzz_parser --locked
       - name: Seeded parser fuzz smoke test
         run: cargo run -p crabspot-classfile --example fuzz_parser --locked -- tests/fixtures --iterations 10000

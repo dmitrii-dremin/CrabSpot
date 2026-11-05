@@ -2,34 +2,16 @@
 use crabspot_classfile::{AttributeBody, parse};
 use crabspot_verifier::{CodeValidationOptions, validate_method_code};
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
-
-fn class_files(directory: &Path) -> Vec<PathBuf> {
-    let mut pending = vec![directory.to_owned()];
-    let mut files = Vec::new();
-    while let Some(directory) = pending.pop() {
-        for entry in std::fs::read_dir(directory).unwrap() {
-            let entry = entry.unwrap();
-            if entry.file_type().unwrap().is_dir() {
-                pending.push(entry.path());
-            } else if entry
-                .path()
-                .extension()
-                .is_some_and(|value| value == "class")
-            {
-                files.push(entry.path());
-            }
-        }
-    }
-    files.sort();
-    files
-}
+use std::path::Path;
+#[path = "corpus/files.rs"]
+mod files;
+use files::class_files;
 
 #[test]
 fn validates_every_genuine_method_without_mutation_or_execution() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/classes");
     let files = class_files(&root);
-    assert_eq!(files.len(), 168);
+    assert_eq!(files.len(), 174);
     let (mut bodies, mut bodyless, mut instructions) = (0, 0, 0);
     let mut opcodes = BTreeSet::new();
     for path in files {
@@ -77,12 +59,12 @@ fn validates_every_genuine_method_without_mutation_or_execution() {
         assert_eq!(class, before);
     }
     println!(
-        "Genuine corpus: 168 classes, {bodies} Code bodies, {bodyless} bodyless declarations, {instructions} instructions, {} distinct opcodes",
+        "Genuine corpus: 174 classes, {bodies} Code bodies, {bodyless} bodyless declarations, {instructions} instructions, {} distinct opcodes",
         opcodes.len()
     );
     assert_eq!(
         (bodies, bodyless, instructions, opcodes.len()),
-        (890, 31, 25_236, 173)
+        (935, 31, 26_945, 175)
     );
     // invokedynamic appears in genuine driver/string-concatenation Code even though
     // execution is unsupported. Static validation must not use interpreter gates.
