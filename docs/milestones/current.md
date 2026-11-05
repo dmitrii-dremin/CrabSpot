@@ -1,7 +1,7 @@
 # Current checkpoint: modern method verification
 
 Updated 2026-11-05. The new verifier checks a selected method against immutable
-loader-scoped hierarchy and member facts. It covers class-file majors 51РІР‚вЂњ65,
+loader-scoped hierarchy and member facts. It covers class-file majors 51Р Р†Р вЂљРІР‚Сљ65,
 including stack maps, exception edges, constructors and all modern instruction
 transfers. The director approved this bounded increment for publication on 2026-11-05.
 [Acceptance review](../architecture/m2-type-state-verification-review.md).
@@ -46,6 +46,8 @@ both the final permitted seed and the first excess seed. The accepted smoke
 command used all 392 seeds and seed 4851011501752864596. Of 10,000 mutations,
 113 parsed and 9,887 were rejected. All ten deterministic rechecks agreed,
 505 inputs remained in the corpus, and the run recorded zero failures.
+
+The published implementation passed hosted Linux and Windows CI. Each runner executed 3,127 Rust tests across both fixture sets, optimized packages and the fuzz harness boundary. The Temurin 21.0.13 stage oracle matched the committed Zulu 21.0.7 outcomes. [Hosted run](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42067751551).
 
 ## Previous checkpoint: whole-method Code validation
 
