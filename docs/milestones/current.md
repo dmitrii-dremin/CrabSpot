@@ -16,6 +16,8 @@ The parser campaign included all 541 fixture classes and used seed 4851011501752
 
 The fresh Windows build passed formatting, strict workspace Clippy, 1,326 debug workspace tests and 1,246 optimized verifier, runtime, interpreter and launcher tests. The four Python regression suites passed 27 tests. The 10,000-input parser smoke accepted 108 inputs and rejected 9,892 with zero failures. The two example boundary tests and two explicitly selected genuine-directory tests passed separately.
 
+On the first hosted run for `7c85f76`, both operating systems stopped at the launcher reference tool's provenance check. The recorded hash of `fixture_source.py` used CRLF from the original working copy, while Git stored LF. A fresh export reproduced the discrepancy. The repair hashes Python tooling with Git's LF convention and rejects bare carriage returns. All 30 original Java sources, 19 archived class inputs and both JVM result files retain their original hashes. [Hosted run](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42098229949).
+
 To reproduce the cross-VM observations and exercise both CrabSpot entry points, set `JAVA_HOME` to the primary Java 21 HotSpot JDK and run:
 
 ```text

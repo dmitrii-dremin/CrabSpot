@@ -28,6 +28,14 @@ def inventory(folder):
     return {p.relative_to(folder).as_posix(): digest(p.read_bytes()) for p in sorted(folder.rglob("*.class"))}
 
 
+def tool_digest(path):
+    # Git stores these Python sources as LF. An existing Windows worktree can still have CRLF.
+    source = path.read_bytes().replace(b"\r\n", b"\n")
+    if b"\r" in source:
+        raise ValueError(f"unexpected bare carriage return in tool source: {path}")
+    return digest(source)
+
+
 def invalidate_return(data):
     # Invalid.defect is the only method that returns the literal 69.
     good = bytes.fromhex("10 45 ac")
@@ -134,7 +142,7 @@ def record(check, secondary):
         manifest = {"compiler": compiler, "primary": primary, "flags": flags,
                     "secondary": pin["runtime"], "secondary_archive_sha256": pin["archive_sha256"],
                     "sources": {name.as_posix(): digest(raw) for name, raw in source.items()},
-                    "tools": {name: digest((ROOT / "tools" / name).read_bytes()) for name in
+                    "tools": {name: tool_digest(ROOT / "tools" / name) for name in
                               ("application_entry_reference.py", "fixture_source.py", "loading_constraint_reference.py",
                                "type_state_reference.py")},
                     "original": original, "compiled": fresh, "observer": inventory(external),

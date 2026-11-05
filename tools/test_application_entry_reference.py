@@ -10,6 +10,20 @@ from verify_application_entry import check_failure_diagnostic, extract_classes
 
 
 class ApplicationEntryReferenceTests(unittest.TestCase):
+    def test_tool_hash_matches_git_line_endings_and_detects_content_changes(self):
+        with tempfile.TemporaryDirectory(dir=self.scratch) as tmp:
+            path = Path(tmp) / "tool.py"
+            source = b"def answer():\n    return 37\n"
+            expected = reference.digest(source)
+            for data in (source, source.replace(b"\n", b"\r\n")):
+                path.write_bytes(data)
+                self.assertEqual(reference.tool_digest(path), expected)
+            path.write_bytes(source.replace(b"37", b"38"))
+            self.assertNotEqual(reference.tool_digest(path), expected)
+            path.write_bytes(source.replace(b"\n", b"\r"))
+            with self.assertRaisesRegex(ValueError, "bare carriage return"):
+                reference.tool_digest(path)
+
     def test_cli_failures_must_report_the_observed_phase_and_cause(self):
         check_failure_diagnostic("app.Invalid", "image Verification", "crabspot: Verification class invalid")
         expected = "NamedInitialization NullPointerException 14/0"
