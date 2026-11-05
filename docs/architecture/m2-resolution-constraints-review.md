@@ -1,6 +1,6 @@
 # Checked member resolution during execution
 
-**Approved for publication, 5 November 2026.** Genuine Java callers used a domain-backed execution context to store and retrieve references, call across defining loaders and dispatch through a shared constant-pool entry to different receiver implementations. Resolution constrains the actual referring and declaring loaders after access checks. Category, receiver, initialization and writable-field checks remain specific to each use. The frozen contract is `13D9A13ACEAB431BBD3163583DA3E8CD5F4685C7AC60E3BC835742F7EFC1ACB3`. Hosted CI for this change is pending.
+**Approved for publication, 5 November 2026.** Genuine Java callers used a domain-backed execution context to store and retrieve references, call across defining loaders and dispatch through a shared constant-pool entry to different receiver implementations. Resolution constrains the actual referring and declaring loaders after access checks. Category, receiver, initialization and writable-field checks remain specific to each use. The frozen contract is `13D9A13ACEAB431BBD3163583DA3E8CD5F4685C7AC60E3BC835742F7EFC1ACB3`. The implementation commit subsequently passed on Linux and Windows with 3,710 Rust test executions on each runner. [Hosted results](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42088521610)
 
 ## Findings closed
 
