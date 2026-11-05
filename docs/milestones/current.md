@@ -17,6 +17,8 @@ python tools/verify_monitor_entry.py
 cargo run -p crabspot-classfile --example fuzz_parser --release --locked -- tests/fixtures --seconds 300 --seed 4851011501752864596 --failures target/monitor-fuzz-failures
 ```
 
+Hosted checks passed the monitor revision `a1f8bd9` on both operating systems. Linux ran 4,065 Rust test executions and verified 7,615 ordinary platform classes. Windows ran 4,059 and verified 7,589. Both reproduced all 62 HotSpot observations on the archived and regenerated inputs, all 13 public CLI/API monitor scenarios and the four public API limit cases. With a ceiling of 45 monitor operations, both runners stopped at main bytecode offset 112 and retained the expected fields `1/2/1/9`. [Linux job](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42106349807/job/127522079444) and [Windows job](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42106349807/job/127522078921).
+
 ## Prior checkpoint: verified application entry
 
 The director approved verified directory application entry on 2026-11-05. The launcher ran a genuine Java 21 `main(String[])` from a class directory.
