@@ -58,6 +58,24 @@ Full class loading, member-resolution constraints, execution-time proof checks,
 and application startup remain open. The [next proposal](../architecture/m2-resolution-constraints-next.md)
 connects loader agreements to actual field access and method invocation.
 
+## Hosted preparation and class verification
+
+The published implementation at `fa3f3c811abd3518af6957b14d25d4cc16f7b6c0`
+passed both hosted jobs. Each runner completed 1,181 workspace tests before
+and after fixture regeneration, 1,094 optimized tests and two example boundary
+tests, totaling **3,458 Rust test executions per platform**. The 130 Temurin
+21.0.13+9 reference cases reproduced the HotSpot results. Each 10,000-case
+fuzz run started with 498 seeds, accepted 101 mutations, rejected 9,899 and
+recorded zero failures after ten deterministic rechecks.
+
+| Runner | java.base archive SHA-256 | Prepared and verified classes | Code bodies | Bodyless declarations |
+| --- | --- | ---: | ---: | ---: |
+| [Linux job](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42079503453/job/127428520412) | `0f6d16706108b9f6382de8875b8cb1a3c22e559d14d6a4f1742e3d6efcbdb550` | 7,615 | 62,599 | 4,666 |
+| [Windows job](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42079503453/job/127428520137) | `573894d2cf4d7f19421e4696582532716dbfaad247c7427b9e44d233f1df98c2` | 7,589 | 62,186 | 4,694 |
+
+Each archive yielded one bootstrap initiating record per ordinary definition
+and zero cross-loader unions. Both jobs checked the module descriptor separately.
+
 ## Previous checkpoint: modern class type verification
 
 The new class verifier checks each declaration in file order under a single
