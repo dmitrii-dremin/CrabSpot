@@ -18,6 +18,8 @@ The fresh Windows build passed formatting, strict workspace Clippy, 1,326 debug 
 
 On the first hosted run for `7c85f76`, both operating systems stopped at the launcher reference tool's provenance check. The recorded hash of `fixture_source.py` used CRLF from the original working copy, while Git stored LF. A fresh export reproduced the discrepancy. The repair hashes Python tooling with Git's LF convention and rejects bare carriage returns. All 30 original Java sources, 19 archived class inputs and both JVM result files retain their original hashes. [Hosted run](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42098229949).
 
+Both hosted jobs passed the repaired revision `eb2dd34`. Each ran all 15 launcher cases through the CLI and the public API using its own Temurin 21.0.13 platform. Linux recorded 3,906 Rust test executions and verified 7,615 ordinary platform classes. Windows recorded 3,900 and verified 7,589. Both reproduced the six-class application's five fields, the inherited main result, and all expected early and late failures. [Linux results](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42099581726/job/127498528283) and [Windows results](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42099581726/job/127498528230).
+
 To reproduce the cross-VM observations and exercise both CrabSpot entry points, set `JAVA_HOME` to the primary Java 21 HotSpot JDK and run:
 
 ```text
