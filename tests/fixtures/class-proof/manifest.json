@@ -1,0 +1,26 @@
+{
+  "emitters": {
+    "class_proof_reference.py": "8ba7ec77ea5b20ac7fb530ed4970de007671d691a0d39f2e7278fc6e8dd0bc22",
+    "type_state_encodings.py": "d5812bff65385cc8994f18da92979b1f38ab9b4c9ea7d6d9df2c1057eecb8b9d"
+  },
+  "files": {
+    "AbstractAndNative.class": "57dc6146980702586a7af2b0f180f9550d6353d191074202a2a30fc55030245a",
+    "AbstractOnly.class": "abb530a05ccaad05fea79dff466046eddc5cd00562351bcf1091dfb4489941d2",
+    "BadParent.class": "4f97ffc41ec858511b362ebb6c5429efc874bc39f30897609a09ee43f593f63b",
+    "BadThenGood.class": "797413945a63020358c51d54f4641e3d78acb0a92ec3e486b99dd63cf48c6c3b",
+    "ChildOfFinal.class": "3a95820a03b201f3ce81451c1b8c79ba99bc7b93f32f8cfe519c864f9a3b69a1",
+    "ChildValid.class": "1906a81c59bf29d26c01dcdab47c44f0a2bcf5aac933a668ed81c51c657ce9d4",
+    "EmptyHistory.class": "5306c0dbc7379ce169a8eae2276c059516c76439b61ae6fe91d039c4ea3e00da",
+    "EmptyInterface.class": "e3df420e52d8f888ac1915a0a75978ef6d089814a3279342a25f70534646b85c",
+    "EmptyModern.class": "31b4dc58b378cdecb46b7c0b569e27b9d39d0c1e3ca74bcadf808f8473849333",
+    "EmptyPreview.class.bin": "0c10d2a2757f25d22f608ad124270a24e645a10e5fdac55a5178ef155add6799",
+    "FinalParent.class": "3bb109e7df30f7fb68e046315f46e86492b8a84b546b585aa76204d4fd467f8a",
+    "GoodThenBad.class": "1fbcd5baf37bf80e0bfe41549d9f25e21a02cc0ae09c2daed582937d410db3d5",
+    "InvalidSecondAfterNative.class": "1a9c743c13001552aaf3cb147659101ea70ca5cbc10972af917fe5930e299da7",
+    "NativeOnly.class": "c93af019cddd8d076b6c1474f9f36c91a7dfc89e10dd46ad956d29cc00239e45",
+    "NativeWithBody.class.bin": "8da1c93871189a7907c2ab0a74adca0843120d3e7936a845721a97eef18c6bac"
+  },
+  "kind": "Original class encodings; two default-parser rejections use .class.bin",
+  "source": "ClassProofCases.java",
+  "source_sha256": "a688537652c4582e1f0e4d76be1ed35dcd9c509fb061a220dc16f78f42354ac4"
+}

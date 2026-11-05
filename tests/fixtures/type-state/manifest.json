@@ -1,6 +1,6 @@
 {
   "emitter": "type_state_encodings.py",
-  "emitter_sha256": "2d6e24f8c82a6ac4a22a938b753fffd6c744d679b3c61201d5e4502e4ecf9d3d",
+  "emitter_sha256": "d5812bff65385cc8994f18da92979b1f38ab9b4c9ea7d6d9df2c1057eecb8b9d",
   "files": {
     "p/Base.class": "0841deb07104743f544a033050ec847c9b131d6df49acb3c987c895ff069f065",
     "p/BridgeDeclaresChild.class": "9b9ee81de4bd8e58d257473cd316788b64d613c5e2639c497eed8071d7bc93ba",

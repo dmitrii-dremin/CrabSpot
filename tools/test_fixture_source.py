@@ -7,6 +7,7 @@ import unittest
 from fixture_source import read_java_source
 from check_fixture_sources import verify
 from type_verification_facts import parse_facts
+from verify_java_base import pack_archive
 
 
 class FixtureSourceTests(unittest.TestCase):
@@ -33,6 +34,38 @@ class FixtureSourceTests(unittest.TestCase):
             with self.subTest(data=data):
                 self.source.write_bytes(data)
                 self.assertEqual(read_java_source(self.source), data)
+
+    def test_jmod_inventory_rejects_malformed_and_duplicate_entries_before_packing(self):
+        import io
+        import struct
+        import warnings
+        import zipfile
+
+        archive = self.root / "input.jmod"
+        packed = self.root / "packed"
+
+        def sample(names):
+            data = io.BytesIO()
+            with warnings.catch_warnings(), zipfile.ZipFile(data, "w") as jar:
+                warnings.simplefilter("ignore", UserWarning)  # Deliberately duplicate ZIP entry.
+                for name in names:
+                    jar.writestr(name, b"fixture")
+            return b"JM\x01\x00" + data.getvalue()
+
+        descriptor, ordinary = "classes/module-info.class", "classes/java/lang/Object.class"
+        valid = sample([descriptor, ordinary])
+        archive.write_bytes(valid)
+        sha, count, size = pack_archive(archive, packed)
+        self.assertEqual((sha, count, size), (hashlib.sha256(valid).hexdigest(), 1, 14))
+        self.assertEqual(packed.read_bytes()[:4], struct.pack(">I", 2))
+        packed.unlink()
+        for bad in (valid[:-1], valid[4:], sample([descriptor]), sample([ordinary]),
+                    sample([descriptor, ordinary, ordinary]), sample([descriptor, "../escape.class"]),
+                    sample([descriptor, "classes/./Object.class"])):
+            with self.subTest(size=len(bad)), self.assertRaises(ValueError):
+                archive.write_bytes(bad)
+                pack_archive(archive, packed)
+            self.assertFalse(packed.exists())
 
     def test_crlf_and_bare_cr_are_rejected_at_every_boundary(self):
         for data in (b"\r", b"\r\n", b"\rclass A {}", b"class\r A {}", b"class A {}\r", b"class A {}\r\n"):
@@ -101,13 +134,14 @@ class FixtureSourceTests(unittest.TestCase):
         project = Path(__file__).resolve().parents[1]
         fixture_root = self.root / "tests/fixtures"
         for name in ("java", "classes", "construction", "code-validation", "type-state",
-                     "type-state-facts", "reference"):
+                     "type-state-facts", "class-proof", "reference"):
             shutil.copytree(project / "tests/fixtures" / name, fixture_root / name, dirs_exist_ok=True)
         # setUp's deliberately minimal example is separate from the real manifest.
         for extra in (self.source, self.record, self.record.with_suffix(".tsv")):
             extra.unlink()
         (self.root / "tools").mkdir()
-        shutil.copyfile(project / "tools/type_state_encodings.py", self.root / "tools/type_state_encodings.py")
+        for emitter in ("type_state_encodings.py", "class_proof_reference.py"):
+            shutil.copyfile(project / "tools" / emitter, self.root / "tools" / emitter)
         verify(self.root)
         for relative in ("type-state/probe/TopReturn.class", "reference/type-state.tsv",
                          "classes/fixtures/TypeStateCases.class", "type-state-facts/requested.txt",
@@ -117,6 +151,15 @@ class FixtureSourceTests(unittest.TestCase):
                 original = path.read_bytes()
                 path.write_bytes(original + b"x")
                 with self.assertRaisesRegex(ValueError, "type-state"):
+                    verify(self.root)
+                path.write_bytes(original)
+        for relative in ("class-proof/GoodThenBad.class", "class-proof/NativeWithBody.class.bin",
+                         "class-proof/EmptyPreview.class.bin", "reference/class-proof.tsv"):
+            with self.subTest(relative=relative):
+                path = fixture_root / relative
+                original = path.read_bytes()
+                path.write_bytes(original + b"x")
+                with self.assertRaisesRegex(ValueError, "class-proof"):
                     verify(self.root)
                 path.write_bytes(original)
 

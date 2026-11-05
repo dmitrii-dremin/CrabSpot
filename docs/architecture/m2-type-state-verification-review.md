@@ -4,7 +4,7 @@
 
 ## Accepted guarantee
 
-For a canonical method declaration in a retained class of major version 51вЂ“65, the verifier checks Code representation, final overriding and the modern stack-map type rules against an immutable loader-aware environment. Legal abstract and native declarations receive the applicable bodyless checks. A successful result borrows the canonical method and its exact environment. A failure identifies its phase, location and completed resource usage. The positive instruction audit observed all 198 modern effective opcode values and all 11 legal wide encodings in successfully proved methods.
+For a canonical method declaration in a retained class of major version 51–65, the verifier checks Code representation, final overriding and the modern stack-map type rules against an immutable loader-aware environment. Legal abstract and native declarations receive the applicable bodyless checks. A successful result borrows the canonical method and its exact environment. A failure identifies its phase, location and completed resource usage. The positive instruction audit observed all 198 modern effective opcode values and all 11 legal wide encodings in successfully proved methods.
 
 Full M2 remains open. Further obligations include modern whole-class aggregation, historical inference, loading constraints and verification failure lifecycle, execution integration, remaining runtime behavior and performance evidence. The public method guarantee and its scope are specified in the [modern method contract](m2-type-state-verification.md). The proposed next step is [modern class type verification](m2-class-type-verification-next.md).
 

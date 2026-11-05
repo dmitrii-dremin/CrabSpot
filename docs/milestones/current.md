@@ -1,7 +1,57 @@
-# Current checkpoint: modern method verification
+# Current checkpoint: modern class type verification
+
+The new class verifier checks each declaration in file order under a single
+cumulative allowance and returns a proof tied to the immutable environment
+and canonical definition. It checks version and preview eligibility even for
+classes with no methods. A failing declaration identifies its method index,
+preserves the original diagnostic, and accounts for work already performed.
+[Class verification contract](../architecture/m2-class-type-verification.md).
+
+The technical director approved the increment on 2026-11-05.
+[Acceptance review](../architecture/m2-class-type-verification-review.md).
+The next planning increment covers [loading constraints during preparation](../architecture/m2-loading-constraints-next.md).
+
+## Class and JDK evidence
+
+- All 174 ordinary definitions among the 175 javac fixtures passed the local
+  aggregate check. The nine resource totals for each class matched the sum of
+  independent method checks across 937 Code bodies and 31 bodyless declarations.
+- Fifteen original class encodings produced sixteen JDK 21 stage outcomes. The
+  same preview class was checked twice, with preview disabled and enabled.
+  The stage oracle separates definition failure, reflective lookup, and a
+  successful proof of a child's own methods when its parent contains bad Code.
+  The earlier 57 method-stage cases also agree with their class-wide results.
+- A separate reference harness checked every ordinary class in the installed
+  Zulu 21.0.7 java.base module. All 7,519 classes passed, with 61,708 Code bodies
+  and 4,685 bodyless declarations. The harness read the original archive,
+  validated the module descriptor separately and cross-checked the proof counts
+  against each class's metadata. The archive SHA-256 was
+  `311fa7415ab8e88874b21b1db7f326b7ad94e7c77fd689489dcf21e9919f05c8`.
+- Reproduce the staged oracle with `python tools/class_proof_reference.py --check`
+  and the real JDK corpus with `python tools/verify_java_base.py` and JAVA_HOME
+  set to a JDK 21 installation. Archive contents can vary by build and platform.
+
+Whole-class checking applies to majors 51 through 65. Historical inference,
+cross-loader constraints, VM linkage failure caching and consuming verification
+evidence at execution remain open. The class checks exercise verification only.
+
+## Fresh native gate
+
+The Windows gate ran 38 commands on the frozen inputs with Rust/Cargo 1.98.1
+and Zulu JDK 21.0.7. All passed, and all 47 source hashes matched again after
+the run. There were 1,111 workspace debug tests and 1,024 optimized tests
+(164 verifier, 436 runtime and 424 interpreter), plus separate example tests
+for the java.base input reader and fuzz corpus limit. The 11 Python tests,
+46 Java source digests and 23 reference sets passed their checks. The 10,000-case
+parser smoke started with 407 valid seeds. It accepted 116 mutations, rejected
+9,884 and reproduced all ten rechecked outcomes, with zero recorded failures.
+The two raw fixtures that require preview opt-in or fail class-format admission
+are kept separately from default-parser fuzz seeds.
+
+## Previous checkpoint: modern method verification
 
 Updated 2026-11-05. The new verifier checks a selected method against immutable
-loader-scoped hierarchy and member facts. It covers class-file majors 51Р Р†Р вЂљРІР‚Сљ65,
+loader-scoped hierarchy and member facts. It covers class-file majors 51–65,
 including stack maps, exception edges, constructors and all modern instruction
 transfers. The director approved this bounded increment for publication on 2026-11-05.
 [Acceptance review](../architecture/m2-type-state-verification-review.md).

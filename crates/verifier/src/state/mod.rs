@@ -1,5 +1,6 @@
 //! Immutable loader facts and modern stack-map-guided method proofs.
 mod checker;
+mod class;
 mod environment;
 mod frames;
 mod symbols;
@@ -9,6 +10,7 @@ use crate::{
     CodeValidationError, CodeValidationLocation, CodeValidationOptions, CodeValidationUsage,
     MethodCodeValidation,
 };
+pub use class::*;
 use crabspot_runtime::{ClassId, LoaderId, RegistryError};
 pub use environment::*;
 use std::fmt;

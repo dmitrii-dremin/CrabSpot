@@ -72,8 +72,9 @@ fixture/oracle tooling, never by this library.
 The separate `verify_method_types` entry point proves one canonical registered
 method against a particular immutable `VerificationEnvironment`. It first runs
 all representation checks above, then supports Java class-file majors 51–65.
-Older methods return `UnsupportedHistory` after representation validation; no
-historical inference, whole-class proof, linking or execution gate is introduced.
+Older methods return `UnsupportedHistory` after representation validation. This
+entry point does not infer historical frames, prove sibling methods, link a class
+or introduce an execution gate.
 
 The environment borrows a `DefinitionRegistry` and checked `HierarchyPlan`s. It
 checks the closed union, ordered edges, unique runtime packages, initiating-loader
@@ -134,3 +135,41 @@ as genuine verified methods. This library calls no reference JVM. Genuine target
 Code, synthetic facts, unavailable selections and reference-JDK stage outcomes
 must remain separately reported; success is relative to the supplied immutable
 facts and does not claim full JVM verification compatibility.
+
+## Modern class type proof
+
+`verify_class_types` checks every declared method of one retained canonical
+`ClassId`, in classfile order, against the exact supplied environment. The result
+borrows that environment and its canonical ClassFile, retaining only class identity
+and aggregate usage. It does not retain a vector of method results or decoded
+bodies: each method proof is dropped before entering the next declaration.
+
+The class header is checked first, including on an empty class or interface.
+Majors 51–65 follow the existing minor/preview envelope; otherwise accepted older
+classes return `UnsupportedHistory`. The preview switch is
+`options.method.code.allow_preview`. An empty modern class succeeds with zero
+usage under zero limits. Identity and retained membership precede the header;
+no hierarchy rescan, reparse, callback or dependency-body proof is performed.
+Registry admission remains the ordinary-definition boundary, including rejection
+of module descriptors.
+
+Per-method options remain independent of nine cumulative Code/type allowances
+and a declaration-count cap. Each declaration consumes a Methods unit before its
+single method-checker call. The child receives the smaller configured per-method
+cap and remaining class allowance for each counter. Completed body/bodyless
+counts include successful declarations only; accepted verification usage also
+includes paid work of the first failing method. Failed multi-counter charges
+remain unpaid. A tighter remaining class cap translates only a direct child
+resource-limit diagnostic to an absolute aggregate limit, preserving that exact
+clamped diagnostic as its source. Equal-cap ties and non-limit failures remain
+method errors. Checked sums/remainders are transactional; policy maxima induce
+no reservations. Repeated calls start with independent counters and caches.
+
+Success establishes the modern class type-check condition for the selected
+loaded definition relative to the frozen environment facts. A dependency can
+still contain an ill-typed method; checking it is a separate class proof. A JVM's
+reflective lookup can visit that dependency and fail even when this selected
+child proof succeeds. Runtime loading/module derivation, complete loader
+constraints, linking, preparation, initialization, sticky failures and execution
+gating retain their own obligations. Genuine selected Code and synthetic library
+fact projections keep the provenance distinction described above.

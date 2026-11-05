@@ -1,6 +1,6 @@
 # CrabSpot architecture
 
-The director approved the standalone modern method type checker on 2026-11-05. Its fresh native gate passed 1,071 workspace tests and 984 optimized verifier/runtime/interpreter tests. The checker covers 935 genuine bodies, 31 bodyless declarations and 57 stage-aware JDK cases under explicit loader facts. [Review and acceptance](m2-type-state-verification-review.md). The next contract covers a class-level type proof with cumulative limits and evidence bound to its environment. [Planning proposal](m2-class-type-verification-next.md). Class loading, full verification and M2 remain open.
+The director approved the standalone modern class verifier on 2026-11-05. It checks every declared method in file order and enforces cumulative limits. The native gate passed 1,111 workspace tests and 1,024 optimized tests, all 174 ordinary javac fixtures, and all 7,519 ordinary definitions in the local Zulu 21.0.7 java.base archive. [Review and acceptance](m2-class-type-verification-review.md). The next contract covers initiating-loader records and constraints imposed during preparation. [Planning proposal](m2-loading-constraints-next.md). Historical verification, complete linking, application startup and M2 remain open.
 
 `ARCHITECTURE.md` is the project charter. This document refines its initial layout without reducing its roadmap. CrabSpot is an independent Rust JVM project targeting Linux x86-64. The first deliverable reads class files; it does not execute Java programs or claim JVM compatibility. NanoSpec is not used in this project.
 
@@ -47,7 +47,7 @@ Within supported constructs, validation covers file-local format rules, typed co
 
 Metadata checks assigned to later consumers remain there. For example, the parser decodes MethodParameters entries without requiring their count to match the descriptor; future reflection services perform that matching. Generic signature strings are preserved for their later consumer. Neither policy makes opaque standard annotation or module bodies count as decoded support.
 
-The normative format reference is [JVMS SE 21 chapter 4](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html), particularly sections 4.1вЂ“4.8. The validation boundary follows the distinction from [code constraints](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html#jvms-4.9) and [verification](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html#jvms-4.10). This is a project contract, not a claim that parser acceptance equals conformance.
+The normative format reference is [JVMS SE 21 chapter 4](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html), particularly sections 4.1–4.8. The validation boundary follows the distinction from [code constraints](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html#jvms-4.9) and [verification](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html#jvms-4.10). This is a project contract, not a claim that parser acceptance equals conformance.
 
 ## Growth boundaries
 

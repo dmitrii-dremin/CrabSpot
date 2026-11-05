@@ -11,7 +11,7 @@ use files::class_files;
 fn validates_every_genuine_method_without_mutation_or_execution() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/classes");
     let files = class_files(&root);
-    assert_eq!(files.len(), 174);
+    assert_eq!(files.len(), 175);
     let (mut bodies, mut bodyless, mut instructions) = (0, 0, 0);
     let mut opcodes = BTreeSet::new();
     for path in files {
@@ -59,12 +59,12 @@ fn validates_every_genuine_method_without_mutation_or_execution() {
         assert_eq!(class, before);
     }
     println!(
-        "Genuine corpus: 174 classes, {bodies} Code bodies, {bodyless} bodyless declarations, {instructions} instructions, {} distinct opcodes",
+        "Genuine corpus: 175 classes, {bodies} Code bodies, {bodyless} bodyless declarations, {instructions} instructions, {} distinct opcodes",
         opcodes.len()
     );
     assert_eq!(
         (bodies, bodyless, instructions, opcodes.len()),
-        (935, 31, 26_945, 175)
+        (937, 31, 27_061, 175)
     );
     // invokedynamic appears in genuine driver/string-concatenation Code even though
     // execution is unsupported. Static validation must not use interpreter gates.

@@ -1,3 +1,4 @@
 # Keep fixture source and reference hashes stable across Windows/Linux checkouts.
 * text=auto eol=lf
 *.class binary
+*.class.bin binary

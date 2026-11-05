@@ -53,6 +53,12 @@ jobs:
         run: python tools/type_state_reference.py --check
       - name: Compare this JDK's verification stages with the committed reference
         run: git diff --exit-code -- tests/fixtures/reference/type-state.tsv
+      - name: Record whole-class stages with this JDK
+        run: python tools/class_proof_reference.py
+      - name: Check whole-class reference reproducibility
+        run: python tools/class_proof_reference.py --check
+      - name: Compare all whole-class stages with the committed reference
+        run: git diff --exit-code -- tests/fixtures/reference/class-proof.tsv
       - name: Build independent JDK metadata inspector
         run: cargo build -p crabspot-launcher --locked
       - name: Capture this JDK's verifier metadata
@@ -117,3 +123,7 @@ jobs:
         run: cargo test -p crabspot-classfile --example fuzz_parser --locked
       - name: Seeded parser fuzz smoke test
         run: cargo run -p crabspot-classfile --example fuzz_parser --locked -- tests/fixtures --iterations 10000
+      - name: Test the bounded java.base input reader
+        run: cargo test -p crabspot-verifier --example verify_java_base --locked
+      - name: Verify every ordinary definition in this JDK's java.base module
+        run: python tools/verify_java_base.py

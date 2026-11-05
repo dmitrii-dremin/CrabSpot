@@ -59,6 +59,8 @@ python tools/construction_fixtures.py --check
 python tools/construction_reference.py --check
 python tools/code_validation_reference.py --check
 python tools/type_state_reference.py --check
+python tools/class_proof_reference.py --check
+python tools/verify_java_base.py
 cargo build -p crabspot-launcher
 python tools/type_verification_facts.py --check
 cargo test -p crabspot-verifier --release
@@ -66,11 +68,16 @@ cargo test -p crabspot-interpreter --test numeric_reference
 cargo test -p crabspot-interpreter --test floating_reference --release
 ```
 
-The standalone verifier can check a selected method from a class-file version
-51–65 definition using caller-supplied loader and hierarchy facts. Reference
+The standalone verifier can check a selected method or every declaration in one
+class-file version 51–65 definition using caller-supplied loader and hierarchy facts. Reference
 tests cover stack maps, instruction transfers, exception handlers and
 constructors, including methods the interpreter cannot execute. See the
 [method verification contract](docs/architecture/m2-type-state-verification.md).
+The [class verification contract](docs/architecture/m2-class-type-verification.md)
+specifies declaration order and cumulative limits. The optional
+`tools/verify_java_base.py` check reads the installed JDK 21 module archive,
+checks every ordinary bootstrap definition in Rust, and reports the archive
+digest, definition count and number of verified declarations.
 
 The checked-in JDK metadata capture records the exact reference build. To
 reproduce the suite with a different JDK 21 build, regenerate the Java fixtures,

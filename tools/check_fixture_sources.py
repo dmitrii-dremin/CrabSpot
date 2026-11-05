@@ -19,6 +19,39 @@ def file_hashes(directory, pattern):
             for p in directory.rglob(pattern) if p.is_file()}
 
 
+def check_class_proof(root, sources, compiled):
+    fixtures = root / "tests/fixtures"
+    directory = fixtures / "class-proof"
+    source = "ClassProofCases.java"
+    if source not in sources and not directory.exists():
+        return
+    manifest_path = directory / "manifest.json"
+    manifest = read_object(manifest_path)
+    reference = fixtures / "reference/class-proof"
+    oracle = read_object(reference.with_suffix(".json"))
+    if source not in sources or any(record.get("source") != source or
+            record.get("source_sha256") != sources[source] for record in (manifest, oracle)):
+        raise ValueError("class-proof Java source provenance differs")
+    artifacts = file_hashes(directory, "*")
+    artifacts.pop("manifest.json")
+    if not artifacts or manifest.get("files") != artifacts:
+        raise ValueError("class-proof original artifact hashes/set differ")
+    emitters = ("class_proof_reference.py", "type_state_encodings.py")
+    hashes = {name: hashlib.sha256((root / "tools" / name).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+              for name in emitters}
+    if manifest.get("emitters") != hashes:
+        raise ValueError("class-proof emitter hash differs")
+    data = reference.with_suffix(".tsv").read_bytes()
+    driver = "fixtures/ClassProofCases.class"
+    driver_hash = hashlib.sha256((fixtures / "classes" / driver).read_bytes()).hexdigest()
+    if (oracle.get("results_sha256") != hashlib.sha256(data).hexdigest()
+            or oracle.get("cases") != len(data.splitlines())
+            or oracle.get("driver_classes") != {driver: driver_hash}
+            or compiled["files"].get(driver) != driver_hash
+            or oracle.get("original_manifest_sha256") != hashlib.sha256(manifest_path.read_bytes()).hexdigest()):
+        raise ValueError("class-proof oracle provenance differs")
+
+
 def check_type_state(root, sources, compiled):
     fixtures = root / "tests/fixtures"
     generated = fixtures / "type-state"
@@ -105,6 +138,7 @@ def verify(root):
             if not actual or synthetic.get("files") != actual:
                 raise ValueError(f"{name} fixture hashes/set differ")
     check_type_state(root, hashes, manifest)
+    check_class_proof(root, hashes, manifest)
     return len(hashes), len(records)
 
 

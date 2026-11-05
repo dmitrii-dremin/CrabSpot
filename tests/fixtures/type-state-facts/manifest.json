@@ -24,6 +24,7 @@
     "classes/fixtures/CastUnrelated.class": "71ef55ad4b2f5ba000b2af393af533dbe20f0d18414e15b97d4d3df5de58f898",
     "classes/fixtures/Choice.class": "15bf6daf8f2fd022f59860fa4990810e80f62ea7f67b4ff3421275b082558fc4",
     "classes/fixtures/Circle.class": "13b5aa510b925cc610baf3013e8193fc435eb3de437eac7dcff3f550fb386563",
+    "classes/fixtures/ClassProofCases.class": "41be566ad5c0a3c5ef16388df54538437b493489ed06308efaff4647b3f56e00",
     "classes/fixtures/CodeValidationCases$Pool.class": "f0f56638f3b8bcda66f230b7aee2c748358907f7f6d97044f03fbe79dd4a01c0",
     "classes/fixtures/CodeValidationCases$RawLoader.class": "170307f9a0f7cdd1c48893a7a4a0404744e515a1ed4322b75353a5622b7df25b",
     "classes/fixtures/CodeValidationCases.class": "9cb3d3b1c4e372a01a4dd3e5b7fce110257774ae849dea1977ee8b5eea3b7b49",
@@ -253,9 +254,9 @@
     "type-state/q/StaticChild.class": "1ef1b5fb3f4019eb2c10c2d540d3773b33897e419a0e7568bb1fdc7f7cd53e37",
     "type-state/q/StaticHiding.class": "06df9fd3d19cba6008da021df31d64029077e70e91842aefa5a42afb20d7ef02"
   },
-  "classes": 122,
-  "fields": 614,
-  "methods": 3250,
+  "classes": 123,
+  "fields": 676,
+  "methods": 3326,
   "independent_metadata_sha256": {
     "java/io/ByteArrayInputStream": "2eea22b6337b76a6fab419dcc896f4309116359cfd77ead2967492cfbc7bb73a",
     "java/io/ByteArrayOutputStream": "c355065ebc18426a1946eb3135ba1dc8a9034f3e782dbb821ce0015641efd55a",
@@ -333,6 +334,7 @@
     "java/lang/reflect/Method": "185569046b6e7d05f337b670c87cf0deded0e46298d85616553c24285929eac8",
     "java/lang/reflect/Type": "76d5b9dca8a03d690dd75c5701c0b2f07018bfd23356387898e1cb81d35b7a62",
     "java/lang/runtime/ObjectMethods": "df749d716174013e78722b8c07c828616dd5b24b00d2c4fc5d4eaf5f6e18d027",
+    "java/net/URI": "98adff663bf1da666b0cffa4f68cc27206b05880f3f9a35b32fd2a8d1896d37a",
     "java/net/URL": "875f9115b3677542b38639fdabc46f5662d17b20be1ad63574bd5ee1950217bc",
     "java/net/URLClassLoader": "63d15afc39cddef0f22db145e0152c2f558a78017807448ae355eb2e812a48cf",
     "java/nio/charset/Charset": "4b6fac3d550155457a3eed5955fc7bdf50117e33c26298849ecd2f356c86ee94",
@@ -381,8 +383,8 @@
     "java/util/stream/Stream": "c5d9c58282d17a6bd443e69f7af7b9dbeea23d015ac04ad4cbffadd4f05cc570"
   },
   "files": {
-    "facts.tsv": "2d0a92e1ec73360af8225bbc389b62a9e0db23e0a0db0fbbafbc79d94561855f",
-    "requested.txt": "5d07595a2e0928f187e40a7c0eacbeef08e27336146cad09e7dcf52a41328824",
+    "facts.tsv": "96b0c370bf1025cbd14d5376117df03fe5a54279aaf5b3428d71b6b4e2c263b3",
+    "requested.txt": "da936c154ee8eedf6bfc2d8d1094f2e669a5cb2557c72acae87268284992932d",
     "missing.tsv": "3c148659d0147d115445916d20958b71eb030c77497477fb20517c0832a3062e",
     "classes/java/io/ByteArrayInputStream.class": "ce52bb4c27a67449ca282d7aca1295aac91a3c7d0b1bc261bc6b6635cd5bb99c",
     "classes/java/io/ByteArrayOutputStream.class": "7af4efac2086a6adada49d973aa5e9e51de2f552dab0cf31f820efe2a6bc1558",
@@ -460,6 +462,7 @@
     "classes/java/lang/reflect/Method.class": "dabeca93beef9d0f2f68abd26c19f81387465c8f77ffa66cde423a0ef6014396",
     "classes/java/lang/reflect/Type.class": "6ac04315c50d338e078d9946acc7b3c26f1ad9f41b71aec4381a609017fd454c",
     "classes/java/lang/runtime/ObjectMethods.class": "2cd3cfbe0c386abc6bc9e47848ec71eab0e48748ef05ffb346b483eb66205929",
+    "classes/java/net/URI.class": "5b3d24aaa651577315e5cd868fb0f2e65fadf40ccfbca1d4ee3f34703a961e9a",
     "classes/java/net/URL.class": "c22df981f3dee3f1b02e6546a9b0f0f014a67fbeb084255b8d201e233d753760",
     "classes/java/net/URLClassLoader.class": "a0dd6141248431e26cabe838b3538b642860938439feebc12d4800e3ad6e6019",
     "classes/java/nio/charset/Charset.class": "4b0f753fb50ef6ba909823bbbb2324c67660d6a72b170061cbdea4d32039a6a6",

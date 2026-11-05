@@ -54,21 +54,23 @@ class ClassEncoding:
     def allocation(self, owner):
         return op(0xbb, self.cls(owner)) + b"\x59" + self.invoke_init(owner)
 
-    def method(self, flags, name, descriptor, code, stack, locals_, handlers=(), frame=None):
+    def method(self, flags, name, descriptor, code=None, stack=0, locals_=0, handlers=(), frame=None):
         header = u2(flags) + u2(self.utf(name)) + u2(self.utf(descriptor))
+        if code is None:
+            return header + u2(0)
         code_name = self.utf("Code")
         attributes = [] if frame is None else [attribute(self.utf("StackMapTable"), frame)]
         code_body = (u2(stack) + u2(locals_) + u4(len(code)) + code
                      + table([pack(">4H", *row) for row in handlers]) + table(attributes))
         return header + table([attribute(code_name, code_body)])
 
-    def finish(self, fields, methods):
+    def finish(self, fields, methods, *, major=65, minor=0, flags=0x21):
         this, parent = self.cls(self.name), self.cls(self.parent)
         fields = [pack(">4H", flags, self.utf(name), self.utf(desc), 0)
                   for flags, name, desc in fields]
         methods = [self.method(*method) for method in methods]
-        return (bytes.fromhex("cafebabe 0000 0041") + u2(len(self.entries) + 1)
-                + b"".join(self.entries) + pack(">4H", 0x21, this, parent, 0)
+        return (bytes.fromhex("cafebabe") + pack(">3H", minor, major, len(self.entries) + 1)
+                + b"".join(self.entries) + pack(">4H", flags, this, parent, 0)
                 + table(fields) + table(methods) + u2(0))
 
 

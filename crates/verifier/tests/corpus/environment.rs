@@ -1,7 +1,7 @@
 use crabspot_classfile::ParseOptions;
 use crabspot_runtime::{
-    ClassId, DefinitionRegistry, HierarchyPlan, HierarchyResolver, LoaderId, ResolveError,
-    build_hierarchy,
+    ClassId, DefinitionRegistry, HierarchyError, HierarchyPlan, HierarchyResolver, LoaderId,
+    ResolveError, build_hierarchy,
 };
 use crabspot_verifier::{VerificationBinding, VerificationCore, VerificationEnvironment};
 use std::path::Path;
@@ -41,6 +41,14 @@ pub struct Corpus {
 
 impl Corpus {
     pub fn new(facts: &Path, targets: &[(String, Vec<u8>)]) -> Self {
+        Self::with_options(facts, targets, ParseOptions::default()).unwrap()
+    }
+
+    pub fn with_options(
+        facts: &Path,
+        targets: &[(String, Vec<u8>)],
+        options: ParseOptions,
+    ) -> Result<Self, HierarchyError> {
         let mut registry = DefinitionRegistry::new(Default::default()).unwrap();
         let mut loaders = Loaders {
             boot: registry.create_loader().unwrap(),
@@ -105,33 +113,24 @@ impl Corpus {
                         loaders.application,
                         &name.encode_utf16().collect::<Vec<_>>(),
                         bytes,
-                        ParseOptions::default(),
+                        options,
                     )
-                    .unwrap_or_else(|e| panic!("target {name}: {e}"));
+                    .map_err(HierarchyError::Registry)?;
                 definitions.push(id);
-                (name.clone(), id)
+                Ok((name.clone(), id))
             })
-            .collect();
+            .collect::<Result<_, HierarchyError>>()?;
         let plans = definitions
             .into_iter()
-            .map(|id| {
-                build_hierarchy(&registry, id, &mut loaders, Default::default()).unwrap_or_else(
-                    |e| {
-                        panic!(
-                            "hierarchy for {:?}: {e}",
-                            registry.class(id).unwrap().name()
-                        )
-                    },
-                )
-            })
-            .collect();
-        Self {
+            .map(|id| build_hierarchy(&registry, id, &mut loaders, Default::default()))
+            .collect::<Result<_, _>>()?;
+        Ok(Self {
             registry,
             targets,
             plans,
             bindings,
             core,
-        }
+        })
     }
 
     pub fn environment(&self) -> VerificationEnvironment<'_> {

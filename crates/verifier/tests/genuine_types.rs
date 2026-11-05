@@ -3,7 +3,7 @@
 mod corpus;
 #[path = "corpus/files.rs"]
 mod files;
-use crabspot_verifier::verify_method_types;
+use crabspot_verifier::{TypeVerificationUsage, verify_class_types, verify_method_types};
 use std::path::Path;
 
 #[test]
@@ -93,13 +93,21 @@ fn proves_every_genuine_method_using_captured_jdk_member_and_hierarchy_facts() {
             targets.push((name, std::fs::read(path).unwrap()));
         }
     }
-    assert_eq!(targets.len(), 173);
+    assert_eq!(targets.len(), 174);
     let corpus = corpus::Corpus::new(&fixtures.join("type-state-facts"), &targets);
     let environment = corpus.environment();
     let mut failures = Vec::new();
     let (mut bodies, mut bodyless) = (0, 0);
     for (name, id) in &corpus.targets {
         let class = corpus.registry.class(*id).unwrap();
+        let proof = verify_class_types(&environment, *id, Default::default())
+            .unwrap_or_else(|e| panic!("whole class {name}: {e}"));
+        assert_eq!(proof.class_id(), *id);
+        assert!(std::ptr::eq(proof.class(), class));
+        assert!(std::ptr::eq(proof.environment(), &environment));
+        assert_eq!(proof.usage().methods_started, class.methods.len() as u64);
+        let (start_bodies, start_bodyless) = (bodies, bodyless);
+        let mut method_sum = [0u64; 9];
         for (index, method) in class.methods.iter().enumerate() {
             match verify_method_types(&environment, *id, index, Default::default()) {
                 Ok(proof) => {
@@ -115,6 +123,9 @@ fn proves_every_genuine_method_using_captured_jdk_member_and_hierarchy_facts() {
                     let repeat =
                         verify_method_types(&environment, *id, index, Default::default()).unwrap();
                     assert_eq!(proof.usage(), repeat.usage());
+                    for (sum, value) in method_sum.iter_mut().zip(counters(proof.usage())) {
+                        *sum = sum.checked_add(value).unwrap();
+                    }
                 }
                 Err(error) => {
                     let method_name = class.constant_pool.utf8(method.name_index).unwrap();
@@ -122,6 +133,9 @@ fn proves_every_genuine_method_using_captured_jdk_member_and_hierarchy_facts() {
                 }
             }
         }
+        assert_eq!(method_sum, counters(proof.usage().verification), "{name}");
+        assert_eq!(proof.usage().code_bodies, bodies - start_bodies, "{name}");
+        assert_eq!(proof.usage().bodyless, bodyless - start_bodyless, "{name}");
     }
     assert!(
         failures.is_empty(),
@@ -129,7 +143,21 @@ fn proves_every_genuine_method_using_captured_jdk_member_and_hierarchy_facts() {
         failures.len(),
         failures.join("\n")
     );
-    assert_eq!((bodies, bodyless), (935, 31));
+    assert_eq!((bodies, bodyless), (937, 31));
+}
+
+fn counters(usage: TypeVerificationUsage) -> [u64; 9] {
+    [
+        usage.code.code_bytes,
+        usage.code.metadata_entries,
+        usage.code.utf16_units,
+        usage.code.work_units,
+        usage.type_symbols,
+        usage.state_cells,
+        usage.edge_checks,
+        usage.utf16_units,
+        usage.work_units,
+    ]
 }
 
 #[test]

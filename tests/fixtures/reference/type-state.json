@@ -7,7 +7,7 @@
   "options": [
     "-Xverify:all"
   ],
-  "original_manifest_sha256": "ec0c4bbb7345cf63f50ef03f364e8e55e020fb592dc42bd79ccfb62038b84a09",
+  "original_manifest_sha256": "259bbed4b94008d84575f1b1cfb3f238be29abaa48a1320d8f8129a20d52f612",
   "results_sha256": "668afd670c362b0fd47517350f89d62f8b6b49e6c35cd06340ddac9bd2168aae",
   "runtime": "openjdk version \"21.0.7\" 2025-04-15 LTS\nOpenJDK Runtime Environment Zulu21.42+19-CA (build 21.0.7+6-LTS)\nOpenJDK 64-Bit Server VM Zulu21.42+19-CA (build 21.0.7+6-LTS, mixed mode, sharing)",
   "source": "TypeStateCases.java",
