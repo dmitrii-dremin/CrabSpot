@@ -8,7 +8,7 @@ use std::{
 };
 
 const MAX_INPUT: usize = 64 * 1024;
-const MAX_CORPUS: usize = 512;
+const MAX_CORPUS: usize = 1024;
 
 struct Random(u64);
 impl Random {

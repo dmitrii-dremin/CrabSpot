@@ -16,8 +16,8 @@ be supplied to stop at whichever comes first. Zero seeds/counts/durations and
 invalid inputs fail explicitly. CI executes a short 10,000-case smoke run; full
 campaigns and their observed counts are recorded in the milestone evidence.
 
-The corpus is sorted by path, capped at 512 class files, and validated before the
-campaign. The same 512-entry bound covers both original seeds and retained mutations.
+The corpus is sorted by path, capped at 1,024 class files, and validated before the
+campaign. The same 1,024-entry bound covers both original seeds and retained mutations.
 Inputs are capped at 64 KiB and parsed with the default annotation
 depth/node budgets. Original seeds are never displaced. Every 1,024th generated
 input is parsed again and compared for deterministic output. Panics or differing

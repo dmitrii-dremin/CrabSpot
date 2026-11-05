@@ -1,0 +1,129 @@
+{
+  "dispatch": {
+    "driver_source_sha256": "8d73da67ce233d9a03434548ac319917180eeacf390705daeb5b128bc730b583",
+    "observations": {
+      "openj9": "031dc7c7a9638404967cafea36e7df63a59253626f95f33ad98df6304f47d432",
+      "zulu": "3d71f2c4556b075cfdd9cb99dedf2d707dc722a67b0dc7123d777d41c41faeba"
+    },
+    "original_driver_classes": {
+      "DispatchProbe.class": "7b0d2e081cda9e9acf7d5c586eb35a9436e4df2d65f70f7bfacf0ba633e1f9a6",
+      "LoadingConstraintProbe$Domain.class": "b4c775aabfff34c30c6941f9afed2aa5bb8ef0bce52b459403a58bc7f279ff86",
+      "LoadingConstraintProbe$Stage.class": "8a6fe62af60d77e60bab3c81d7d890883bd42c21de11341d65e8e7004bba607c",
+      "LoadingConstraintProbe.class": "9be8e5664c025fa8f21e462b13c100cee9e1b65f212e71c064995e42d9a1ebc9"
+    },
+    "original_input_classes": {
+      "api/Port.class": "2c33f84215425d9e2adcf2156f9b733de66b1044203ed497543beebee0914b03",
+      "base/Owner.class": "da0e37fd0eef0c1961ff4e2d5edd0861fa0bfcc7be6cd4b99794d2378fa9c16f",
+      "caller/Dispatch.class": "2c31302576531f48f26d4987d4ba1c2ff78699ff87060d0c9cb041972b695363",
+      "dyn/First.class": "8ef5e475d3944441ee2438c566d29a2c2d4e4e40310e00bb31470243dfca5472",
+      "dyn/Plain.class": "519cc684769d30f9cd102891db097cbb308462e23f5cc5145f847b3d52f00143",
+      "dyn/Second.class": "dcbf4c4e4fe61b1a4ab4984823a285418ee8d73ade717f4d9c10a5c4bc83a26c",
+      "symbolic/Sub.class": "f5f525b890e8181aa9bea6ac8a40bf3dd608376b483a23d04eafa57808ae8783",
+      "value/K.class": "1d4b3bb4df58f328424a099c2fc27c56a45d1b1233d5302eeefe72bb6e936bf9"
+    },
+    "original_sources": {
+      "api/Port.java": "7878394dc2950486d41f577d6dc70c98f4fd83d58e3c0968141371fa90598553",
+      "base/Owner.java": "9ac0958edd1cd9d8e195d971bae132d3e984686cdc8a21e7402ec63ac4298cb4",
+      "caller/Dispatch.java": "f8621a00c0f4742f5997dc1d1675206f3d530c346bafc800380b85bcfb6e5e07",
+      "dyn/First.java": "bc05ba913f2aba61f2ba81e881224f7f9e5b8ebfc3501a705c88eb09476a4266",
+      "dyn/Plain.java": "a115c1307eb34eb5648113ca3d861243464bf2c32530d9863168faf0b938202f",
+      "dyn/Second.java": "f0388494b30c005647a20aacb51d5b50ee23d71d073f65a51ed50c468c7cbb8d",
+      "symbolic/Sub.java": "07f26a7253416a4862fbe7d07bcd438c526b159e88dc215bce86deb085c94e60",
+      "value/K.java": "308c351e954cccb1869c2f9faeb6384207fcfaa4d05f3f672dc59a8549bb2db3"
+    },
+    "shared_driver_source_sha256": "d2c5a389a6a177ed84a0c55ff56280d85fdbebfff7f17ae6f331e796b76be97a"
+  },
+  "field-method-order": {
+    "driver_source_sha256": "194844b1505f79041a05d37cf76fee3e81eaefc8019b3c858e6311ac7b620627",
+    "observations": {
+      "openj9": "fc72847a60d046860615161b5a1a8b635788c3ccad1ab257185d49f5dbb62758",
+      "zulu": "ee30a34356807b3bd8395e77f634f617e00a48297a100a14bd5b2f596d5e4024"
+    },
+    "original_driver_classes": {
+      "LoadingConstraintProbe$Domain.class": "b4c775aabfff34c30c6941f9afed2aa5bb8ef0bce52b459403a58bc7f279ff86",
+      "LoadingConstraintProbe$Stage.class": "8a6fe62af60d77e60bab3c81d7d890883bd42c21de11341d65e8e7004bba607c",
+      "LoadingConstraintProbe.class": "9be8e5664c025fa8f21e462b13c100cee9e1b65f212e71c064995e42d9a1ebc9",
+      "OrderProbe.class": "6a20b72573a6819f4e939a246a91d722a7089099a18a950f557357dca017aadd"
+    },
+    "original_emitter_sha256": "6bcd8f4b7d4fd07cd6bc4314036d6d4d3e012dde7a25ca1a7a4bf6fef409ad8c",
+    "original_input_classes": {
+      "call/Steps.class": "7229a8a67d89e5a40d33e2a5a1a349c391580acac82a61ffc1aa21e3a01a1910",
+      "owner/Base.class": "dfa86157fe9f1271d54d93d83876f11e78461a7061fda18a1ee3fb199fc914b4",
+      "sym/Sub.class": "9213774438434d5d0089f583fff0ce03c98fd15587edcb935868cfb57eb0385b",
+      "value/K.class": "71281d8132b06bc6c92e6b39d728204db0f4a43529546da12f98910e362920f8"
+    },
+    "original_sources": {},
+    "shared_driver_source_sha256": "d2c5a389a6a177ed84a0c55ff56280d85fdbebfff7f17ae6f331e796b76be97a"
+  },
+  "missing-class": {
+    "driver_source_sha256": "63bfbaadf2f592503bc4efcac548e56394c0fd5a64b15b2b3c6e5af0c0e6af5f",
+    "observations": {
+      "openj9": "d3f7f593268e2be27bdb8c5d6f7b431c8395db0b53a735628f8762852a712871",
+      "zulu": "d3f7f593268e2be27bdb8c5d6f7b431c8395db0b53a735628f8762852a712871"
+    },
+    "original_driver_classes": {
+      "StickyProbe$Gate.class": "52f71f1650ef5aa4ea6c2cec6838659b95fabc7549bec9dc5a5febfc82678d75",
+      "StickyProbe.class": "25065211d853ede78aa664884d5296c302536165aa825fdaa7213743474b29e1"
+    },
+    "original_input_classes": {
+      "caller/Fresh.class": "32cd3d791e93af69cacf12f15851ef27154136040d0002da14053fe27a62ddd8",
+      "caller/Sticky.class": "faf583d0e238a0428b9c76e15dc5d8ba3cceaf4c12be3d71c99d48c3c0f0d8a2",
+      "owner/Late.class": "593ca81b8de61caac0b7ecb543e2f2a992b4d5101325ae77dcd3c2e71b32a96a"
+    },
+    "original_sources": {
+      "caller/Fresh.java": "33271990e0d1e51c90f0edcb242520789246c3533d28680a161fdfa0b2afd1af",
+      "caller/Sticky.java": "2a62d6121d994ba9d5d97242d27f0fd8601b89c7b94a08b345c78ea9cbeb7479",
+      "owner/Late.java": "8aa352fdee017a797c685b5c54bf42a81c5e5e80b8ae870f009ee9e6c9fb5706"
+    },
+    "shared_driver_source_sha256": null
+  },
+  "ordinary": {
+    "driver_source_sha256": "ef16c16bbd735b3520241945a5cbb2af54e8fb0b55087fcd1a6899cdf86f1c23",
+    "observations": {
+      "openj9": "6144efb97293a80e727ac1b936db14f4eefe3120033e288f7a3d676e167edd2c",
+      "zulu": "2abd1b5ae0803ce959f6dc532104e0f1bb07802afabe883f6fa71ce69864a910"
+    },
+    "original_driver_classes": {
+      "LoadingConstraintProbe$Domain.class": "b4c775aabfff34c30c6941f9afed2aa5bb8ef0bce52b459403a58bc7f279ff86",
+      "LoadingConstraintProbe$Stage.class": "8a6fe62af60d77e60bab3c81d7d890883bd42c21de11341d65e8e7004bba607c",
+      "LoadingConstraintProbe.class": "9be8e5664c025fa8f21e462b13c100cee9e1b65f212e71c064995e42d9a1ebc9",
+      "Resolution.class": "c912c95e08f738b28ea4035365f5dfd3761ad9538a8def2a9416f601bfe42221"
+    },
+    "original_input_classes": {
+      "base/Declarer.class": "d458308efab511ebe280ca429aaba97b58986e89f17432508623f8681fc7a5b4",
+      "caller/Probe.class": "5f6eb77712c1d5249857e4ee52342520a68850133e5623dbccb6c54ac8c41a32",
+      "symbolic/Sub.class": "e5809a49dff4c207ee6a5418b484a4c1cf588dc2f0979a9869d8123a49b29037",
+      "value/K.class": "a28cdead08085847cbb816e49a9a08c8963188ddbef2852966025570e04083c9"
+    },
+    "original_sources": {
+      "base/Declarer.java": "0525c658426e3418e09358127cc0ee44ff2b6ff195705617a13b3683cd51561d",
+      "caller/Probe.java": "61f63f2217d6f92ed141ae41978a0fd76bc58633ac4595510bbdd5fde7784369",
+      "symbolic/Sub.java": "8825c638fb4fea8a681ecb4cc94a9aef4f430f132fc1f7ea5cb1f47fe7574e17",
+      "value/K.java": "95d44d709ce45ba908967c67b70c002dcdbfda9e3491a0702d476b97f2a4513b"
+    },
+    "shared_driver_source_sha256": "d2c5a389a6a177ed84a0c55ff56280d85fdbebfff7f17ae6f331e796b76be97a"
+  },
+  "signature-order": {
+    "driver_source_sha256": "5ee68a6fc16bfa09eb2dab94bee9e2c3bb6975038399f66fdfb5518aaeef1105",
+    "observations": {
+      "openj9": "f693fb240076fcd8404b17105bea89dabf80d5572f91ddcda04d2c809a02091f",
+      "zulu": "f693fb240076fcd8404b17105bea89dabf80d5572f91ddcda04d2c809a02091f"
+    },
+    "original_driver_classes": {
+      "LeafProbe.class": "27ef5052bcafa9cf27a8b45b2def0ddeafd642709509a59469ee32c2a0b10510",
+      "LoadingConstraintProbe$Domain.class": "b4c775aabfff34c30c6941f9afed2aa5bb8ef0bce52b459403a58bc7f279ff86",
+      "LoadingConstraintProbe$Stage.class": "8a6fe62af60d77e60bab3c81d7d890883bd42c21de11341d65e8e7004bba607c",
+      "LoadingConstraintProbe.class": "9be8e5664c025fa8f21e462b13c100cee9e1b65f212e71c064995e42d9a1ebc9"
+    },
+    "original_emitter_sha256": "d30edc8a1fac8f411f88b1ee4ae573acd997ff5c2ea7a4751c3fd0bf5607b1fa",
+    "original_input_classes": {
+      "call/Steps.class": "a7f8b7c7ea6db756b524d9b645d0534e9555aeb6255860a9aa5fbba953a3fdf6",
+      "owner/Base.class": "78d7b6cbd92cf33e6d03b8f27c6a7d24514b5c82073b8fafcb29584bb3cf073e",
+      "sym/Sub.class": "9213774438434d5d0089f583fff0ce03c98fd15587edcb935868cfb57eb0385b",
+      "value/P.class": "0029896c3aec283b3d9bcd69a3140b2ceac2b29a8a55d497c21d92a0d0d62ece",
+      "value/Q.class": "1a1454442f83f59480b434ec7ebd39e5345b61c06d6bec631f2fb3dd834930a4"
+    },
+    "original_sources": {},
+    "shared_driver_source_sha256": "d2c5a389a6a177ed84a0c55ff56280d85fdbebfff7f17ae6f331e796b76be97a"
+  }
+}

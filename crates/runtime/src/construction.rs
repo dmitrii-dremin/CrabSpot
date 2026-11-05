@@ -21,6 +21,7 @@ pub enum ConstructorFieldReceiverKind {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ConstructionJavaError {
+    LinkageError,
     NoSuchMethod,
     NoSuchField,
     IllegalAccess,
@@ -84,6 +85,7 @@ impl From<MethodAccessError> for ConstructionAccessError {
     fn from(error: MethodAccessError) -> Self {
         use ConstructionJavaError as J;
         match error {
+            MethodAccessError::Java(MethodJavaError::LinkageError) => Self::Java(J::LinkageError),
             MethodAccessError::Java(MethodJavaError::NoSuchMethod) => Self::Java(J::NoSuchMethod),
             MethodAccessError::Java(MethodJavaError::IllegalAccess) => Self::Java(J::IllegalAccess),
             MethodAccessError::Java(MethodJavaError::IncompatibleClassChange) => {
@@ -98,6 +100,7 @@ impl From<FieldAccessError> for ConstructionAccessError {
     fn from(error: FieldAccessError) -> Self {
         use ConstructionJavaError as J;
         match error {
+            FieldAccessError::Java(FieldJavaError::LinkageError) => Self::Java(J::LinkageError),
             FieldAccessError::Java(FieldJavaError::NoSuchField) => Self::Java(J::NoSuchField),
             FieldAccessError::Java(FieldJavaError::IllegalAccess) => Self::Java(J::IllegalAccess),
             FieldAccessError::Java(FieldJavaError::IncompatibleClassChange) => {

@@ -1,4 +1,31 @@
-# Current checkpoint: initiating loaders and preparation constraints
+# Current checkpoint: member resolution during execution
+
+The technical director approved checked member resolution on 2026-11-05. The interpreter now resolves ordinary field and method references against the loader records of the referring class. When a field or method is inherited, its declaring loader supplies the other side of the signature agreement. A later call can reuse that result and select a different overriding body for its receiver. [Implementation contract](../architecture/m2-resolution-constraints.md) and [reference observations and limitations](../architecture/m2-member-resolution-reference.md).
+
+- The 7 coordinator execution groups cover original compiled callers, raw mismatched instructions, actual receiver identities, late delegation, missing initiating records and the side effects preceding an interrupted write.
+- The full native gate passed 44 commands, including 1,265 debug workspace tests, 1,178 optimized tests, two example boundary tests, 21 Python tool tests and all 93 source hashes. The fresh 10,000-input parser smoke reported 86 accepted, 9,914 rejected and zero failures. [Review and reproduction](../architecture/m2-resolution-constraints-review.md)
+- Both reference VMs reproduced their own 119 observations. Comparing complete rows between the two VMs gives 97 identical rows and 22 differences.
+- The local Zulu 21.0.7 archive supplied 7,519 ordinary definitions. Verification covered 61,708 Code bodies and 4,685 bodyless declarations. One heap admitted all 7,519 layout graphs and opened with a preparation witness for each definition, zero terminal CP sites and zero allocated Java objects. Its 10,935 distinct graph edges and 11,927 instance fields fit explicit corpus limits of 16,384 classes, 131,072 edges and 262,144 fields. The checked opening consumed 1,343,610 work units, 1,199,394 UTF-16 units and zero scratch entries.
+- The expanded parser campaign started with 522 input classes. In 300 seconds at seed 4851011501752864596 it accepted 417,980 of 18,683,667 cases, rejected 18,265,687, repeated 18,246 deterministic checks and retained 1,024 cases with zero recorded failures.
+
+Reproduce from a Java 21 HotSpot JDK and Rust toolchain using the commands below. The two optional OpenJ9 comparisons take the Java executable for the release in the corresponding manifests.
+
+```text
+cargo fmt --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+cargo test -p crabspot-verifier -p crabspot-runtime -p crabspot-interpreter --release --locked
+python -m unittest discover -s tools -p test_member_resolution_reference.py
+python tools/member_resolution_reference.py --check
+python tools/member_resolution_reference.py --check --compare-openj9 PATH_TO_JAVA
+python tools/loading_constraint_reference.py --check --compare-openj9 PATH_TO_JAVA
+cargo test -p crabspot-verifier --example verify_java_base --locked
+python tools/verify_java_base.py
+cargo test -p crabspot-classfile --example fuzz_parser --locked
+cargo run -p crabspot-classfile --example fuzz_parser --locked -- tests/fixtures --iterations 10000
+```
+
+## Prior checkpoint: initiating loaders and preparation constraints
 
 CrabSpot now records which loaders initiated each ordinary class. When
 preparation requires two loaders to agree on a signature type, the runtime

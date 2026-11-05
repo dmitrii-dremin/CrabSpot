@@ -26,6 +26,7 @@ impl Default for FieldResolutionOptions {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FieldJavaError {
+    LinkageError,
     NoSuchField,
     IllegalAccess,
     IncompatibleClassChange,
@@ -45,6 +46,7 @@ pub struct ReferenceFieldMismatch {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FieldAccessError {
+    MemberResolution(Box<crate::MemberResolutionError>),
     Java(FieldJavaError),
     Registry(RegistryError),
     Instance(InstanceError),
@@ -95,6 +97,7 @@ pub enum FieldAccessError {
 impl fmt::Display for FieldAccessError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::MemberResolution(error) => error.fmt(f),
             Self::Java(error) => write!(f, "field access failed: {error:?}"),
             Self::Registry(error) => write!(f, "field registry operation failed: {error}"),
             Self::Instance(error) => write!(f, "field instance operation failed: {error}"),
@@ -165,6 +168,7 @@ impl fmt::Display for FieldAccessError {
 impl std::error::Error for FieldAccessError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::MemberResolution(error) => Some(error.as_ref()),
             Self::Registry(error) => Some(error),
             Self::Instance(error) => Some(error),
             Self::ReferenceType(error) => Some(error.as_ref()),
@@ -229,7 +233,10 @@ fn increased(
         Ok(required)
     }
 }
-fn step(steps: &mut usize, options: FieldResolutionOptions) -> Result<(), FieldAccessError> {
+pub(crate) fn step(
+    steps: &mut usize,
+    options: FieldResolutionOptions,
+) -> Result<(), FieldAccessError> {
     *steps = increased(
         *steps,
         1,
@@ -289,26 +296,51 @@ struct Symbol<'a> {
     name: &'a JavaString,
     descriptor: &'a JavaString,
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Selected {
     pub(crate) symbolic_owner: ClassId,
     pub(crate) field: FieldId,
-    protected_receiver: Option<ClassId>,
+    pub(crate) protected_receiver: Option<ClassId>,
 }
 
 /// A reusable access context. It neither loads definitions nor changes lifecycle state.
 pub struct FieldResolutionContext<'a> {
-    registry: &'a DefinitionRegistry,
-    heap: &'a mut ManagedHeap,
-    resolver: &'a mut dyn HierarchyResolver,
-    options: FieldResolutionOptions,
+    pub(crate) registry: &'a DefinitionRegistry,
+    pub(crate) heap: &'a mut ManagedHeap,
+    resolver: Option<&'a mut dyn HierarchyResolver>,
+    pub(crate) member: Option<crate::loading::member::Authority<'a>>,
+    pub(crate) options: FieldResolutionOptions,
     bindings: Bindings<'a>,
     units: usize,
-    steps: usize,
+    pub(crate) steps: usize,
     admitted_classes: usize,
     heap_identity: u64,
     reference_universe: Option<crate::ReferenceTypeUniverse>,
 }
 impl<'a> FieldResolutionContext<'a> {
+    pub(crate) fn from_member_parts(
+        registry: &'a DefinitionRegistry,
+        heap: &'a mut ManagedHeap,
+        authority: crate::loading::member::Authority<'a>,
+        options: FieldResolutionOptions,
+    ) -> Self {
+        let admitted_classes = heap.retained_layout_classes();
+        let heap_identity = heap.identity;
+        let reference_universe = heap.reference_type_universe();
+        Self {
+            registry,
+            heap,
+            resolver: None,
+            member: Some(authority),
+            options,
+            bindings: HashMap::new(),
+            units: 0,
+            steps: 0,
+            admitted_classes,
+            heap_identity,
+            reference_universe,
+        }
+    }
     pub fn new_unnamed_modules(
         registry: &'a DefinitionRegistry,
         heap: &'a mut ManagedHeap,
@@ -399,7 +431,8 @@ impl<'a> FieldResolutionContext<'a> {
         Ok(Self {
             registry,
             heap,
-            resolver,
+            resolver: Some(resolver),
+            member: None,
             options,
             bindings,
             units,
@@ -502,6 +535,9 @@ impl<'a> FieldResolutionContext<'a> {
         origin: ClassId,
         name: &'a [u16],
     ) -> Result<ClassId, FieldAccessError> {
+        if self.member.is_some() {
+            return self.member_type_name(origin, name);
+        }
         let loader = self.registry.defining_loader(origin)?;
         if let Some(class) = self.bindings.get(&(loader, name)) {
             return Ok(*class);
@@ -520,6 +556,8 @@ impl<'a> FieldResolutionContext<'a> {
         )?;
         let class = self
             .resolver
+            .as_deref_mut()
+            .ok_or(FieldAccessError::InvalidState("legacy resolver absent"))?
             .resolve(self.registry, loader, name)
             .map_err(|error| FieldAccessError::Resolve {
                 origin,
@@ -670,11 +708,41 @@ impl<'a> FieldResolutionContext<'a> {
         self.registry.class(origin)?;
         self.heap.instance_graph_node(origin)?;
         let symbol = self.symbol(origin, index)?;
+        if self.is_member_checked() {
+            let ticket = match self.member_begin(origin, index)? {
+                Ok(value) => return crate::loading::member::field_hit(value),
+                Err(ticket) => ticket,
+            };
+            let mut owner = None;
+            let result = (|| {
+                let class = self.resolve_owner(origin, symbol.owner)?;
+                owner = Some(class);
+                let selected = self.select_owner(origin, &symbol, class)?;
+                if !self.member_emit(
+                    origin,
+                    selected.field.owner(),
+                    symbol.descriptor.units(),
+                    true,
+                )? {
+                    return Err(FieldAccessError::Java(FieldJavaError::LinkageError));
+                }
+                Ok(selected)
+            })();
+            return self.member_finish_field(ticket, owner, result);
+        }
         let owner = self.resolve_owner(origin, symbol.owner)?;
+        self.select_owner(origin, &symbol, owner)
+    }
+    fn select_owner(
+        &mut self,
+        origin: ClassId,
+        symbol: &Symbol<'a>,
+        owner: ClassId,
+    ) -> Result<Selected, FieldAccessError> {
         if self.registry.class(owner)?.access_flags & 1 == 0 && !self.same_package(origin, owner)? {
             return Err(FieldAccessError::Java(FieldJavaError::IllegalAccess));
         }
-        let field = self.lookup(owner, &symbol)?;
+        let field = self.lookup(owner, symbol)?;
         let member = self.registry.field(field)?;
         let flags = member.access_flags;
         let declaring = field.owner();
@@ -682,6 +750,11 @@ impl<'a> FieldResolutionContext<'a> {
         if flags & 1 != 0 { /* public */
         } else if flags & 2 != 0 {
             if origin != declaring {
+                // Nest membership requires the same runtime package. Checked
+                // mode can prove this denial without claiming nest support.
+                if self.is_member_checked() && !self.same_package(origin, declaring)? {
+                    return Err(FieldAccessError::Java(FieldJavaError::IllegalAccess));
+                }
                 return Err(FieldAccessError::UnsupportedNestAccess {
                     origin,
                     owner: declaring,
@@ -702,13 +775,14 @@ impl<'a> FieldResolutionContext<'a> {
         } else if !self.same_package(origin, declaring)? {
             return Err(FieldAccessError::Java(FieldJavaError::IllegalAccess));
         }
-        if symbol
-            .descriptor
-            .units()
-            .iter()
-            .copied()
-            .find(|unit| *unit != 91)
-            == Some(76)
+        if !self.is_member_checked()
+            && symbol
+                .descriptor
+                .units()
+                .iter()
+                .copied()
+                .find(|unit| *unit != 91)
+                == Some(76)
             && self.registry.defining_loader(origin)? != self.registry.defining_loader(declaring)?
         {
             return Err(FieldAccessError::UnsupportedLoadingConstraint {

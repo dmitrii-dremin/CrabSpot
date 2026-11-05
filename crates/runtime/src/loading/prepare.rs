@@ -9,7 +9,7 @@ struct View<'a> {
     loader: LoaderId,
     package: &'a [u16],
 }
-struct Facts<'a> {
+pub(super) struct Facts<'a> {
     views: Vec<View<'a>>,
     index: HashMap<ClassId, usize>,
     root: ClassId,
@@ -115,7 +115,7 @@ fn same_package(a: &View<'_>, b: &View<'_>, work: &mut Work) -> Result<bool> {
     }
     equal(work, a.package, b.package)
 }
-fn preflight<'a>(
+pub(super) fn preflight<'a>(
     registry: &'a DefinitionRegistry,
     ledger: &Ledger,
     work: &mut Work,
@@ -383,7 +383,7 @@ fn leaf(
         }
     })
 }
-fn declared(
+pub(super) fn declared(
     registry: &DefinitionRegistry,
     facts: &Facts<'_>,
     ledger: &mut Ledger,
@@ -558,7 +558,7 @@ fn choose<'a>(
     }
     Ok(selected)
 }
-fn inherited(
+pub(super) fn inherited(
     registry: &DefinitionRegistry,
     facts: &Facts<'_>,
     ledger: &mut Ledger,

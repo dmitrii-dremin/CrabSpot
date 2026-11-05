@@ -37,6 +37,7 @@ fn observed(outcome: ExecutionOutcome) -> String {
         | ExecutionOutcome::IncompatibleClassChangeError
         | ExecutionOutcome::NoSuchMethodError
         | ExecutionOutcome::AbstractMethodError
+        | ExecutionOutcome::LinkageError
         | ExecutionOutcome::ClassCastException
         | ExecutionOutcome::ArrayStoreException) => {
             panic!("numeric call fixture unexpectedly raised array exception: {unexpected:?}")

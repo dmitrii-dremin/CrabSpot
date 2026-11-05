@@ -293,6 +293,9 @@ impl<'a> FieldResolutionContext<'a> {
         })?;
         let actual = self.heap().instance_class(receiver)?;
         self.require_method_receiver(actual, method.owner())?;
+        if self.is_member_checked() {
+            return Ok(());
+        }
         self.audit_reference_method(method, actual)
     }
     fn audit_reference_method(&mut self, method: MethodId, actual: ClassId) -> Result<(), E> {

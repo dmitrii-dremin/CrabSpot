@@ -367,7 +367,8 @@ a bound universe and valid source identity, then resolve the selected declaring
 field's immutable descriptor using its defining loader and apply the shared
 assignment relation. An accessible field may have a type inaccessible to the
 caller; descriptor identity resolution adds no cast-style caller-access check.
-The existing cross-loader nominal loading-constraint boundary remains in place.
+Legacy contexts retain the conservative cross-loader nominal boundary. A checked
+loading-domain context instead enforces the agreements described below.
 
 Successful writes store the exact handle, allowing self-links, aliases, cycles,
 overwrite and null clearing. Retrieved values can feed locals, casts, field/array
@@ -509,7 +510,7 @@ reference profile and argument validation. Static helpers prepare/reserve/extrac
 before their profile and argument checks. Arguments consume their usual slots:
 Long/Double two, references one, receiver local zero only for instance bodies.
 
-The bounded nominal-reference profile requires the origin and resolved declarer to
+Legacy contexts without a checked loading domain require the origin and resolved declarer to
 share a defining loader, then audits the selected signature's receiver closure for
 matching declarations under different loaders. This includes intermediate, private
 and static declarations and may conservatively reject legal non-overrides. These
@@ -600,7 +601,7 @@ context policy. Handler installation and search do not consume instruction fuel;
 entered handler still requires fuel for its next instruction. Existing frame,
 slot and prepared-Code policies retain their meaning.
 
-VM exception production remains unsupported in this profile. All eleven existing
+VM exception production remains unsupported in this profile. All supported
 VM-produced categories, including the method-selection routes and a direct typed
 catch access failure, become `UnsupportedVmException` host errors. Null `athrow`
 likewise requires unsupported NullPointerException production. A catch-all cannot
@@ -740,7 +741,7 @@ are searched; an initializer that catches a dependent Error can still complete.
 including duplicate aliases. An escaping other Throwable produces the host
 UnsupportedInitializerWrapping result; no wrapper is fabricated. Later uses of
 Erroneous records return UnsupportedNoClassDefFoundError, and Aborted records
-return InitializationAborted without retry. All eleven VM-produced categories
+return InitializationAborted without retry. All supported VM-produced categories
 remain UnsupportedVmException before handler search, including null athrow and
 direct selection failures. Only direct InitializationAccessError::Java maps to
 that policy; nested Static/Exception/Context errors remain structured host errors.
@@ -778,7 +779,7 @@ the original same-class resolver, numeric descriptors, errors and budgets.
 
 Methodref and version-52-or-later InterfaceMethodref carry the caller's immutable
 CP spelling. The context checks owner identity/kind, ordinary name/descriptor,
-access and conservative loading constraints, then static category. Class lookup
+access and the context's loading-constraint policy, then static category. Class lookup
 can find inherited declarations; an eligible instance/default/abstract result
 produces IncompatibleClassChangeError rather than being bypassed for a static
 ancestor. Interface static methods must actually be declared by the symbolic
@@ -793,16 +794,17 @@ pops. A cache miss then prepares the actual owner's Code as ordinary Static,
 retaining native/abstract/synchronized/special-name exclusions and eager decoding.
 Every cache hit still checks initializer/static eligibility. The cache key is the
 full MethodId, so aliases and inherited symbolic owners share Code preparation,
-while distinct defining identities remain distinct. Every call repeats its
-origin-sensitive resolution/access/loading work and value checks; the prepared
-cache is not an authorization or runtime-constant-pool cache.
+while distinct defining identities remain distinct. Legacy contexts repeat origin-sensitive resolution/access/loading work on every
+call. Checked loading-domain contexts reuse their persistent symbolic resolution;
+per-use category, selection and value checks remain. The prepared Code cache is
+separate from either policy.
 
 After preparation and reservation, arguments are reverse-popped in the prepared
 computational shape, restored to descriptor order and checked against the actual
 declaring method. There is no receiver or local-zero displacement. Shapes retain
-only kinds and compact return tags. Nominal caller/declarer signatures require
-one defining loader even for eventual null arguments; primitive-leaf array
-signatures do not impose that conservative boundary. Value assignment and areturn
+only kinds and compact return tags. Legacy nominal caller/declarer signatures require one defining loader even for
+eventual null arguments; primitive-leaf array signatures do not impose that
+conservative boundary. Checked contexts impose actual-declarer agreements instead. Value assignment and areturn
 use the selected declarer's loader without extra caller access checks on hidden
 descriptor types. Raw float/double representations, reference identities,
 category-two locals and subword return narrowing retain their established rules.
@@ -825,8 +827,9 @@ handler search. Nested Java-shaped Context/Type failures remain boxed MethodAcce
 host errors. Diagnostics keep caller resolution/pops at the invoke site, target
 preparation/return failures at the real target and actual caller transition origins.
 Static resolution alone adds no constructor execution. Native binding, monitors,
-String materialization, VM exception construction, complete loading constraints,
-persistent resolution/failure caching and Java startup remain outside that scope.
+String materialization, VM exception construction, a general loading lifecycle and
+Java startup remain outside that scope. Persistent member resolution is separately
+opted into through the checked loading domain below.
 
 
 ## Session allocation and constructors
@@ -924,3 +927,58 @@ complete loading constraints, Java library bootstrap or startup are added. Heap
 children/static roots expose lawful ordinary writes; retained_roots still enumerates
 initialization-failure causes. Transient frame tokens are conceptual roots, but no
 complete active-frame GC root API or collector is claimed.
+
+
+## Checked loading-domain member resolution
+
+A context returned by `LoadingDomain::member_context_unnamed_modules` uses the
+same engine and entry points. Enable the domain's member store, obtain its
+`prepare_member_owner` evidence for every heap-admitted class, then open a checked
+context. Preparation evidence is separate from verification, initialization and
+ordinary `prepare_constraints`. Opening validates the complete admitted graph and
+its actual initiating records before execution; an implied equality is not a
+loaded-class lookup. The context holds the exclusive domain borrow. Missing host
+bindings/layouts can be supplied only after it is dropped, followed by a fresh
+checked context. The single-session permanent initialization claim is unchanged.
+
+A persistent member key is the actual containing ClassId and CP index. It does not
+include caller method, instruction, receiver, heap or selected body. Successful
+resolution retains the symbolic owner, actual declaration and access qualifier.
+Descriptor leaves constrain the containing and actual declaring loaders, in
+parameter order then return order. The symbolic subclass's unrelated binding is
+not constrained. Null arguments/results still require resolution agreements but do
+not force their signature types to load. Runtime value checks use the actual body
+and declaring field identities. Preparation supplies ordinary overriding/default
+agreements; a selected declaration outside those agreements needs an existing
+relation or identical actual bindings, otherwise `UnprovenSelection` remains a
+retryable host failure. It never invents another equality.
+
+The same CP success can precede null/category/protected-receiver/final-write,
+selection, argument, body-preparation or initialization failure. All these checks
+remain per use; warm virtual/interface calls can select different bodies. An
+inherited static member initializes its actual declarer only. Constructor lookup
+may resolve an ancestor before the instruction rejects its symbolic-owner mismatch.
+Legacy standalone/heap APIs and unbacked contexts retain their original gates and
+conservative nominal/override restrictions. No new opcode or execution loop is added.
+
+Only direct resolution constraint conflicts emit the additive symbolic
+`ExecutionOutcome::LinkageError`. Supplied-Throwable and initialization profiles
+report `UnsupportedVmException(VmExceptionKind::LinkageError)` without searching
+handlers or fabricating a Java exception. Nested Java-shaped host errors remain
+host errors. Missing prerequisites or interrupted resource work leave the site
+vacant while preserving earlier agreements and heap effects. Direct permanent
+resolution errors are cached by category. Warm Java failures replay even on a
+smaller checked heap; warm successes still require the symbolic and declaring
+layouts. No Java Throwable identity, Class-CP load-failure persistence, classpath
+callback, module/nest implementation or complete lifecycle is claimed.
+
+Member sites and prepared witnesses have inclusive domain-lifetime quotas; the
+loading work meter is cumulative per context. A field CP warm hit adds exactly one
+loading Work and no new descriptor traversal, UTF span or scratch. Existing
+per-use lookup, selected-signature, assignment and interpreter budgets still apply.
+The checked path does not populate the legacy local symbol memoizer. Independent
+public tests pin cold/warm/duplicate-site behavior, prefix retention and host repair,
+protected and private access, read-only E/S repair, smaller heaps, exact opening
+and quota limits, a 65,535-unit descriptor, many equal CP slots and a deep graph.
+Actual bytecode tests cover normal/supplied-throw/session paths and prior effects;
+private mapper tests preserve direct-only error projection.

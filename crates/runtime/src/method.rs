@@ -15,6 +15,7 @@ use std::{
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MethodJavaError {
+    LinkageError,
     NoSuchMethod,
     IllegalAccess,
     IncompatibleClassChange,
@@ -23,6 +24,7 @@ pub enum MethodJavaError {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MethodAccessError {
+    MemberResolution(Box<crate::MemberResolutionError>),
     Java(MethodJavaError),
     Context(FieldAccessError),
     Type(Box<TypeAccessError>),
@@ -75,6 +77,7 @@ pub enum MethodAccessError {
 impl fmt::Display for MethodAccessError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::MemberResolution(error) => error.fmt(f),
             Self::Java(error) => write!(f, "method access failed: {error:?}"),
             Self::Context(error) => write!(f, "method context failed: {error}"),
             Self::Type(error) => write!(f, "method reference type validation failed: {error}"),
@@ -147,6 +150,7 @@ impl fmt::Display for MethodAccessError {
 impl std::error::Error for MethodAccessError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::MemberResolution(error) => Some(error.as_ref()),
             Self::Context(error) => Some(error),
             Self::Type(error) => Some(error.as_ref()),
             _ => None,
@@ -201,10 +205,11 @@ struct Symbol<'a> {
     descriptor: &'a JavaString,
     nominal: bool,
 }
-struct Resolved {
-    owner: ClassId,
-    method: MethodId,
-    protected_receiver: Option<ClassId>,
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Resolved {
+    pub(crate) owner: ClassId,
+    pub(crate) method: MethodId,
+    pub(crate) protected_receiver: Option<ClassId>,
 }
 #[derive(Clone, Copy)]
 struct Candidate {
@@ -346,7 +351,7 @@ impl<'a> FieldResolutionContext<'a> {
         let symbol = self
             .read_method_symbol(origin, index, false, false, true)?
             .0;
-        let resolved = self.resolve_method_common(origin, &symbol, false)?;
+        let resolved = self.resolve_method_common(origin, index, &symbol, false)?;
         Ok((resolved.owner, resolved.method))
     }
     pub fn instance_invocation_shape(
@@ -575,10 +580,11 @@ impl<'a> FieldResolutionContext<'a> {
     fn resolve_method(
         &mut self,
         origin: ClassId,
+        index: u16,
         symbol: &Symbol<'a>,
         interface: bool,
     ) -> Result<Resolved, MethodAccessError> {
-        let resolved = self.resolve_method_common(origin, symbol, interface)?;
+        let resolved = self.resolve_method_common(origin, index, symbol, interface)?;
         if self.registry().method(resolved.method)?.access_flags & 8 != 0 {
             return Err(MethodAccessError::Java(
                 MethodJavaError::IncompatibleClassChange,
@@ -591,10 +597,42 @@ impl<'a> FieldResolutionContext<'a> {
     fn resolve_method_common(
         &mut self,
         origin: ClassId,
+        index: u16,
         symbol: &Symbol<'a>,
         interface: bool,
     ) -> Result<Resolved, MethodAccessError> {
+        if self.is_member_checked() {
+            let ticket = match self.member_begin(origin, index)? {
+                Ok(value) => return crate::loading::member::method_hit(value),
+                Err(ticket) => ticket,
+            };
+            let mut owner = None;
+            let result = (|| {
+                let class = self.resolve_owner(origin, symbol.owner)?;
+                owner = Some(class);
+                let resolved = self.resolve_method_owner(origin, symbol, interface, class)?;
+                if !self.member_emit(
+                    origin,
+                    resolved.method.owner(),
+                    symbol.descriptor.units(),
+                    false,
+                )? {
+                    return Err(MethodAccessError::Java(MethodJavaError::LinkageError));
+                }
+                Ok(resolved)
+            })();
+            return self.member_finish_method(ticket, owner, result);
+        }
         let owner = self.resolve_owner(origin, symbol.owner)?;
+        self.resolve_method_owner(origin, symbol, interface, owner)
+    }
+    fn resolve_method_owner(
+        &mut self,
+        origin: ClassId,
+        symbol: &Symbol<'a>,
+        interface: bool,
+        owner: ClassId,
+    ) -> Result<Resolved, MethodAccessError> {
         if self.registry().class(owner)?.access_flags & 1 == 0
             && !self.same_package(origin, owner)?
         {
@@ -657,6 +695,11 @@ impl<'a> FieldResolutionContext<'a> {
         if flags & 1 != 0 { /* public */
         } else if flags & 2 != 0 {
             if origin != declaring {
+                // Nest membership requires the same runtime package. Checked
+                // mode can prove this denial without claiming nest support.
+                if self.is_member_checked() && !self.same_package(origin, declaring)? {
+                    return Err(MethodAccessError::Java(MethodJavaError::IllegalAccess));
+                }
                 return Err(MethodAccessError::UnsupportedNestAccess {
                     origin,
                     owner: declaring,
@@ -677,7 +720,8 @@ impl<'a> FieldResolutionContext<'a> {
         } else if !self.same_package(origin, declaring)? {
             return Err(MethodAccessError::Java(MethodJavaError::IllegalAccess));
         }
-        if symbol.nominal
+        if !self.is_member_checked()
+            && symbol.nominal
             && self.registry().defining_loader(origin)?
                 != self.registry().defining_loader(declaring)?
         {
@@ -705,7 +749,7 @@ impl<'a> FieldResolutionContext<'a> {
             _ => return Err(MethodAccessError::InvalidConstant { origin, index }),
         };
         let symbol = self.method_symbol(origin, index, interface)?;
-        let resolved = self.resolve_method_common(origin, &symbol, interface)?;
+        let resolved = self.resolve_method_common(origin, index, &symbol, interface)?;
         if self.registry().method(resolved.method)?.access_flags & 8 == 0 {
             return Err(MethodAccessError::Java(
                 MethodJavaError::IncompatibleClassChange,
@@ -930,7 +974,7 @@ impl<'a> FieldResolutionContext<'a> {
             _ => return Err(MethodAccessError::InvalidConstant { origin, index }),
         };
         let symbol = self.method_symbol(origin, index, interface)?;
-        let resolved = self.resolve_method(origin, &symbol, interface)?;
+        let resolved = self.resolve_method(origin, index, &symbol, interface)?;
         let start = self.special_start(origin, resolved.owner)?;
         if receiver.is_null() {
             return Err(MethodAccessError::Java(MethodJavaError::NullPointer));
@@ -943,6 +987,13 @@ impl<'a> FieldResolutionContext<'a> {
         if self.registry().method(selected)?.access_flags & 0x400 != 0 {
             return Err(MethodAccessError::Java(MethodJavaError::AbstractMethod));
         }
+        self.member_selected(
+            origin,
+            index,
+            resolved.method,
+            selected,
+            symbol.descriptor.units(),
+        )?;
         self.selected_reference_profile(selected, &symbol, receiver)?;
         Ok(selected)
     }
@@ -983,7 +1034,7 @@ impl<'a> FieldResolutionContext<'a> {
         self.registry().class(origin)?;
         self.heap().instance_graph_node(origin)?;
         let symbol = self.method_symbol(origin, index, interface)?;
-        let resolved = self.resolve_method(origin, &symbol, interface)?;
+        let resolved = self.resolve_method(origin, index, &symbol, interface)?;
         if receiver.is_null() {
             return Err(MethodAccessError::Java(MethodJavaError::NullPointer));
         }
@@ -1015,6 +1066,13 @@ impl<'a> FieldResolutionContext<'a> {
         if flags & 0x400 != 0 {
             return Err(MethodAccessError::Java(MethodJavaError::AbstractMethod));
         }
+        self.member_selected(
+            origin,
+            index,
+            resolved.method,
+            selected,
+            symbol.descriptor.units(),
+        )?;
         self.selected_reference_profile(selected, &symbol, receiver)?;
         Ok(selected)
     }

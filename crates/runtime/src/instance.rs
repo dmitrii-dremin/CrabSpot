@@ -612,6 +612,13 @@ impl ManagedHeap {
             flags: shape.flags,
         })
     }
+    pub(crate) fn instance_graph_contains(&self, class: ClassId) -> Result<bool, InstanceError> {
+        let state = self.instances.as_ref().ok_or(InstanceError::Disabled)?;
+        if state.registry != Some(class.registry) {
+            return Err(InstanceError::ForeignRegistry);
+        }
+        Ok(state.shapes.contains_key(&class))
+    }
     pub fn allocated_instances(&self) -> usize {
         self.instances.as_ref().map_or(0, |s| s.count)
     }

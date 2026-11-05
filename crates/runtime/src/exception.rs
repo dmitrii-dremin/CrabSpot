@@ -43,6 +43,7 @@ impl ThrownException {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum VmExceptionKind {
+    LinkageError,
     ArithmeticException,
     ClassCastException,
     ArrayStoreException,

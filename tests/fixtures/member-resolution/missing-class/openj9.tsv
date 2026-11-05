@@ -1,0 +1,4 @@
+field1	false	NoClassDefFoundError	NoClassDefFoundError	NoClassDefFoundError	NoClassDefFoundError	I:51	1/1/1/1/2
+field1	true	NoClassDefFoundError	NoClassDefFoundError	NoClassDefFoundError	NoClassDefFoundError	I:51	1/2/2/2/2
+method	false	NoClassDefFoundError	NoClassDefFoundError	NoClassDefFoundError	NoClassDefFoundError	I:52	1/1/1/1/2
+method	true	NoClassDefFoundError	NoClassDefFoundError	NoClassDefFoundError	NoClassDefFoundError	I:52	1/2/2/2/2

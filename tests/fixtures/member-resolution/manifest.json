@@ -1,0 +1,282 @@
+{
+  "compiled_drivers": {
+    "DispatchProbe.class": "8ad822919974a38b92057380c00e1d1ff127b04b89f48ea731b59163ec32be79",
+    "LeafProbe.class": "f0935b8d07bce9de4b80a261b9e6dcbea17768dc8d00b11adfb5cbd7f95a1b7a",
+    "LoadingConstraintProbe$Domain.class": "b4c775aabfff34c30c6941f9afed2aa5bb8ef0bce52b459403a58bc7f279ff86",
+    "LoadingConstraintProbe$Stage.class": "8a6fe62af60d77e60bab3c81d7d890883bd42c21de11341d65e8e7004bba607c",
+    "LoadingConstraintProbe.class": "9be8e5664c025fa8f21e462b13c100cee9e1b65f212e71c064995e42d9a1ebc9",
+    "OrderProbe.class": "226c135aa7dda1224f35a9293c6b84e30f544ae38073ed978f9e563e681e658b",
+    "Resolution.class": "2ffaaf56324952c5db84d993807f518a9140d32683d965389d8d61402c4c4da8",
+    "StickyProbe$Gate.class": "530cbc2b7ea26ecce462e4b5aeac1ee40cfa99cea5da702d772504517a23b90c",
+    "StickyProbe.class": "f32a6de8898b451ab23e8064b6333906ae9a265fff77055d15720cbe08706e19"
+  },
+  "compiled_programs": {
+    "dispatch": {
+      "api/Port.class": "2c33f84215425d9e2adcf2156f9b733de66b1044203ed497543beebee0914b03",
+      "base/Owner.class": "da0e37fd0eef0c1961ff4e2d5edd0861fa0bfcc7be6cd4b99794d2378fa9c16f",
+      "caller/Dispatch.class": "2c31302576531f48f26d4987d4ba1c2ff78699ff87060d0c9cb041972b695363",
+      "dyn/First.class": "8ef5e475d3944441ee2438c566d29a2c2d4e4e40310e00bb31470243dfca5472",
+      "dyn/Plain.class": "519cc684769d30f9cd102891db097cbb308462e23f5cc5145f847b3d52f00143",
+      "dyn/Second.class": "dcbf4c4e4fe61b1a4ab4984823a285418ee8d73ade717f4d9c10a5c4bc83a26c",
+      "symbolic/Sub.class": "f5f525b890e8181aa9bea6ac8a40bf3dd608376b483a23d04eafa57808ae8783",
+      "value/K.class": "1d4b3bb4df58f328424a099c2fc27c56a45d1b1233d5302eeefe72bb6e936bf9"
+    },
+    "field-method-order": {
+      "call/Steps.class": "7229a8a67d89e5a40d33e2a5a1a349c391580acac82a61ffc1aa21e3a01a1910",
+      "owner/Base.class": "dfa86157fe9f1271d54d93d83876f11e78461a7061fda18a1ee3fb199fc914b4",
+      "sym/Sub.class": "9213774438434d5d0089f583fff0ce03c98fd15587edcb935868cfb57eb0385b",
+      "value/K.class": "71281d8132b06bc6c92e6b39d728204db0f4a43529546da12f98910e362920f8"
+    },
+    "missing-class": {
+      "caller/Fresh.class": "32cd3d791e93af69cacf12f15851ef27154136040d0002da14053fe27a62ddd8",
+      "caller/Sticky.class": "faf583d0e238a0428b9c76e15dc5d8ba3cceaf4c12be3d71c99d48c3c0f0d8a2",
+      "owner/Late.class": "593ca81b8de61caac0b7ecb543e2f2a992b4d5101325ae77dcd3c2e71b32a96a"
+    },
+    "ordinary": {
+      "base/Declarer.class": "d458308efab511ebe280ca429aaba97b58986e89f17432508623f8681fc7a5b4",
+      "caller/Probe.class": "5f6eb77712c1d5249857e4ee52342520a68850133e5623dbccb6c54ac8c41a32",
+      "symbolic/Sub.class": "e5809a49dff4c207ee6a5418b484a4c1cf588dc2f0979a9869d8123a49b29037",
+      "value/K.class": "a28cdead08085847cbb816e49a9a08c8963188ddbef2852966025570e04083c9"
+    },
+    "signature-order": {
+      "call/Steps.class": "a7f8b7c7ea6db756b524d9b645d0534e9555aeb6255860a9aa5fbba953a3fdf6",
+      "owner/Base.class": "78d7b6cbd92cf33e6d03b8f27c6a7d24514b5c82073b8fafcb29584bb3cf073e",
+      "sym/Sub.class": "9213774438434d5d0089f583fff0ce03c98fd15587edcb935868cfb57eb0385b",
+      "value/P.class": "0029896c3aec283b3d9bcd69a3140b2ceac2b29a8a55d497c21d92a0d0d62ece",
+      "value/Q.class": "1a1454442f83f59480b434ec7ebd39e5345b61c06d6bec631f2fb3dd834930a4"
+    }
+  },
+  "compiler": "javac 21.0.7",
+  "inputs": {
+    "archived_symbols": {
+      "dispatch": {
+        "api/Port.hit:(Lvalue/K;)I": {
+          "index": 13,
+          "opcodes": [
+            "invokeinterface"
+          ],
+          "owner_index": 14,
+          "tag": "InterfaceMethodref"
+        },
+        "symbolic/Sub.hit:(Lvalue/K;)I": {
+          "index": 7,
+          "opcodes": [
+            "invokevirtual"
+          ],
+          "owner_index": 8,
+          "tag": "Methodref"
+        },
+        "symbolic/Sub.slot:Lvalue/K;": {
+          "index": 49,
+          "opcodes": [
+            "getfield"
+          ],
+          "owner_index": 8,
+          "tag": "Fieldref"
+        }
+      },
+      "field-method-order": {
+        "sym/Sub.absent:(Lvalue/K;)V": {
+          "index": 30,
+          "opcodes": [
+            "invokestatic"
+          ],
+          "owner_index": 2,
+          "tag": "Methodref"
+        },
+        "sym/Sub.absent:Lvalue/K;": {
+          "index": 18,
+          "opcodes": [
+            "getstatic"
+          ],
+          "owner_index": 2,
+          "tag": "Fieldref"
+        },
+        "sym/Sub.finalField:Lvalue/K;": {
+          "index": 15,
+          "opcodes": [
+            "putstatic"
+          ],
+          "owner_index": 2,
+          "tag": "Fieldref"
+        },
+        "sym/Sub.instanceCall:(Lvalue/K;)V": {
+          "index": 25,
+          "opcodes": [
+            "invokevirtual",
+            "invokestatic"
+          ],
+          "owner_index": 2,
+          "tag": "Methodref"
+        },
+        "sym/Sub.instanceField:Lvalue/K;": {
+          "index": 9,
+          "opcodes": [
+            "getfield",
+            "getstatic"
+          ],
+          "owner_index": 2,
+          "tag": "Fieldref"
+        },
+        "sym/Sub.privateCall:(Lvalue/K;)V": {
+          "index": 28,
+          "opcodes": [
+            "invokestatic"
+          ],
+          "owner_index": 2,
+          "tag": "Methodref"
+        },
+        "sym/Sub.privateField:Lvalue/K;": {
+          "index": 12,
+          "opcodes": [
+            "getstatic"
+          ],
+          "owner_index": 2,
+          "tag": "Fieldref"
+        },
+        "sym/Sub.publicCall:(Lvalue/K;)V": {
+          "index": 22,
+          "opcodes": [
+            "invokestatic",
+            "invokevirtual"
+          ],
+          "owner_index": 2,
+          "tag": "Methodref"
+        },
+        "sym/Sub.sf:Lvalue/K;": {
+          "index": 6,
+          "opcodes": [
+            "getstatic",
+            "getfield"
+          ],
+          "owner_index": 2,
+          "tag": "Fieldref"
+        }
+      },
+      "missing-class": {
+        "owner/Late.count:I": {
+          "index": 7,
+          "opcodes": [
+            "getstatic"
+          ],
+          "owner_index": 8,
+          "tag": "Fieldref"
+        },
+        "owner/Late.value:()I": {
+          "index": 13,
+          "opcodes": [
+            "invokestatic"
+          ],
+          "owner_index": 8,
+          "tag": "Methodref"
+        }
+      },
+      "ordinary": {
+        "symbolic/Sub.echo:(Lvalue/K;)Lvalue/K;": {
+          "index": 22,
+          "opcodes": [
+            "invokestatic"
+          ],
+          "owner_index": 14,
+          "tag": "Methodref"
+        },
+        "symbolic/Sub.slot:Lvalue/K;": {
+          "index": 13,
+          "opcodes": [
+            "getstatic",
+            "putstatic"
+          ],
+          "owner_index": 14,
+          "tag": "Fieldref"
+        }
+      },
+      "signature-order": {
+        "sym/Sub.Array:([[Lvalue/P;[Lvalue/Q;)V": {
+          "index": 22,
+          "opcodes": [
+            "invokestatic"
+          ],
+          "owner_index": 2,
+          "tag": "Methodref"
+        },
+        "sym/Sub.PQ:(Lvalue/P;Lvalue/Q;)V": {
+          "index": 6,
+          "opcodes": [
+            "invokestatic"
+          ],
+          "owner_index": 2,
+          "tag": "Methodref"
+        },
+        "sym/Sub.PRet:(Lvalue/Q;)Lvalue/P;": {
+          "index": 14,
+          "opcodes": [
+            "invokestatic"
+          ],
+          "owner_index": 2,
+          "tag": "Methodref"
+        },
+        "sym/Sub.QP:(Lvalue/Q;Lvalue/P;)V": {
+          "index": 10,
+          "opcodes": [
+            "invokestatic"
+          ],
+          "owner_index": 2,
+          "tag": "Methodref"
+        },
+        "sym/Sub.QRet:(Lvalue/P;)Lvalue/Q;": {
+          "index": 18,
+          "opcodes": [
+            "invokestatic"
+          ],
+          "owner_index": 2,
+          "tag": "Methodref"
+        }
+      }
+    },
+    "compiler_options": [
+      "--release",
+      "21",
+      "-encoding",
+      "UTF-8"
+    ],
+    "originals_sha256": "ae5c75bfd5743dbaf5521c0e6ad0d1c4549ce0f6ec25be8b376d4885d1fcc907",
+    "primary_runtime_options": [
+      "-Xverify:all"
+    ],
+    "secondary_archive_sha256": "b296dc9f53cc933ebbf75d64b6bb5a17f30cd365f8ce8ab93df5a71a925a9c37",
+    "secondary_release": "https://github.com/ibmruntimes/semeru21-binaries/releases/tag/jdk-21.0.13.0",
+    "secondary_runtime_options": [
+      "-Xshareclasses:none",
+      "-Xverify:all"
+    ],
+    "sources": {
+      "LoadingConstraintProbe.java": "d2c5a389a6a177ed84a0c55ff56280d85fdbebfff7f17ae6f331e796b76be97a",
+      "dispatch/DispatchProbe.java": "631464ce44bdbc4334158358e2f6fa5fbfcc06f3fd9d418cb73bbdb144890782",
+      "dispatch/src/api/Port.java": "7878394dc2950486d41f577d6dc70c98f4fd83d58e3c0968141371fa90598553",
+      "dispatch/src/base/Owner.java": "9ac0958edd1cd9d8e195d971bae132d3e984686cdc8a21e7402ec63ac4298cb4",
+      "dispatch/src/caller/Dispatch.java": "f8621a00c0f4742f5997dc1d1675206f3d530c346bafc800380b85bcfb6e5e07",
+      "dispatch/src/dyn/First.java": "bc05ba913f2aba61f2ba81e881224f7f9e5b8ebfc3501a705c88eb09476a4266",
+      "dispatch/src/dyn/Plain.java": "a115c1307eb34eb5648113ca3d861243464bf2c32530d9863168faf0b938202f",
+      "dispatch/src/dyn/Second.java": "f0388494b30c005647a20aacb51d5b50ee23d71d073f65a51ed50c468c7cbb8d",
+      "dispatch/src/symbolic/Sub.java": "07f26a7253416a4862fbe7d07bcd438c526b159e88dc215bce86deb085c94e60",
+      "dispatch/src/value/K.java": "308c351e954cccb1869c2f9faeb6384207fcfaa4d05f3f672dc59a8549bb2db3",
+      "field-method-order/OrderProbe.java": "e900b8ed9fbee0b7cf1f8e789606bb2db7f8628a9cff3356b5ea0a3684b6af9f",
+      "missing-class/StickyProbe.java": "ba09a2fcb43556b49713db0118e1ace6b316469f484fe063cf9ad39c072005f4",
+      "missing-class/src/caller/Fresh.java": "33271990e0d1e51c90f0edcb242520789246c3533d28680a161fdfa0b2afd1af",
+      "missing-class/src/caller/Sticky.java": "2a62d6121d994ba9d5d97242d27f0fd8601b89c7b94a08b345c78ea9cbeb7479",
+      "missing-class/src/owner/Late.java": "8aa352fdee017a797c685b5c54bf42a81c5e5e80b8ae870f009ee9e6c9fb5706",
+      "ordinary/Resolution.java": "8bf4f3d7a872d0e12207edcce8a451af3921ed10b5b89c70ab843ed4ac42229c",
+      "ordinary/src/base/Declarer.java": "0525c658426e3418e09358127cc0ee44ff2b6ff195705617a13b3683cd51561d",
+      "ordinary/src/caller/Probe.java": "61f63f2217d6f92ed141ae41978a0fd76bc58633ac4595510bbdd5fde7784369",
+      "ordinary/src/symbolic/Sub.java": "8825c638fb4fea8a681ecb4cc94a9aef4f430f132fc1f7ea5cb1f47fe7574e17",
+      "ordinary/src/value/K.java": "95d44d709ce45ba908967c67b70c002dcdbfda9e3491a0702d476b97f2a4513b",
+      "signature-order/LeafProbe.java": "df8902799abed1a9ae33feb6e47e3f60bd1a125c9f6ec1d44681b1432e02e2ca"
+    },
+    "tools": {
+      "member_resolution_encodings.py": "3b2f6bc435ad487339c0cd7d72bc243a1e6a9e5d40bc656a9c5c28af9533c91e",
+      "member_resolution_reference.py": "c8da54a0f08477d7e1f90da7a4b0dde7ececfc26689a82ce452ac0a4d20383b3",
+      "type_state_encodings.py": "d5812bff65385cc8994f18da92979b1f38ab9b4c9ea7d6d9df2c1057eecb8b9d"
+    }
+  },
+  "primary_runtime": "openjdk version \"21.0.7\" 2025-04-15 LTS\nOpenJDK Runtime Environment Zulu21.42+19-CA (build 21.0.7+6-LTS)\nOpenJDK 64-Bit Server VM Zulu21.42+19-CA (build 21.0.7+6-LTS, mixed mode, sharing)"
+}

@@ -1,0 +1,1 @@
+package caller; public final class Sticky { public static int field1(){return owner.Late.count;} public static int field2(){return owner.Late.count;} public static int method(){return owner.Late.value();} }

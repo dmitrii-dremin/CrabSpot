@@ -1,0 +1,25 @@
+# Member resolution on two Java 21 runtimes
+
+Zulu HotSpot 21.0.7 and IBM Semeru OpenJ9 21.0.13.0 ran the same Java 21 callers with verification enabled. Of 119 rows per VM, 97 match across all recorded columns. The other 22 differ in error category, stage, or the loader identities that can still be established after an error. The fixture directory contains the input classes, driver sources, per-build output tables and compiler provenance. [Original inputs and results](../../tests/fixtures/member-resolution/)
+
+| Family | Rows per VM | Rows differing between VMs | Observable behavior |
+| --- | ---: | ---: | --- |
+| Inherited fields and static calls | 24 | 4 | Caller entry and return counters, callee executions, identity of the retained field value, subsequent local definitions and delegation |
+| Field and method error order | 39 | 10 | First use, late definition, repeated use and a second opcode referencing the same constant-pool entry |
+| Signature order | 20 | 0 | Which of two type agreements survives a later conflict, including nominal array element types and return types |
+| Refused class loading | 4 | 0 | Failure reported again from the same caller after its loader becomes willing to supply the missing class |
+| Virtual and interface dispatch | 32 | 8 | Caller-load versus invocation failure, receiver and field identities, method result and three effect counters |
+
+## What the comparisons establish
+
+- In the common-loader case, a genuine caller stores an object in an inherited field, passes it to an inherited static method and observes the same reference on return. A third loader defining the symbolic owner can independently define its own class of the same name. All four ordinary vendor differences occur on a split involving field access. HotSpot reports `LinkageError` and OpenJ9 reports `VerifyError`.
+- Once ordinary member lookup and access succeed, CrabSpot imposes descriptor constraints between the referring and declaring loaders. An instruction then checks whether it can use that member. In the order probes both reference VMs can reject a wrong-category field operation or a final write while leaving its nominal type free. HotSpot imposes the constraint on a wrong-category method invocation in the observed cases, while OpenJ9 allows the two loaders to remain split. A wrong opcode and a valid opcode share the same constant-pool index in the archived classes. The Rust regression checks the Java outcome, the cached member or failure, and the subsequent legal loader choices separately. [JVMS resolution](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-5.html#jvms-5.4.3) and [instruction semantics](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-6.html#jvms-6.5)
+- Both VMs retain earlier successful signature obligations when a later one fails. Swapping the parameter order changes which type can still be defined independently. The tests also distinguish a parameter from a return and strip array dimensions before comparing class identities.
+- In the common case, the same virtual or interface site returns 13, 23, 3 and 13 as the receiver changes from First to Second to Plain and back to First. With conflicting overriding declarations, Zulu can enter the caller, reject the conflicting receivers and execute the Plain control. OpenJ9 reports failure while loading the caller. CrabSpot checks the two conflicting preparations explicitly and runs Plain in a heap admitting the valid layouts. These eight observations have different execution schedules.
+- A genuine failed Java class load can leave a shared symbolic class reference unusable for subsequent field and method lookups. Both VMs retain that failure even when the loader could now supply the class. A fresh caller definition succeeds. CrabSpot currently requires the host to supply actual initiating records. The corresponding Rust test checks the structured missing-record diagnostic, supplies the record, and retries the original constant-pool site. Java class-load failure persistence remains open.
+
+## Timing of the Rust replay
+
+The ordinary Java driver attempts late binding or repair between two calls. The Rust test keeps a single heap and initialization session for two consecutive calls so it can inspect their cumulative effects. A separate regression runs a call, tries a conflicting definition, delegates to the original definition, and runs the same cached site in a second compatible heap. In two non-null cases the closed runtime needs a known callee-side type to check the store. Another regression withholds that binding, checks the already published field result and earlier caller effect, then supplies the binding and retries. [Rust execution tests](../../crates/interpreter/tests/member_resolution_reference.rs)
+
+Run `python tools/member_resolution_reference.py --check` with a Java 21 HotSpot JDK selected through `JAVA_HOME`. Add `--compare-openj9 PATH_TO_JAVA` for the pinned secondary runtime in the fixture manifest. The tool checks original class bytes, genuine sources, deliberately encoded inputs, symbolic owners, constant-pool indices and raw observations.

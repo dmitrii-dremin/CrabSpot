@@ -40,6 +40,7 @@ fn observed(outcome: ExecutionOutcome) -> String {
         | ExecutionOutcome::IncompatibleClassChangeError
         | ExecutionOutcome::NoSuchMethodError
         | ExecutionOutcome::AbstractMethodError
+        | ExecutionOutcome::LinkageError
         | ExecutionOutcome::ClassCastException
         | ExecutionOutcome::ArrayStoreException) => {
             panic!("unexpected field outcome: {unexpected:?}")

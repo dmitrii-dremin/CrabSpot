@@ -1,7 +1,8 @@
 //! Reference corpus tool. The Python driver supplies every class from a local JDK 21 java.base.jmod.
 use crabspot_classfile::{AttributeBody, Constant, parse};
 use crabspot_runtime::{
-    ClassId, LoadingDomain, RegistryOptions, SameLoaderResolver, build_hierarchy,
+    ClassId, InstanceOptions, LoadingDomain, ManagedHeap, RegistryOptions, SameLoaderResolver,
+    build_hierarchy,
 };
 use crabspot_verifier::{
     VerificationCore, VerificationEnvironment, VerificationEnvironmentOptions, verify_class_types,
@@ -65,6 +66,7 @@ fn run(reader: &mut impl Read) -> Result<()> {
         ..Default::default()
     };
     let mut domain = LoadingDomain::new(options, Default::default())?;
+    domain.enable_member_resolution(Default::default())?;
     let boot = domain.create_loader()?;
     let mut previous = String::new();
     let mut targets = Vec::new();
@@ -190,13 +192,48 @@ fn run(reader: &mut impl Read) -> Result<()> {
         let name = domain.registry().class(plan.root())?.name()?.escaped();
         domain
             .context(Default::default())
-            .prepare_constraints(plan)
-            .map_err(|error| format!("preparation constraints for {name}: {error}"))?;
+            .prepare_member_owner(plan)
+            .map_err(|error| format!("member preparation for {name}: {error}"))?;
         prepared += 1;
     }
-    if prepared != checked || domain.usage() != initial {
-        return Err("incomplete preparation or unexpected cross-loader record in java.base".into());
+    // Admit one snapshot of the entire archive. Only layout limits scale to corpus size.
+    let mut heap = ManagedHeap::new_with_instances(
+        Default::default(),
+        InstanceOptions {
+            max_layout_classes: MAX_CLASSES,
+            max_layout_edges: 131_072,
+            max_layout_fields: 262_144,
+            ..Default::default()
+        },
+    )?;
+    heap.admit_instance_layouts(domain.registry(), &refs)?;
+    let opening = domain
+        .member_context_unnamed_modules(&mut heap, Default::default(), Default::default())?
+        .member_loading_work()
+        .ok_or("missing member context accounting")?;
+    let members = domain.member_resolution_usage();
+    if prepared != checked
+        || members.prepared_classes != definitions
+        || members.sites != 0
+        || heap.retained_layout_classes() != checked
+        || heap.allocated_instances() != 0
+        || heap.allocated_arrays() != 0
+        || domain.usage() != initial
+    {
+        return Err(
+            "incomplete java.base snapshot or unexpected member, loader or heap state".into(),
+        );
     }
+    println!(
+        "java.base member_witnesses={} sites={} layout_edges={} layout_fields={} opening_work={} opening_utf16={} opening_scratch={}",
+        members.prepared_classes,
+        members.sites,
+        heap.retained_layout_edges(),
+        heap.retained_layout_fields(),
+        opening.work_units,
+        opening.utf16_units,
+        opening.scratch_entries
+    );
     println!(
         "java.base prepared_classes={prepared} bootstrap_initiations={} nonreflexive_unions={}",
         initial.initiations, initial.unions

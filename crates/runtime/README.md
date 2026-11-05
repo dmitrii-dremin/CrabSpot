@@ -798,3 +798,52 @@ hierarchy initiation, static allocation, initialization, unloading or concurrenc
 Reference-JDK trigger observations are reported separately from the strict
 preparation rules, including known stage/timing differences; they are not results
 of an application execution service here.
+
+## Checked member resolution
+
+`LoadingDomain::enable_member_resolution` opts into a persistent, domain-owned
+CP-member ledger. `LoadingContext::prepare_member_owner` mints a root witness
+only after complete actual-initiation preflight and both preparation constraint
+producers succeed. Earlier successful leaf constraints survive a later failure;
+a failed root gets no witness. Ordinary `prepare_constraints` does not mint one.
+Every admitted heap class, including interfaces and zero-slot classes, needs its
+own witness before `member_context_unnamed_modules` opens a checked context.
+Opening checks the actual registry inventory, ordered heap graph and permanent
+initiations. It invokes no resolver callback and does not infer initiation from
+an equality component's known definition.
+
+Checked contexts share the existing field, static, method and constructor
+services. A terminal key is the current declaration's `ClassId` plus its exact CP
+index. Cold resolution reserves a site before searching or imposing descriptor
+constraints. It records the actual symbolic owner and declaring member, or a
+permanent direct `NoSuchField`, `NoSuchMethod`, `IllegalAccess`, symbolic-owner
+`IncompatibleClassChange` or `LinkageError` failure. Host interruptions are
+retryable and retain only earlier committed constraints. A warm hit revalidates
+the current context and required heap memberships; it does not repeat resolution
+or descriptor obligations. Aliases in different CP slots remain distinct sites.
+No whole-instruction result is cached: category, receiver/protected restrictions,
+selection, final authority, constructor roles, initialization and argument/result
+checks still run on each use. A warm success cannot supply a missing current
+layout. A terminal failure remains replayable on a smaller compatible heap.
+
+For a selected body under a different defining loader, each nominal signature
+leaf must already be constrained between resolved and selected declarers, or have
+two actual initiations to the same permanent identity. Otherwise selection fails
+with host `UnprovenSelection` while preserving CP success; it inserts no relation.
+Direct `MethodId` roots acquire no invented symbolic-resolution obligation.
+Checked private access between different runtime packages is permanently denied;
+distinct owners within one runtime package retain the unsupported-nest boundary.
+Legacy contexts keep their conservative cross-loader and nest restrictions.
+
+Prepared witnesses and terminal sites have inclusive `u64` caps. A cold addition
+pays its probe, capacity check and paired Work/Scratch reservation before fallible
+allocation. Warm resolution pays one loading Work probe; separately metered
+per-use work still applies. Full descriptors and emitted names use the accepted
+loading UTF-16/work accounting. The duplicate runtime symbol cache stays empty in
+checked mode. Scalar cache keys avoid rehashing borrowed descriptor spellings.
+Private publication guards and reservation failpoints preserve nonempty old
+state. This is checked resolution of supplied metadata in unnamed modules, not a
+class-loader executor, module/nest implementation, verifier or complete linker.
+Direct linkage failures have symbolic categories; no exception materializer is
+provided, and checked exception execution retains its explicit unsupported VM
+exception policy.

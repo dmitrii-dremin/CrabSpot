@@ -226,6 +226,9 @@ fn operation_error(error: StaticAccessError) -> InitializationAccessError {
 }
 fn selection_error(error: FieldAccessError) -> InitializationAccessError {
     match error {
+        FieldAccessError::Java(crate::FieldJavaError::LinkageError) => {
+            InitializationAccessError::Java(StaticJavaError::LinkageError)
+        }
         FieldAccessError::Java(crate::FieldJavaError::NoSuchField) => {
             InitializationAccessError::Java(StaticJavaError::NoSuchField)
         }

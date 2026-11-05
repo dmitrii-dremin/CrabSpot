@@ -52,6 +52,7 @@ pub enum StaticResource {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StaticJavaError {
+    LinkageError,
     NoSuchField,
     IllegalAccess,
     IncompatibleClassChange,
@@ -168,6 +169,9 @@ impl From<TypeAccessError> for StaticAccessError {
 }
 fn selector_error(error: FieldAccessError) -> StaticAccessError {
     match error {
+        FieldAccessError::Java(FieldJavaError::LinkageError) => {
+            StaticAccessError::Java(StaticJavaError::LinkageError)
+        }
         FieldAccessError::Java(FieldJavaError::NoSuchField) => {
             StaticAccessError::Java(StaticJavaError::NoSuchField)
         }

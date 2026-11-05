@@ -1,5 +1,7 @@
 //! Checked initiating records and name-specific preparation obligations.
 mod ledger;
+pub(crate) mod member;
+pub use member::*;
 mod prepare;
 use crate::{
     ClassId, DefinitionRegistry, HierarchyPlan, LoaderId, MethodId, RegistryError, RegistryOptions,
@@ -78,12 +80,12 @@ pub struct LoadingPreparationSite {
     pub related: Option<MethodId>,
     pub position: Option<LoadingDescriptorPosition>,
 }
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LoadingConstraintError {
     pub kind: LoadingConstraintErrorKind,
     pub site: Option<LoadingPreparationSite>,
 }
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LoadingConstraintErrorKind {
     Registry(Box<RegistryError>),
     WrongReturnedName {
@@ -291,6 +293,7 @@ impl Ledger {
 pub struct LoadingDomain {
     registry: DefinitionRegistry,
     ledger: Ledger,
+    members: Option<member::Store>,
 }
 impl fmt::Debug for LoadingDomain {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -325,6 +328,7 @@ impl LoadingDomain {
                 })
             })?,
             ledger: Ledger::new(limits),
+            members: None,
         })
     }
     pub fn registry(&self) -> &DefinitionRegistry {

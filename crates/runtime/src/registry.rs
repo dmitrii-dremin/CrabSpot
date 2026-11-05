@@ -408,6 +408,20 @@ pub(crate) fn validate_name(name: &[u16]) -> Result<(), E> {
 }
 
 impl DefinitionRegistry {
+    pub(crate) fn definition_rows(&self) -> impl Iterator<Item = (ClassId, &ClassFile)> {
+        self.definitions
+            .iter()
+            .enumerate()
+            .map(|(index, definition)| {
+                (
+                    ClassId {
+                        registry: self.identity,
+                        index,
+                    },
+                    &definition.class,
+                )
+            })
+    }
     pub(crate) fn identity(&self) -> u64 {
         self.identity
     }

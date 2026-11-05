@@ -56,6 +56,7 @@ pub enum ExecutionOutcome {
     IncompatibleClassChangeError,
     NoSuchMethodError,
     AbstractMethodError,
+    LinkageError,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -105,6 +106,7 @@ fn vm_kind(outcome: ExecutionOutcome) -> Option<VmExceptionKind> {
         }
         ExecutionOutcome::NoSuchMethodError => VmExceptionKind::NoSuchMethodError,
         ExecutionOutcome::AbstractMethodError => VmExceptionKind::AbstractMethodError,
+        ExecutionOutcome::LinkageError => VmExceptionKind::LinkageError,
     })
 }
 fn vm_completion(
@@ -427,6 +429,7 @@ fn construction_failure(error: ConstructionAccessError, pc: u32) -> ExecutionErr
                 }
                 ConstructionJavaError::NullPointer => VmExceptionKind::NullPointerException,
                 ConstructionJavaError::Instantiation => VmExceptionKind::InstantiationError,
+                ConstructionJavaError::LinkageError => VmExceptionKind::LinkageError,
             }),
         ),
         error => ExecutionError::new(Some(pc), E::ConstructionAccess(Box::new(error))),
@@ -506,6 +509,7 @@ enum Action {
     NoSuchFieldError,
     IllegalAccessError,
     IncompatibleClassChangeError,
+    LinkageError,
 }
 
 #[derive(Clone, Copy)]
@@ -1217,6 +1221,7 @@ fn initialization_failure(error: InitializationAccessError, pc: Option<u32>) -> 
             E::UnsupportedVmException(match kind {
                 StaticJavaError::NoSuchField => VmExceptionKind::NoSuchFieldError,
                 StaticJavaError::IllegalAccess => VmExceptionKind::IllegalAccessError,
+                StaticJavaError::LinkageError => VmExceptionKind::LinkageError,
                 StaticJavaError::IncompatibleClassChange => {
                     VmExceptionKind::IncompatibleClassChangeError
                 }
@@ -2321,6 +2326,10 @@ fn run_engine(
                     )? {
                         return Ok(outcome);
                     }
+                }
+                Action::LinkageError => {
+                    return vm_completion(ExecutionOutcome::LinkageError, exceptions.is_some(), pc)
+                        .map_err(|error| contextualize(bodies, error, current, origin));
                 }
                 Action::NoSuchFieldError => {
                     return vm_completion(
@@ -4304,6 +4313,7 @@ fn is_heap_instruction(opcode: u8) -> bool {
 }
 fn static_failure(error: StaticAccessError, pc: u32) -> Result<Action, ExecutionError> {
     match error {
+        StaticAccessError::Java(StaticJavaError::LinkageError) => Ok(Action::LinkageError),
         StaticAccessError::Java(StaticJavaError::NoSuchField) => Ok(Action::NoSuchFieldError),
         StaticAccessError::Java(StaticJavaError::IllegalAccess) => Ok(Action::IllegalAccessError),
         StaticAccessError::Java(StaticJavaError::IncompatibleClassChange) => {
@@ -4347,6 +4357,9 @@ fn type_failure(error: TypeAccessError, pc: u32) -> Result<Action, ExecutionErro
 
 fn method_failure(error: MethodAccessError, pc: u32) -> Result<ExecutionOutcome, ExecutionError> {
     match error {
+        MethodAccessError::Java(MethodJavaError::LinkageError) => {
+            Ok(ExecutionOutcome::LinkageError)
+        }
         MethodAccessError::Java(MethodJavaError::NoSuchMethod) => {
             Ok(ExecutionOutcome::NoSuchMethodError)
         }
@@ -4371,6 +4384,7 @@ fn method_failure(error: MethodAccessError, pc: u32) -> Result<ExecutionOutcome,
 
 fn field_failure(error: FieldAccessError, pc: u32) -> Result<Action, ExecutionError> {
     match error {
+        FieldAccessError::Java(FieldJavaError::LinkageError) => Ok(Action::LinkageError),
         FieldAccessError::Java(FieldJavaError::NoSuchField) => Ok(Action::NoSuchFieldError),
         FieldAccessError::Java(FieldJavaError::IllegalAccess) => Ok(Action::IllegalAccessError),
         FieldAccessError::Java(FieldJavaError::IncompatibleClassChange) => {
@@ -5116,3 +5130,7 @@ mod resource_tests {
 #[cfg(test)]
 #[path = "construction_tests.rs"]
 mod construction_tests;
+
+#[cfg(test)]
+#[path = "member_resolution_tests.rs"]
+mod member_resolution_tests;
