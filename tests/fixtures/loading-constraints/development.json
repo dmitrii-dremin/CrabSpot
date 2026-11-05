@@ -1,0 +1,262 @@
+{
+  "additional": {
+    "driver_class_sha256": "c23e01afcd7fd502e59c66e524c8227ac219ae2103123d309308c64e159cf062",
+    "driver_source_sha256": "4f0ce5a09b433dfefefa95c3edcdadedd09b1b12a113f0a80b9ef7d4fc028ad2",
+    "same_build_process_samples": [
+      [
+        "Order00\tinitialize/LinkageError\tA/LinkageError",
+        "Order01\tinitialize/LinkageError\tA/LinkageError",
+        "Order10\tinitialize/LinkageError\tA/B",
+        "Order11\tinitialize/LinkageError\tA/B",
+        "Order20\tinitialize/LinkageError\tA/LinkageError",
+        "Order21\tinitialize/LinkageError\tA/B",
+        "InheritedDistinctChild\tA/B/A\tinitialize/ok"
+      ],
+      [
+        "Order00\tinitialize/LinkageError\tA/LinkageError",
+        "Order01\tinitialize/LinkageError\tA/LinkageError",
+        "Order10\tinitialize/LinkageError\tA/B",
+        "Order11\tinitialize/LinkageError\tA/B",
+        "Order20\tinitialize/LinkageError\tA/LinkageError",
+        "Order21\tinitialize/LinkageError\tA/B",
+        "InheritedDistinctChild\tA/B/A\tinitialize/ok"
+      ],
+      [
+        "Order00\tinitialize/LinkageError\tA/LinkageError",
+        "Order01\tinitialize/LinkageError\tA/LinkageError",
+        "Order10\tinitialize/LinkageError\tA/B",
+        "Order11\tinitialize/LinkageError\tA/B",
+        "Order20\tinitialize/LinkageError\tA/LinkageError",
+        "Order21\tinitialize/LinkageError\tA/B",
+        "InheritedDistinctChild\tA/B/A\tinitialize/ok"
+      ],
+      [
+        "Order00\tinitialize/LinkageError\tA/B",
+        "Order01\tinitialize/LinkageError\tA/B",
+        "Order10\tinitialize/LinkageError\tA/LinkageError",
+        "Order11\tinitialize/LinkageError\tA/LinkageError",
+        "Order20\tinitialize/LinkageError\tA/LinkageError",
+        "Order21\tinitialize/LinkageError\tA/B",
+        "InheritedDistinctChild\tA/B/A\tinitialize/ok"
+      ],
+      [
+        "Order00\tinitialize/LinkageError\tA/LinkageError",
+        "Order01\tinitialize/LinkageError\tA/LinkageError",
+        "Order10\tinitialize/LinkageError\tA/B",
+        "Order11\tinitialize/LinkageError\tA/B",
+        "Order20\tinitialize/LinkageError\tA/LinkageError",
+        "Order21\tinitialize/LinkageError\tA/B",
+        "InheritedDistinctChild\tA/B/A\tinitialize/ok"
+      ]
+    ]
+  },
+  "encoder_sha256": "d5812bff65385cc8994f18da92979b1f38ab9b4c9ea7d6d9df2c1057eecb8b9d",
+  "java": "openjdk version \"21.0.7\" 2025-04-15 LTS\nOpenJDK Runtime Environment Zulu21.42+19-CA (build 21.0.7+6-LTS)\nOpenJDK 64-Bit Server VM Zulu21.42+19-CA (build 21.0.7+6-LTS, mixed mode, sharing)",
+  "java_options": [
+    "-Xverify:all"
+  ],
+  "javac": "javac 21.0.7",
+  "javac_options": [
+    "--release",
+    "21"
+  ],
+  "matrices": {
+    "packages": {
+      "entry": "PackageProbe",
+      "inputs": {
+        "other/Leaf": "69d55d6b3f4e33e36867e94f046c411bd26e39fcc188ffefc08bf955de8309d8",
+        "shared/BasePrivateChild": "07761e3adbd96a1d538d8018fa84ce8a7e04e09f3210b5a1ed9d57c78ce495d1",
+        "shared/BaseProtected": "a74cf402461aa2b234aa57cb1560dafb1bba1b44b7d107ae114caf312c9006a8",
+        "shared/BasePublic": "0e51ce30525a9a6ca56bcabebb904c1ac3741906013cba10401b36b7b634dfa0",
+        "shared/BaseSameSpelling": "ddefe71b56d8ceb2cf3a6a722fa1f004c273f4368e0df136d3fd9275a3779f21",
+        "shared/BaseStaticChild": "bca91927d7901b52a900182544394c5d9e6ca019830896b281aceee1a8a9db84",
+        "shared/BaseStaticParent": "fdc77f49899c0f86d998bb262e471dd52f40c37eec4518ea44c1dc94c788bfba",
+        "shared/Bridge": "4fc5f39a4dc36bdbd675efd4e2df8170e02f8dcc6007568d8144f5775b3dc73a",
+        "shared/ChildPrivateChild": "cae6d778847191398b792a4433056dbce6c12160c667f97d545cc43f86a9d267",
+        "shared/ChildProtected": "8da61604a63d7c105c8898e151aea850bb9042014f2ae7fba974be8eb39cba61",
+        "shared/ChildPublic": "ee8da259394d6a75a26aa10540079bed48aaffa74bc9bc702722b29a6002ef60",
+        "shared/ChildSameSpelling": "6857022ff91d1eba85f0c7e67b5eba85edd1efb455bd8ee001fed4c5bad54639",
+        "shared/ChildStaticChild": "65fc2814ca0756189d5d504ecdc740087636d46892aed1a84a191df5c6eca81a",
+        "shared/ChildStaticParent": "0cc8397306154e2cd1b42d414380a3c6ca7bc373bcb1481905c687f122c45f48",
+        "shared/Hidden": "355623e7f602f71ba7dd1b0b341ebcb5cff93ec994cd9f68f2360c0e2a2dc937",
+        "value/K": "71281d8132b06bc6c92e6b39d728204db0f4a43529546da12f98910e362920f8"
+      },
+      "normalized_results_sha256": "f821df454b57b0b76b2e3ef53580be03bced30166bf737d77cd88fa4f9b725a3",
+      "original_files_sha256": {
+        "LoadingProbe.java": "290ba8a8bc49fadded19bcb57c166eb3aa900660aa8b62d59350003007341c4c",
+        "PackageProbe.java": "8c7170566fc2cd36096d320aec41b06e8c5f50983f4714ba20979b0cde757132",
+        "driver/LoadingProbe$Domain.class": "4d0569770e6aa3ca37346f3a448fd1e27a40880d1691e52b61481708bb278d85",
+        "driver/LoadingProbe.class": "bde4c8a2ff57f4753da32e1b1786d3db3702a5efdd38fc0adbbb530682d6340f",
+        "driver/PackageProbe.class": "edd64fc7e18703eaea3292184b0128515d403ee9594ad0decb707476a7de1aa7",
+        "emit.py": "5133fb4cfc12e5b027d99858d35a55fd19647f645e103e71199c545c50d0dcc9",
+        "results.tsv": "8b4e06a3ce5f0a674214a67762861873b8f18b7628f24978cc25f5cb17bfb245"
+      },
+      "rows": 7
+    },
+    "selection": {
+      "entry": "Selection",
+      "inputs": {
+        "child/AbstractAbstract": "87a8cfc98abb44f4f41ea0a744ed98ce4889cbee5a66597201f7d9951ae19bb7",
+        "child/AbstractDefault": "f66c7f6a3dac8f8a9fb31793000b2cb64d069742ec5a3e671b1559f8bc481fb2",
+        "child/DefaultAbstract": "9a35ec8b5d0b43c80095235fbb21c99b586f401cde5c178cdb761e22f2e660c2",
+        "child/DefaultDefault": "717cc54b8b150f139e4688aad6d8244440ab6a2ddd6c18c42038af0660f5b2bc",
+        "child/DefaultPrivate": "51905b03837a82f0ed2ea079b4bd312a3f2ce1f62530b1984cab35cb0d8fbadd",
+        "child/PrivateDefault": "9e2799ef1ce11ce2ed95cb3bfbbd8c2e64f7e640c5388909c1315731aac09bc1",
+        "iface/LeftAbstract": "5d18eb25778633427641cfbdb681e3cebea980b205ac4efbbef20aeb3ef375d8",
+        "iface/LeftDefault": "28606150690ae40bbcc914fb15c152f46069714a867bd1e30600370d637412d7",
+        "iface/LeftPrivate": "22397dfbc91d1d615d4d1dc8e910e2325a496a55b982ca5321599312e816eb68",
+        "iface/RightAbstract": "4d596eb22f74daf36fe45ed7430fc7c7791853f81e6d354c7836484479bca38a",
+        "iface/RightDefault": "65701fa2014328ef63841dd24e2e44f0fc44f3df933bca01f8862bf3717fb8b8",
+        "iface/RightPrivate": "ac517e527d963913c9dca83190d8ebba030d606213fca2a5f38ba92337aaa98c",
+        "value/K": "71281d8132b06bc6c92e6b39d728204db0f4a43529546da12f98910e362920f8"
+      },
+      "normalized_results_sha256": "a7e3e8becfe6a549b16bf70d60a9d648e2bbca2c00df218a5b59ef204fb9369a",
+      "original_files_sha256": {
+        "LoadingProbe.java": "290ba8a8bc49fadded19bcb57c166eb3aa900660aa8b62d59350003007341c4c",
+        "Selection.java": "d60ce45a040579b1fc8c697479033c4547b68a1f5ee25849f13d8e5eee87a2d7",
+        "driver/LoadingProbe$Domain.class": "4d0569770e6aa3ca37346f3a448fd1e27a40880d1691e52b61481708bb278d85",
+        "driver/LoadingProbe.class": "bde4c8a2ff57f4753da32e1b1786d3db3702a5efdd38fc0adbbb530682d6340f",
+        "driver/Selection.class": "b21915acb62d106068c589e3418cfa9e8f2caa9164a392a4f75650fbdf21b568",
+        "emit.py": "bc28eb28b8c642769d89847b23846cea1babe6476ba7c4529939a0be641c194f",
+        "results.tsv": "fd932345c4488fc4cd1614ec55c8332d79e34406d5f8f49c8a43896cf8fa442a"
+      },
+      "rows": 18
+    },
+    "timing": {
+      "entry": "LoadingProbe",
+      "inputs": {
+        "child/Declare": "3a49f1ecc3c8876fc8cda956c5ef4e765a371ed0f7bd37f09b1e251fb7fc3912",
+        "child/Inherit": "00aee72ab3ee9db4d961989482a25e3aa94e9d32b5d9868a44d1149df017ed41",
+        "child/SubArgument": "005dfeb93fb4e888170f92eed30ad24648518ba5559144ddbb07eeb12ad2ccc6",
+        "child/SubArray": "68e65e6222d905b21cd2a0037f85a8a63591a5b3e8a73613a50d49a6ebde8d49",
+        "child/SubPackage": "0cab4c62086ecf68462195c137754d2fa210b8e5bddfb8d9266c9760ac6a37c1",
+        "child/SubPrimitive": "a64cf9c78302041cacbf3a473c6068dd2bf07113ac3ea32139a08d0b9dcdc0da",
+        "child/SubPrivate": "dddd4045c405485a387477744b526c06cb8aac45224f90c14637f1b070752b51",
+        "child/SubReturn": "7b6c79424652f3e49888b909243505ffa56e06707bc51925661baabe654a9542",
+        "child/SubStatic": "8881298cd56fedab4bb1b24216821b7329bcbcd13178847bfdd3274f2deddd7d",
+        "iface/Service": "69e769e5f28ca3169f7266b4c9db190d55b5c63ad968b3fc1e5c0de2414b4f76",
+        "parent/BaseArgument": "64e762046948ebf5bb6ef49062f002c1bfffe60771bef1e6b5bc53f704009b0e",
+        "parent/BaseArray": "28ebf3488555746c40a85241e9152ac8014f7729b9ee871036e06fca71be806b",
+        "parent/BasePackage": "888d083975241e09c8daeb26eec8c4c9b85c385d4b252fbcf654f5f9963b80af",
+        "parent/BasePrimitive": "8380d4273977cdbc3c8bf15ad6cb3f4c2a6276fe570393d7649bca98e2cfae99",
+        "parent/BasePrivate": "7901ec5c8ed00f0f4d1dfe1ecd5ce0609d9465f0163a9f2b68fe77f10b1d47e2",
+        "parent/BaseReturn": "62482318594030405c8291257039a3574ee8a47e7ac795a3a4962ea0d1f080bd",
+        "parent/BaseStatic": "cfc1baaa585034fc1646c852676c03ad901f40cce5f3674d524a3cc2a8dec20f",
+        "parent/Impl": "67e2493dbe2014800adb1e289b2023ad88a5de6324099eeb2cf8c89a2e3f21c1",
+        "value/K": "71281d8132b06bc6c92e6b39d728204db0f4a43529546da12f98910e362920f8"
+      },
+      "normalized_results_sha256": "55e9f50a1749312264d9d18e1c2164f6941449c62f19a9620450043e7877202e",
+      "original_files_sha256": {
+        "LoadingProbe.java": "290ba8a8bc49fadded19bcb57c166eb3aa900660aa8b62d59350003007341c4c",
+        "driver/LoadingProbe$Domain.class": "4d0569770e6aa3ca37346f3a448fd1e27a40880d1691e52b61481708bb278d85",
+        "driver/LoadingProbe.class": "bde4c8a2ff57f4753da32e1b1786d3db3702a5efdd38fc0adbbb530682d6340f",
+        "emit.py": "9ca90fbba8210401c7b382ead0851a161e720dcf4209435ce0048afb429f86fc",
+        "results.tsv": "2db60886f1a25fa508f071753adb70cb9297deac0bacf0d75415646e44c33fd2"
+      },
+      "rows": 45
+    },
+    "transitive": {
+      "entry": "Transitive",
+      "inputs": {
+        "child/First": "5ebb00cbbd82e0b4386101b7eb5f7834a867d0d7804fcdf93b0742b8ada5abfe",
+        "child/PQ": "0fea2e3965673d9210473d5238c0a14190e6bc98d946428cbe41377e712e4429",
+        "child/PRet": "185d4d1fe21203b6183bcbb087733bab3188545f8d214a92b121ed5ec81232ba",
+        "child/QP": "eb85f9420ae6c827339fe077ee093c47a3a362b3dc46fdc5061a1c50e635d375",
+        "child/QRet": "c418f3477c4c6d67ae1e44811cf67f8ac1e6920870620202daf9beb78172d8bd",
+        "child/Second": "e2b591347a618c115d074dcea5623027d060a3f75d5bd5deea2e177f39fb1cf0",
+        "parent/First": "41a055fda0d7d8ad06e6733e51546eb36307010646f5bdc535a2745f5194f864",
+        "parent/PQ": "a937081c807ffcc908c3833350546e4cd6e47a98f785f5540a40ab0bdbd58890",
+        "parent/PRet": "014b5656ffecbb3044b23a3b7ac07653f5e5efa378f046facba859db02fdde41",
+        "parent/QP": "e498087279880ca51dcaf30a388cc430c26e097975d4d84e565f87c4a62516ea",
+        "parent/QRet": "9636dfb2ee9908003dc5f20728389b7ce5df194a759bfead6161e4eceed73330",
+        "parent/Second": "a4350f84863a8f36db20fceb0ed5ee2bcc855676aaeb9963f3ddef06698d385a",
+        "value/K": "71281d8132b06bc6c92e6b39d728204db0f4a43529546da12f98910e362920f8",
+        "value/P": "0029896c3aec283b3d9bcd69a3140b2ceac2b29a8a55d497c21d92a0d0d62ece",
+        "value/Q": "1a1454442f83f59480b434ec7ebd39e5345b61c06d6bec631f2fb3dd834930a4"
+      },
+      "normalized_results_sha256": "7d944dfd34b93f61fea76403fee7ea889e2a4938f2de8148933959fef897063b",
+      "original_files_sha256": {
+        "LoadingProbe.java": "290ba8a8bc49fadded19bcb57c166eb3aa900660aa8b62d59350003007341c4c",
+        "Transitive.java": "df1f687db1e4c94012a8facd9a56df0fedda84f5adc844f864c64c0289062745",
+        "driver/LoadingProbe$Domain.class": "4d0569770e6aa3ca37346f3a448fd1e27a40880d1691e52b61481708bb278d85",
+        "driver/LoadingProbe.class": "bde4c8a2ff57f4753da32e1b1786d3db3702a5efdd38fc0adbbb530682d6340f",
+        "driver/Transitive.class": "93ea3e2789e695c6b435dadbcf50011635056003631edbf193b551a6ffbabc8a",
+        "emit.py": "8b555972da8eec3cdbb27c1ef43324870ea28c641923c18511f2e23431375839",
+        "results.tsv": "35ca0f37709fc6d755c5ffc3147e01bbd3d430a00a11e85fe572c46f6f20402e"
+      },
+      "rows": 8
+    }
+  },
+  "selection_edges": {
+    "invoke": {
+      "driver_classes": {
+        "LoadingConstraintProbe$Domain.class": "b4c775aabfff34c30c6941f9afed2aa5bb8ef0bce52b459403a58bc7f279ff86",
+        "LoadingConstraintProbe$Stage.class": "8a6fe62af60d77e60bab3c81d7d890883bd42c21de11341d65e8e7004bba607c",
+        "LoadingConstraintProbe.class": "9be8e5664c025fa8f21e462b13c100cee9e1b65f212e71c064995e42d9a1ebc9",
+        "SelectionInvocation.class": "bbaeb86a84a0809f1ce90dc737f743a9e0427a2dc8597d12935b33eebc1ebda7"
+      },
+      "input_classes": {
+        "child/Abs": "b06f4a30dd0d12bab68463171ea3297af524b02187b2be304aec47b331dc38d7",
+        "child/Bridge": "9db3382e011c203426723ad6436bdaa0cd0f23a31515ca96908b2966ce85584e",
+        "child/DeclaredInterface": "b939643422a66cb205e1a6db2bfac3a2d1f5528027bc3b2c995df829efe04ff3",
+        "child/Package": "e2763cefde6f4d7b99808e2732fbd32fc072d132db924b71c25482ee415a2181",
+        "child/Private": "f878ec2fed0b2b9ff240cd1660b03c1594a2ff782ac67959f21dc78b4b7aaa95",
+        "child/Prot": "157df9632697bef6aa7c5e8fbbd3e2013954babc6739cfdb84bb188c7599ff4d",
+        "child/RootInterface": "3279c4790e3316381a5af4de9e3f895d70e003036cf3435bb6e8716a693728c9",
+        "child/Static": "110a675b04afc3f83808886a063e185722826b7ac2a286f5955569a141b8ce5b",
+        "child/Suppress": "77c6acd1e9c6155036861b8ceffdea9a00bed4d8665a97666e3bcab8bdf99371",
+        "helper/DeclaredInterface": "aecbf727e0338e75f686245971bbb1f248f14aed18888f460650ead6c87f6a2a",
+        "helper/RootInterface": "424019af1001748b01e3bb2b82b0ff3f06934030d6e3625cab892bee59dc6b54",
+        "iface/Default": "2420bb6348eda41304ebed2725a2b1a81baa91b36a96ef115b9037adefa4b27f",
+        "iface/Reabstract": "ace37e6a6789ae18739d0afcbce9d35a737e37e9c7340dfea3cfb1e5c45ec0a1",
+        "iface/Service": "69e769e5f28ca3169f7266b4c9db190d55b5c63ad968b3fc1e5c0de2414b4f76",
+        "parent/Abs": "be73229b19954776387ab17037ca82cdf65f646b7c97e93af82ba40736045f67",
+        "parent/Bridge": "e238012634e227a3e735108535e96d388d789034929419a56b8df8e553546c65",
+        "parent/Package": "d01e450494d5c20d793af76d13ed1cea8795ee15a30ad16cf6ea99676c037860",
+        "parent/Private": "e1be2b2b61ef19dfcb93405f5aa303f57a7a0c1526ae0c2a98e2274d643e87e7",
+        "parent/Prot": "6788bb5ba6471f9b9ceadc8957a659143bb2b9f641ce8fea89809c01ed2f748c",
+        "parent/Static": "b61e097b29f0351d6baf8be4032acb87d42f513c2e22034b7333c4f20a400650",
+        "value/K": "9b4c0237b7eab16875b8a67bed52778392f628692e11f8a3397532de99399d34"
+      },
+      "normalized_results_sha256": "c544702a41f7af33e992c93616000dc60ae08960e2758215f4141dd77b58b785",
+      "original_sources": {
+        "LoadingConstraintProbe.java": "d2c5a389a6a177ed84a0c55ff56280d85fdbebfff7f17ae6f331e796b76be97a",
+        "SelectionInvocation.java": "bfb3245450be66da962347b307ffdf459c44c512d333ed2f4876fcf2b227c2bc"
+      }
+    },
+    "prepare": {
+      "driver_classes": {
+        "LoadingConstraintProbe$Domain.class": "b4c775aabfff34c30c6941f9afed2aa5bb8ef0bce52b459403a58bc7f279ff86",
+        "LoadingConstraintProbe$Stage.class": "8a6fe62af60d77e60bab3c81d7d890883bd42c21de11341d65e8e7004bba607c",
+        "LoadingConstraintProbe.class": "9be8e5664c025fa8f21e462b13c100cee9e1b65f212e71c064995e42d9a1ebc9",
+        "SelectionEdges.class": "9b744d94820d5c82c4d986607bd219d3e55c2934a5bd43078d74c6f806d81287"
+      },
+      "input_classes": {
+        "child/Abs": "07f1b4af83ad6048dcbd13a4cd4a39e9510d75caad1a4337d449673993892aa4",
+        "child/Bridge": "632ee90d08d06dae6c281810842bb605bc6e13ceb5f2b822edcd4e5a6397022b",
+        "child/DeclaredInterface": "b939643422a66cb205e1a6db2bfac3a2d1f5528027bc3b2c995df829efe04ff3",
+        "child/Package": "ca421c4dec4e89e7c395726137e5635340034784144a90fb853013fcf60dd7d7",
+        "child/Private": "d0a9ef5625e4455ca411c180fe24962485f7859700bf829b321b2b36ae9d9c38",
+        "child/Prot": "f6bd988247e036441bbf2b14f4c27661b5ce92c94cf3f76c922b38fd5b465c2c",
+        "child/RootInterface": "3279c4790e3316381a5af4de9e3f895d70e003036cf3435bb6e8716a693728c9",
+        "child/Static": "dd301cbf88009ba0bdc0ce615764c516b85398a8c56c4e2291b42e441f85b001",
+        "child/Suppress": "fddb8f1ff7fd6bf075e37b47558ba3f54a3b1d9b57c2d980c8f492f5a778ea2b",
+        "iface/Default": "2420bb6348eda41304ebed2725a2b1a81baa91b36a96ef115b9037adefa4b27f",
+        "iface/Reabstract": "ace37e6a6789ae18739d0afcbce9d35a737e37e9c7340dfea3cfb1e5c45ec0a1",
+        "iface/Service": "69e769e5f28ca3169f7266b4c9db190d55b5c63ad968b3fc1e5c0de2414b4f76",
+        "parent/Abs": "2e8770721517e75229db9b2b6a901228a62845a5011baf76fcf0e845cc4a66a0",
+        "parent/Bridge": "eded96a177da8a487f92a5e9d2a24b1eae4452916122e02293ec0ffe40f8c757",
+        "parent/Package": "caad85352f9fa188d8b2d903daffdf45df8aa77469b9703cd2e117ea49b71d51",
+        "parent/Private": "efa05cfcce477c05723036479f5a315d93f398a28227b4cad319b0e5971f5d16",
+        "parent/Prot": "ad23e5ddf6cc33ac1cac131111b1ec4ad188df544154457b6705b545c6500fa2",
+        "parent/Static": "55fbda98e20ec866eb9e85b26ce6a3d47e28fc6679675ba131a110b5cd5a8008",
+        "value/K": "71281d8132b06bc6c92e6b39d728204db0f4a43529546da12f98910e362920f8"
+      },
+      "normalized_results_sha256": "8b22f984a00d7a7eedbe0f8fdcad2d3f0a39912bcd3cb24380ddba7b35fae391",
+      "original_sources": {
+        "LoadingConstraintProbe.java": "d2c5a389a6a177ed84a0c55ff56280d85fdbebfff7f17ae6f331e796b76be97a",
+        "SelectionEdges.java": "66e7b687295f22a15d435a1bb3e0a273e5599a0081324837a68d0765aa275dfb"
+      }
+    }
+  }
+}

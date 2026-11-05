@@ -1,4 +1,64 @@
-# Current checkpoint: modern class type verification
+# Current checkpoint: initiating loaders and preparation constraints
+
+CrabSpot now records which loaders initiated each ordinary class. When
+preparation requires two loaders to agree on a signature type, the runtime
+enforces that agreement against both existing definitions and future loads.
+A failed insertion preserves earlier successful obligations. The domain admits
+a direct definition and its initiating record together. Both declared overrides
+and inherited interface implementations use the actual declaring loaders.
+[Contract](../architecture/m2-loading-constraints.md) and
+[technical review](../architecture/m2-loading-constraints-review.md).
+
+## Verification and reference behavior
+
+- The fresh Windows gate ran 41 commands. It passed 1,181 workspace debug
+  tests and 1,094 optimized interpreter, verifier and runtime tests, plus two
+  separate example boundary tests. All 123 frozen file hashes matched after the run.
+  The runtime increment adds 19 private test groups, 49 independent public
+  tests and two corpus replay tests. Eleven provenance tests and five
+  loading-reference tool tests passed.
+- Against Zulu HotSpot 21.0.7, the main 85 cases cover early and late conflicts,
+  delegation after a failed direct definition, transitive equality, selected owners,
+  and per-signature rollback. Separate Rust tests enforce the specified outcome
+  in all 27 cases across nine additional method-selection shapes. In ten of
+  those rows, Zulu permitted a pair of distinct identities that SE 21 requires
+  to agree. The 18 additional invocation probes identify which failures occur
+  at a later stage. [HotSpot observations](../architecture/m2-loading-selection-reference-disposition.md).
+- IBM Semeru OpenJ9 21.0.13.0 ran the same 130 probes. Eight of the 27
+  selection rows differed from the required agreement. Both VMs also exposed
+  differences in when they report a failure. The committed per-build tables
+  preserve the actual stages. [OpenJ9 comparison](../architecture/m2-loading-selection-openj9-addendum.md).
+- The installed Zulu java.base archive supplied 7,519 ordinary definitions.
+  Each passed checked definition, modern type verification and preparation
+  constraints using default per-class limits. The single bootstrap loader
+  retained 7,519 initiating records with zero cross-loader unions. The verifier
+  covered 61,708 Code bodies and 4,685 bodyless declarations. The module
+  descriptor was checked separately.
+- The parser smoke started from 498 class files. With seed 4851011501752864596
+  it accepted 104 of 10,000 mutations, rejected 9,896, reproduced all ten
+  deterministic rechecks and ended with 512 corpus entries and zero failures.
+
+Reproduce with a Java 21 HotSpot JDK selected via JAVA_HOME. The optional
+OpenJ9 replay takes the separate Java executable from the reference build
+identified in the fixture manifest.
+
+```text
+cargo fmt --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+cargo test -p crabspot-verifier -p crabspot-runtime -p crabspot-interpreter --release --locked
+python -m unittest discover -s tools -p test_loading_constraint_reference.py
+python tools/loading_constraint_reference.py --check
+python tools/loading_constraint_reference.py --check --compare-openj9 <path-to-pinned-java-executable>
+python tools/verify_java_base.py
+cargo run -p crabspot-classfile --example fuzz_parser --locked -- tests/fixtures --iterations 10000
+```
+
+Full class loading, member-resolution constraints, execution-time proof checks,
+and application startup remain open. The [next proposal](../architecture/m2-resolution-constraints-next.md)
+connects loader agreements to actual field access and method invocation.
+
+## Previous checkpoint: modern class type verification
 
 The new class verifier checks each declaration in file order under a single
 cumulative allowance and returns a proof tied to the immutable environment

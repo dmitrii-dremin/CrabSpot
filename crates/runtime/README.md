@@ -717,3 +717,84 @@ references persist. Only direct intentional Java access categories are elevated;
 nested errors preserve host sources. InstantiationError remains an unmaterialized
 VM category. Full verification, constructor-time exception creation, GC and Java
 startup remain outside this bounded runtime service.
+
+## Checked loading domain and preparation constraints
+
+`LoadingDomain` is an opt-in owner of a fresh `DefinitionRegistry`. Its shared
+`registry()` view can build ordinary hierarchy plans and verification environments;
+no mutable getter, registry import, extraction or reset can bypass the checked
+history. A `LoadingContext` borrows the domain mutably and tracks evaluation work.
+Creating a new context resets only that evaluation allowance. Retained-name, pair,
+actual-initiation and union quotas remain fixed for the domain's lifetime.
+
+Each direct definition records its defining loader as an initiating loader.
+`record_initiation` records explicit delegation after checking handles and the
+canonical name. `lookup_initiated` returns only an actual record. A component may
+already require a ClassId while a particular loader still returns None. Likewise,
+two independent actual records of the same ClassId do not become `constrained`
+until their equality components are explicitly joined. Reflexive equality creates
+no retained entry. Names preserve exact UTF-16 units under the ordinary registry
+name grammar, including classes literally named I or V.
+
+Definition admission and loading bookkeeping form one fail-before-publication
+operation. An existing actual initiation rejects duplicate derivation before
+parsing. Otherwise normal registry admission checks run before a late component
+identity conflict. The parser's established diagnostics and allocation conventions
+are preserved. Added names, indexes, pairs and staging use fallible actual-demand
+reservations. Scalar stage stamps, future positions, capacity and root/identity
+checks precede publication. No provisional ClassId escapes a rejected derivation;
+logical counters, old bindings and the next definition index remain available.
+Spare capacity may survive a rejected reserve. The registry publishes only after
+all added bookkeeping work can commit without a recoverable failure.
+
+`prepare_constraints(plan)` validates every root/row/direct-edge prerequisite
+against actual initiating records before imposing anything. An interface's Object
+metadata edge participates in this check. An implied component identity cannot
+stand in for a missing actual initiation. It then streams the two JVMS 5.4.2
+producers: declared overriding methods constrain the selected class loader against
+each overridden declaration loader; inherited interface implementations constrain
+the selected declaration loader against the originating interface declaration
+loader. Private/static/special exclusions, loader-qualified package bridges,
+abstract class selections, abstract default suppression and unique nonabstract
+maximal defaults follow those preparation rules. Invocation access, receiver,
+category/finality checks are separate. The existing interpreter's conservative
+signature guard is unchanged.
+
+Each emitted descriptor is walked with borrowed spans, parameters left to right
+then result. Nominal array leaves constrain their ordinary names; primitive leaves
+and void do not. No signature type is force-loaded. Every successful individual
+leaf stays imposed if a later leaf, selection, budget or allocation fails. The
+failing insertion changes no logical state. Replaying preparation pays inspection
+work again and issues no prepared-class lifecycle bit. Registry, wrong-return,
+duplicate-derivation and constraint conflicts retain distinct structured categories;
+no Java exception object is allocated. Preparation errors carry the applicable
+root, origin/related MethodIds and parameter/result position without copying long
+names. Completed obligations do not leave stale leaf sites on later failures.
+
+Persistent resources are charged atomically for actual additions. Context UTF-16,
+work and cumulative scratch batches are also atomic, with inclusive u64 limits.
+Physical row/edge/candidate loops, CP reads, string comparisons, roots and graph
+work are funded before inspection or enqueue. Owned names occur once in a flat
+arena. Randomized fingerprint indexes rehash scalar keys, while collision equality
+still checks exact spelling under paid UTF work. The union forest uses size-based
+joins and deterministic ties without path compression, so failed queries cannot
+change future walk costs. Correct trees have logarithmic root walks; defensive
+walks stop within the actual pair inventory or earlier work exhaustion.
+
+Preparation retains flat borrowed row views and a scalar ClassId index. Its
+prerequisite scan is linear in supplied rows/edges and their funded names.
+Declared-producer work is bounded by root declarations times inspected ancestor
+and interface declarations. Inherited selection may additionally compare matching
+interface candidates pairwise and walk strict interface ancestry for each pair;
+every such pair/node/edge and each pending/visited entry is funded. Thus hostile
+repeated/diamond scans exhaust explicit work/scratch before growing unbounded
+state. No method graph or whole-obligation list is cached, policy maxima are not
+allocation sizes, and graph/array/union depth causes no host recursion.
+
+This service is a checked loading ledger and the preparation-time constraint
+subset, not a Java class-loader executor or complete linker. It performs no
+classpath/source callbacks, verification caching, module/nest checks, automatic
+hierarchy initiation, static allocation, initialization, unloading or concurrency.
+Reference-JDK trigger observations are reported separately from the strict
+preparation rules, including known stage/timing differences; they are not results
+of an application execution service here.

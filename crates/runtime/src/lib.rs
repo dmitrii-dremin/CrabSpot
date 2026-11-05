@@ -13,6 +13,8 @@ mod handles;
 pub mod heap;
 mod hierarchy;
 mod initialization;
+mod loading;
+pub use loading::*;
 pub mod instance;
 mod method;
 mod method_values;

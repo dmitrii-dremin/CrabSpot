@@ -1,0 +1,85 @@
+timing	Argument	both-before	A	B	initialize	LinkageError	-	-	-
+timing	Argument	left-before	A	-	initialize	ok	A	LinkageError	A
+timing	Argument	right-before	-	B	initialize	ok	LinkageError	B	B
+timing	Argument	both-after	-	-	initialize	ok	A	LinkageError	A
+timing	Argument	same-before	A	A	initialize	ok	A	A	-
+timing	Return	both-before	A	B	initialize	LinkageError	-	-	-
+timing	Return	left-before	A	-	initialize	ok	A	LinkageError	A
+timing	Return	right-before	-	B	initialize	ok	LinkageError	B	B
+timing	Return	both-after	-	-	initialize	ok	A	LinkageError	A
+timing	Return	same-before	A	A	initialize	ok	A	A	-
+timing	Array	both-before	A	B	initialize	LinkageError	-	-	-
+timing	Array	left-before	A	-	initialize	ok	A	LinkageError	A
+timing	Array	right-before	-	B	initialize	ok	LinkageError	B	B
+timing	Array	both-after	-	-	initialize	ok	A	LinkageError	A
+timing	Array	same-before	A	A	initialize	ok	A	A	-
+timing	Primitive	both-before	A	B	initialize	ok	A	B	-
+timing	Primitive	left-before	A	-	initialize	ok	A	B	-
+timing	Primitive	right-before	-	B	initialize	ok	A	B	-
+timing	Primitive	both-after	-	-	initialize	ok	A	B	-
+timing	Primitive	same-before	A	A	initialize	ok	A	A	-
+timing	Private	both-before	A	B	initialize	ok	A	B	-
+timing	Private	left-before	A	-	initialize	ok	A	B	-
+timing	Private	right-before	-	B	initialize	ok	A	B	-
+timing	Private	both-after	-	-	initialize	ok	A	B	-
+timing	Private	same-before	A	A	initialize	ok	A	A	-
+timing	Static	both-before	A	B	initialize	ok	A	B	-
+timing	Static	left-before	A	-	initialize	ok	A	B	-
+timing	Static	right-before	-	B	initialize	ok	A	B	-
+timing	Static	both-after	-	-	initialize	ok	A	B	-
+timing	Static	same-before	A	A	initialize	ok	A	A	-
+timing	Package	both-before	A	B	initialize	ok	A	B	-
+timing	Package	left-before	A	-	initialize	ok	A	B	-
+timing	Package	right-before	-	B	initialize	ok	A	B	-
+timing	Package	both-after	-	-	initialize	ok	A	B	-
+timing	Package	same-before	A	A	initialize	ok	A	A	-
+timing	Inherit	both-before	A	C	initialize	LinkageError	-	-	-
+timing	Inherit	left-before	A	-	initialize	ok	A	LinkageError	A
+timing	Inherit	right-before	-	C	initialize	ok	LinkageError	C	C
+timing	Inherit	both-after	-	-	initialize	ok	A	LinkageError	A
+timing	Inherit	same-before	A	A	initialize	ok	A	A	-
+timing	Declare	both-before	C	B	initialize	LinkageError	-	-	-
+timing	Declare	left-before	C	-	initialize	ok	C	LinkageError	C
+timing	Declare	right-before	-	B	initialize	ok	LinkageError	B	B
+timing	Declare	both-after	-	-	initialize	ok	C	LinkageError	C
+timing	Declare	same-before	C	C	initialize	ok	C	C	-
+selection	child.AbstractAbstract	before	invoke	AbstractMethodError	A/C
+selection	child.AbstractAbstract	after	invoke	AbstractMethodError	A/C
+selection	child.AbstractAbstract	same	invoke	AbstractMethodError	A/A
+selection	child.DefaultAbstract	before	initialize	LinkageError	-
+selection	child.DefaultAbstract	after	invoke	I:1	A/LinkageError
+selection	child.DefaultAbstract	same	invoke	I:1	A/A
+selection	child.AbstractDefault	before	initialize	LinkageError	-
+selection	child.AbstractDefault	after	invoke	I:2	A/LinkageError
+selection	child.AbstractDefault	same	invoke	I:2	A/A
+selection	child.DefaultDefault	before	invoke	AbstractMethodError	A/C
+selection	child.DefaultDefault	after	invoke	AbstractMethodError	A/C
+selection	child.DefaultDefault	same	invoke	AbstractMethodError	A/A
+selection	child.PrivateDefault	before	invoke	I:2	A/C
+selection	child.PrivateDefault	after	invoke	I:2	A/C
+selection	child.PrivateDefault	same	invoke	I:2	A/A
+selection	child.DefaultPrivate	before	invoke	I:1	A/C
+selection	child.DefaultPrivate	after	invoke	I:1	A/C
+selection	child.DefaultPrivate	same	invoke	I:1	A/A
+transitive	transitive	false	false	ok	ok	A/A/LinkageError	initialize	initialize
+transitive	transitive	false	true	ok	LinkageError	A/A/C	initialize	initialize
+transitive	transitive	true	false	ok	ok	A/LinkageError/LinkageError	initialize	initialize
+transitive	transitive	true	true	ok	LinkageError	A/C/C	initialize	initialize
+transitive	PQ	LinkageError	A/LinkageError	A	initialize
+transitive	QP	LinkageError	A/B	B	initialize
+transitive	PRet	LinkageError	A/B	B	initialize
+transitive	QRet	LinkageError	A/LinkageError	A	initialize
+packages	SameSpelling	initialize	ok
+packages	Public	initialize	LinkageError
+packages	PrivateChild	initialize	ok
+packages	StaticChild	initialize	ok
+packages	Protected	initialize	LinkageError
+packages	StaticParent	initialize	ok
+packages	Bridge	initialize	LinkageError
+inherited	distinct-child	A/B/A	initialize	ok
+method-order	Order00	initialize	LinkageError	A	{B,LinkageError}
+method-order	Order01	initialize	LinkageError	A	{B,LinkageError}
+method-order	Order10	initialize	LinkageError	A	{B,LinkageError}
+method-order	Order11	initialize	LinkageError	A	{B,LinkageError}
+method-order	Order20	initialize	LinkageError	A	{B,LinkageError}
+method-order	Order21	initialize	LinkageError	A	{B,LinkageError}

@@ -1,0 +1,41 @@
+{
+  "archive": "ibm-semeru-open-jre_x64_windows_21.0.13.0.zip",
+  "archive_sha256": "b296dc9f53cc933ebbf75d64b6bb5a17f30cd365f8ce8ab93df5a71a925a9c37",
+  "compiler": "javac 21.0.7",
+  "compiler_options": [
+    "--release",
+    "21",
+    "-encoding",
+    "UTF-8"
+  ],
+  "driver_classes": {
+    "LoadingConstraintProbe$Domain.class": "b4c775aabfff34c30c6941f9afed2aa5bb8ef0bce52b459403a58bc7f279ff86",
+    "LoadingConstraintProbe$Stage.class": "8a6fe62af60d77e60bab3c81d7d890883bd42c21de11341d65e8e7004bba607c",
+    "LoadingConstraintProbe.class": "9be8e5664c025fa8f21e462b13c100cee9e1b65f212e71c064995e42d9a1ebc9",
+    "LoadingSelectionEdges.class": "15e5babc4ff394e016a8e35bc054b7dc3381cb662b9a3d10b93a36f8b65d0ffa"
+  },
+  "driver_sources": {
+    "LoadingConstraintProbe.java": "d2c5a389a6a177ed84a0c55ff56280d85fdbebfff7f17ae6f331e796b76be97a",
+    "LoadingSelectionEdges.java": "1c934250638a1f42e0b77a9fc53aaf88dab85f36a388161730b7e547c69ab308"
+  },
+  "observations": {
+    "invoke.tsv": {
+      "rows": 18,
+      "sha256": "5084b01ac0d1b1d9ef449dbb8d2237d1e8ef5b69ea312de37a2c638f38b1ca4c"
+    },
+    "main.tsv": {
+      "rows": 85,
+      "sha256": "fc65479f6fa3cfe3c61f274128b8096e1dc37242f24fa48bd7434ab361ea82a6"
+    },
+    "prepare.tsv": {
+      "rows": 27,
+      "sha256": "aa135ab5f4eda055170442e4c45e67b8dd7c5fbe0206f963dedffe538fe01df0"
+    }
+  },
+  "options": [
+    "-Xshareclasses:none",
+    "-Xverify:all"
+  ],
+  "release": "https://github.com/ibmruntimes/semeru21-binaries/releases/tag/jdk-21.0.13.0",
+  "runtime": "openjdk version \"21.0.13.0.3\" 2026-10-24 LTS\nIBM Semeru Runtime Open Edition 21.0.13.0 (build 21.0.13.0.3+1-LTS)\nEclipse OpenJ9 VM 21.0.13.0 (build 21.0.13.0.3+1-openj9-0.63.0, JRE 21 Windows 11 amd64-64-Bit Compressed References 20261024_885 (JIT enabled, AOT enabled)\nOpenJ9   - dcc7ee16aa\nOMR      - c2a3a9ae0\nJCL      - 62d1b70e191 based on jdk-21.0.13.0.3+1)"
+}

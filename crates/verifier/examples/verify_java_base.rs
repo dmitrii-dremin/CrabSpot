@@ -1,7 +1,7 @@
 //! Reference corpus tool. The Python driver supplies every class from a local JDK 21 java.base.jmod.
 use crabspot_classfile::{AttributeBody, Constant, parse};
 use crabspot_runtime::{
-    ClassId, DefinitionRegistry, RegistryOptions, SameLoaderResolver, build_hierarchy,
+    ClassId, LoadingDomain, RegistryOptions, SameLoaderResolver, build_hierarchy,
 };
 use crabspot_verifier::{
     VerificationCore, VerificationEnvironment, VerificationEnvironmentOptions, verify_class_types,
@@ -64,8 +64,8 @@ fn run(reader: &mut impl Read) -> Result<()> {
         max_total_definition_bytes: MAX_TOTAL,
         ..Default::default()
     };
-    let mut registry = DefinitionRegistry::new(options)?;
-    let boot = registry.create_loader()?;
+    let mut domain = LoadingDomain::new(options, Default::default())?;
+    let boot = domain.create_loader()?;
     let mut previous = String::new();
     let mut targets = Vec::new();
     let mut module = false;
@@ -89,7 +89,8 @@ fn run(reader: &mut impl Read) -> Result<()> {
             check_module(&data)?;
             module = true;
         } else {
-            let id = registry
+            let id = domain
+                .context(Default::default())
                 .define(
                     boot,
                     &name.encode_utf16().collect::<Vec<_>>(),
@@ -104,6 +105,7 @@ fn run(reader: &mut impl Read) -> Result<()> {
     if reader.read(&mut [0])? != 0 || !module || targets.len() + 1 != count {
         return Err("incomplete java.base inventory or trailing bytes".into());
     }
+    let registry = domain.registry();
     let lookup = |name: &str| -> Result<ClassId> {
         registry
             .lookup_class(boot, &name.encode_utf16().collect::<Vec<_>>())?
@@ -124,7 +126,7 @@ fn run(reader: &mut impl Read) -> Result<()> {
     let mut plans = Vec::new();
     let (mut rows, mut edges) = (0u64, 0u64);
     for &id in &targets {
-        let plan = build_hierarchy(&registry, id, &mut SameLoaderResolver, Default::default())
+        let plan = build_hierarchy(registry, id, &mut SameLoaderResolver, Default::default())
             .map_err(|error| format!("hierarchy for {id:?}: {error}"))?;
         rows += plan.classes().len() as u64;
         if rows > limits.max_class_rows {
@@ -141,7 +143,7 @@ fn run(reader: &mut impl Read) -> Result<()> {
         plans.push(plan);
     }
     let refs = plans.iter().collect::<Vec<_>>();
-    let env = VerificationEnvironment::new(&registry, &refs, &[], core, limits)?;
+    let env = VerificationEnvironment::new(registry, &refs, &[], core, limits)?;
     let (mut checked, mut bodies, mut bodyless) = (0, 0u64, 0u64);
     for id in targets {
         let class = registry.class(id)?;
@@ -173,6 +175,32 @@ fn run(reader: &mut impl Read) -> Result<()> {
     if checked + 1 != count {
         return Err("incomplete java.base proof set".into());
     }
+    drop(env);
+    let initial = domain.usage();
+    let definitions = checked as u64;
+    if initial.names != definitions
+        || initial.pairs != definitions
+        || initial.initiations != definitions
+        || initial.unions != 0
+    {
+        return Err("incomplete bootstrap initiating-loader records".into());
+    }
+    let mut prepared = 0;
+    for plan in &plans {
+        let name = domain.registry().class(plan.root())?.name()?.escaped();
+        domain
+            .context(Default::default())
+            .prepare_constraints(plan)
+            .map_err(|error| format!("preparation constraints for {name}: {error}"))?;
+        prepared += 1;
+    }
+    if prepared != checked || domain.usage() != initial {
+        return Err("incomplete preparation or unexpected cross-loader record in java.base".into());
+    }
+    println!(
+        "java.base prepared_classes={prepared} bootstrap_initiations={} nonreflexive_unions={}",
+        initial.initiations, initial.unions
+    );
     println!(
         "java.base proved_classes={checked} code_bodies={bodies} bodyless={bodyless} declarations={} module_descriptors=1",
         bodies + bodyless

@@ -1,6 +1,6 @@
 # CrabSpot architecture
 
-The director approved the standalone modern class verifier on 2026-11-05. It checks every declared method in file order and enforces cumulative limits. The native gate passed 1,111 workspace tests and 1,024 optimized tests, all 174 ordinary javac fixtures, and all 7,519 ordinary definitions in the local Zulu 21.0.7 java.base archive. [Review and acceptance](m2-class-type-verification-review.md). The next contract covers initiating-loader records and constraints imposed during preparation. [Planning proposal](m2-loading-constraints-next.md). Historical verification, complete linking, application startup and M2 remain open.
+The director approved the checked loading domain and preparation constraints on 2026-11-05. Both preparation producers now enforce cross-loader signature agreements. The native gate passed 1,181 workspace debug tests, 1,094 optimized tests, and checked every ordinary definition in the local JDK's java.base archive. The next planned increment connects loader agreements to member resolution and execution. [Acceptance review](m2-loading-constraints-review.md), [reference VM differences](m2-loading-selection-reference-disposition.md) and [next proposal](m2-resolution-constraints-next.md).
 
 `ARCHITECTURE.md` is the project charter. This document refines its initial layout without reducing its roadmap. CrabSpot is an independent Rust JVM project targeting Linux x86-64. The first deliverable reads class files; it does not execute Java programs or claim JVM compatibility. NanoSpec is not used in this project.
 

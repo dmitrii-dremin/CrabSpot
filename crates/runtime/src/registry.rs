@@ -346,6 +346,16 @@ struct Definition {
     loader: LoaderId,
     class: ClassFile,
 }
+pub(crate) struct StagedDefinition {
+    registry: u64,
+    base_count: usize,
+    base_bytes: usize,
+    loader: LoaderId,
+    loader_index: usize,
+    class: ClassFile,
+    key: Vec<u16>,
+    total: usize,
+}
 
 /// Owns immutable parsed definitions. Admission does not prove verification,
 /// linking, access legality, hierarchy validity, or initialization.
@@ -374,7 +384,7 @@ fn increased(current: usize, amount: usize, limit: usize, resource: R) -> Result
         Ok(required)
     }
 }
-fn validate_name(name: &[u16]) -> Result<(), E> {
+pub(crate) fn validate_name(name: &[u16]) -> Result<(), E> {
     if name.first() == Some(&91) {
         return Err(E::UnsupportedDefinition(
             "array classes are outside ordinary byte definitions",
@@ -430,7 +440,7 @@ impl DefinitionRegistry {
         self.names.push(BTreeMap::new());
         Ok(loader)
     }
-    fn loader_index(&self, loader: LoaderId) -> Result<usize, E> {
+    pub(crate) fn loader_index(&self, loader: LoaderId) -> Result<usize, E> {
         if loader.registry != self.identity {
             return Err(E::InvalidHandle {
                 kind: HandleKind::Loader,
@@ -483,6 +493,18 @@ impl DefinitionRegistry {
         bytes: &[u8],
         parse_options: ParseOptions,
     ) -> Result<ClassId, E> {
+        let prepared = self.stage_definition(loader, expected_name, bytes, parse_options)?;
+        Ok(self.publish_definition(prepared))
+    }
+
+    /// Owns all admission work while leaving the registry's logical state intact.
+    pub(crate) fn stage_definition(
+        &self,
+        loader: LoaderId,
+        expected_name: &[u16],
+        bytes: &[u8],
+        parse_options: ParseOptions,
+    ) -> Result<StagedDefinition, E> {
         let loader_index = self.loader_index(loader)?;
         validate_name(expected_name)?;
         if let Some(existing) = self.lookup_class(loader, expected_name)? {
@@ -521,6 +543,31 @@ impl DefinitionRegistry {
             });
         }
         let key = declared.units().to_vec();
+        Ok(StagedDefinition {
+            registry: self.identity,
+            base_count: self.definitions.len(),
+            base_bytes: self.total_bytes,
+            loader,
+            loader_index,
+            class,
+            key,
+            total,
+        })
+    }
+
+    /// Private callers retain exclusive registry authority between staging and
+    /// publication. Existing registry storage allocation conventions are unchanged.
+    pub(crate) fn publish_definition(&mut self, staged: StagedDefinition) -> ClassId {
+        let StagedDefinition {
+            registry: _,
+            base_count: _,
+            base_bytes: _,
+            loader,
+            loader_index,
+            class,
+            key,
+            total,
+        } = staged;
         let id = ClassId {
             registry: self.identity,
             index: self.definitions.len(),
@@ -529,7 +576,22 @@ impl DefinitionRegistry {
         self.definitions.push(Definition { loader, class });
         self.names[loader_index].insert(key, id);
         self.total_bytes = total;
-        Ok(id)
+        id
+    }
+    pub(crate) fn validate_definition_stage(&self, stage: &StagedDefinition) -> Result<(), E> {
+        if stage.registry != self.identity
+            || stage.base_count != self.definitions.len()
+            || stage.base_bytes != self.total_bytes
+            || stage.loader.registry != self.identity
+            || stage.loader.index != stage.loader_index
+            || self.names.get(stage.loader_index).is_none()
+        {
+            return Err(E::InvalidHandle {
+                kind: HandleKind::Class,
+                reason: "stale or foreign private admission stage",
+            });
+        }
+        Ok(())
     }
 
     pub fn load_from_source<S: DefinitionSource + ?Sized>(
