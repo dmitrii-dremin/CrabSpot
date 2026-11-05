@@ -24,6 +24,7 @@ fn failure_phase(status: InitializationStatus, has_initializer: bool) -> Option<
 pub(crate) fn run_prepared(
     image: PreparedImage,
     observations: &[StaticIntObservation<'_>],
+    monitors: crabspot_interpreter::MonitorLimits,
 ) -> Result<ApplicationRun> {
     let PreparedImage {
         mut domain,
@@ -65,16 +66,18 @@ pub(crate) fn run_prepared(
     let mut context = domain
         .member_context_unnamed_modules(&mut heap, options.field, options.loading_work)
         .map_err(|source| meter.error(S::Setup, K::Member(source), usage))?;
-    let main = context.resolve_application_main(named).map_err(|source| {
-        meter.error(
-            S::Entry,
-            K::Setup {
-                kind: SetupKind::Main,
-                source,
-            },
-            usage,
-        )
-    })?;
+    let main = context
+        .resolve_application_main_with_monitors(named)
+        .map_err(|source| {
+            meter.error(
+                S::Entry,
+                K::Setup {
+                    kind: SetupKind::Main,
+                    source,
+                },
+                usage,
+            )
+        })?;
     let fields = resolve_observations(
         &routes,
         context.registry(),
@@ -128,12 +131,13 @@ pub(crate) fn run_prepared(
             )
         })?;
     usage.argument_arrays = 1;
-    let mut session = InitializationSession::new(
+    let mut session = InitializationSession::new_with_monitors(
         &mut context,
         &statics,
         &exceptions,
         roles.error,
         options.initialization,
+        monitors,
     )
     .map_err(|source| {
         meter.error(

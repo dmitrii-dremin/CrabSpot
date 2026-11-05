@@ -1,6 +1,6 @@
 # CrabSpot architecture
 
-The director approved directory application entry on 2026-11-05. CrabSpot now verifies the executable classes in a supplied application image, initializes the named entry class and invokes its selected public static main. A six-class Java application produced the same five observed static values as HotSpot and OpenJ9. The next increment addresses synchronized methods and monitor bytecodes for one logical thread. [Application entry review](m2-verified-application-entry-review.md), [member resolution](m2-resolution-constraints-review.md) and [monitor proposal](m2-monitors-next.md).
+The director approved single-thread Java monitor execution on 2026-11-05. The verified directory launcher supports synchronized instance and static methods, synchronized main, and explicit monitor entry and exit. A seven-class application exercised reentrant object and array locks, dynamic interface dispatch and inherited static synchronization. The next proposal gives Java code canonical Class objects for class literals and Object.getClass(). [Monitor review](m2-single-thread-monitors-review.md), [reference JVM observations](m2-monitor-reference.md) and [class-object proposal](m2-class-mirrors-next.md).
 
 `ARCHITECTURE.md` is the project charter. This document refines its initial layout without reducing its roadmap. CrabSpot is an independent Rust JVM project targeting Linux x86-64. The first deliverable reads class files; it does not execute Java programs or claim JVM compatibility. NanoSpec is not used in this project.
 
@@ -47,7 +47,7 @@ Within supported constructs, validation covers file-local format rules, typed co
 
 Metadata checks assigned to later consumers remain there. For example, the parser decodes MethodParameters entries without requiring their count to match the descriptor; future reflection services perform that matching. Generic signature strings are preserved for their later consumer. Neither policy makes opaque standard annotation or module bodies count as decoded support.
 
-The normative format reference is [JVMS SE 21 chapter 4](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html), particularly sections 4.1–4.8. The validation boundary follows the distinction from [code constraints](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html#jvms-4.9) and [verification](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html#jvms-4.10). This is a project contract, not a claim that parser acceptance equals conformance.
+The normative format reference is [JVMS SE 21 chapter 4](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html), particularly sections 4.1вЂ“4.8. The validation boundary follows the distinction from [code constraints](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html#jvms-4.9) and [verification](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html#jvms-4.10). This is a project contract, not a claim that parser acceptance equals conformance.
 
 ## Growth boundaries
 

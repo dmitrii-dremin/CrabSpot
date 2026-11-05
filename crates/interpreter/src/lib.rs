@@ -10,6 +10,8 @@ mod error;
 mod execute;
 mod frame;
 mod initialization;
+mod monitor;
+pub use monitor::{MonitorError, MonitorLimits, MonitorResource};
 #[cfg(test)]
 mod tests;
 

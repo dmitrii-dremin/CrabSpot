@@ -59,6 +59,21 @@ impl FieldResolutionContext<'_> {
         &mut self,
         named: ClassId,
     ) -> Result<ResolvedApplicationMain, Box<ApplicationMainError>> {
+        self.resolve_application_main_mode(named, false)
+    }
+    /// Select the same checked entry while also permitting synchronized Code.
+    /// The returned token does not enable monitoring in a legacy session.
+    pub fn resolve_application_main_with_monitors(
+        &mut self,
+        named: ClassId,
+    ) -> Result<ResolvedApplicationMain, Box<ApplicationMainError>> {
+        self.resolve_application_main_mode(named, true)
+    }
+    fn resolve_application_main_mode(
+        &mut self,
+        named: ClassId,
+        monitors: bool,
+    ) -> Result<ResolvedApplicationMain, Box<ApplicationMainError>> {
         self.unchanged().map_err(context)?;
         if self.member_loading_work().is_none() {
             return Err(context(FieldAccessError::InvalidState(
@@ -106,7 +121,9 @@ impl FieldResolutionContext<'_> {
                     owner: class,
                     index,
                 };
-                if member.access_flags & 8 == 0 || member.access_flags & (0x20 | 0x100 | 0x400) != 0
+                if member.access_flags & 8 == 0
+                    || member.access_flags & (0x100 | 0x400) != 0
+                    || (!monitors && member.access_flags & 0x20 != 0)
                 {
                     return Err(Box::new(ApplicationMainError::WrongMainFlags { method }));
                 }
@@ -171,6 +188,9 @@ impl FieldResolutionContext<'_> {
 mod tests {
     use crate::{LoadingDomain, ManagedHeap, SameLoaderResolver, build_hierarchy};
     fn bytes(name: &str, root: bool) -> Vec<u8> {
+        bytes_flags(name, root, 9)
+    }
+    fn bytes_flags(name: &str, root: bool, flags: u16) -> Vec<u8> {
         fn w(out: &mut Vec<u8>, n: u16) {
             out.extend(n.to_be_bytes());
         }
@@ -194,9 +214,16 @@ mod tests {
                 w(&mut out, if index == 0 { 1 } else { 3 });
             }
         }
-        for n in [0x21, 2, if root { 0 } else { 4 }, 0, 0, 1, 9, 5, 6, 1, 7] {
+        for n in [0x21, 2, if root { 0 } else { 4 }, 0, 0, 1, flags, 5, 6] {
             w(&mut out, n);
         }
+        if flags & 0x100 != 0 {
+            w(&mut out, 0);
+            w(&mut out, 0);
+            return out;
+        }
+        w(&mut out, 1);
+        w(&mut out, 7);
         out.extend(13_u32.to_be_bytes());
         w(&mut out, 0);
         w(&mut out, 1);
@@ -266,5 +293,81 @@ mod tests {
         }
         drop(context);
         assert_eq!(domain.member_resolution_usage().sites, 0);
+    }
+    #[test]
+    fn monitor_selector_only_relaxes_sync_with_identical_charged_lookup() {
+        for flags in [9, 0x29, 0x129] {
+            let mut domain = LoadingDomain::new(Default::default(), Default::default()).unwrap();
+            let loader = domain.create_loader().unwrap();
+            let object = domain
+                .context(Default::default())
+                .define(
+                    loader,
+                    &"java/lang/Object".encode_utf16().collect::<Vec<_>>(),
+                    &bytes("java/lang/Object", true),
+                    Default::default(),
+                )
+                .unwrap();
+            let named = domain
+                .context(Default::default())
+                .define(
+                    loader,
+                    &[68],
+                    &bytes_flags("D", false, flags),
+                    Default::default(),
+                )
+                .unwrap();
+            domain.enable_member_resolution(Default::default()).unwrap();
+            let plans = [object, named].map(|c| {
+                build_hierarchy(
+                    domain.registry(),
+                    c,
+                    &mut SameLoaderResolver,
+                    Default::default(),
+                )
+                .unwrap()
+            });
+            for p in &plans {
+                domain
+                    .context(Default::default())
+                    .prepare_member_owner(p)
+                    .unwrap()
+            }
+            let mut heap =
+                ManagedHeap::new_with_instances(Default::default(), Default::default()).unwrap();
+            heap.admit_instance_layouts(domain.registry(), &plans.iter().collect::<Vec<_>>())
+                .unwrap();
+            let mut context = domain
+                .member_context_unnamed_modules(&mut heap, Default::default(), Default::default())
+                .unwrap();
+            let before = context.lookup_steps();
+            let legacy = context.resolve_application_main(named);
+            let legacy_work = context.lookup_steps() - before;
+            let before = context.lookup_steps();
+            let monitored = context.resolve_application_main_with_monitors(named);
+            let monitor_work = context.lookup_steps() - before;
+            assert_eq!(legacy_work, monitor_work);
+            if flags == 9 {
+                assert!(legacy.is_ok());
+                assert!(monitored.is_ok())
+            } else if flags == 0x29 {
+                assert!(matches!(
+                    *legacy.unwrap_err(),
+                    super::ApplicationMainError::WrongMainFlags { .. }
+                ));
+                let token = monitored.unwrap();
+                assert_eq!(token.named_class(), named);
+                assert_eq!(token.method().owner(), named);
+                context.check_application_main(&token).unwrap();
+            } else {
+                assert!(legacy.is_err());
+                assert!(matches!(
+                    *monitored.unwrap_err(),
+                    super::ApplicationMainError::WrongMainFlags { .. }
+                ));
+            }
+            assert_eq!(context.heap().allocated_instances(), 0);
+            assert_eq!(context.heap().allocated_arrays(), 0);
+        }
     }
 }

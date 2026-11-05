@@ -54,6 +54,18 @@ result, helper initialization count and argument count. The launcher checks all
 classes supplied in the application directory before running main. Its current
 platform imports and runtime limits are listed in the [directory entry contract](docs/architecture/m2-verified-application-entry.md).
 
+### Run synchronized Java code
+
+Using the same extracted platform and a fresh `target/monitor-classes` directory, compile and launch the monitor example:
+
+```text
+javac --release 21 -d target/monitor-classes -sourcepath tests/fixtures/monitors/src tests/fixtures/monitors/src/locks/Entry.java
+cargo run --release -p crabspot-launcher --bin crabspot -- run --platform target/app-platform/classes --classes target/monitor-classes locks.Entry
+cargo run --release -p crabspot-launcher --example replay_monitor_entry -- target/app-platform/classes target/monitor-classes locks.Entry
+```
+
+The application synchronizes on its argument array, a primitive array and ordinary objects. It also invokes synchronized static and instance methods. The observer prints `returned 1/2/1/9` for entries, calls, completions and sum. This execution profile has one logical thread. [Monitor behavior and reference JVM results](docs/architecture/m2-monitor-reference.md).
+
 ## Build and inspect
 
 Install Rust stable with rustfmt and Clippy. Tests use checked-in Java 21 fixtures;

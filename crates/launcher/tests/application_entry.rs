@@ -153,7 +153,7 @@ fn invalid_unused_application_body_fails_proof_before_heap_or_execution() {
 }
 #[test]
 fn missing_or_wrong_flags_main_is_entry_failure_without_argument_allocation() {
-    for flags in [1, 10, 0x109, 0x29, 0x401] {
+    for flags in [1, 10, 0x109, 0x401] {
         let mut c = Class::plain("app/Main");
         if flags & 0x400 != 0 {
             c.flags = 0x421;
@@ -767,4 +767,83 @@ fn unix_symlink_and_non_utf8_entries_are_rejected_without_following() {
         assert_eq!(e.stage, ApplicationStage::Input);
         assert_eq!(e.usage.engine_evaluations, 0);
     }
+}
+
+#[test]
+fn synchronized_main_is_enabled_and_monitor_entry_exit_limits_preserve_effects_and_phase() {
+    for steps in [0, 1, 2] {
+        let mut c = Class::plain("app/Main");
+        c.field("value", "I", 9);
+        let field = c.reference(9, "app/Main", "value", "I");
+        let mut init = vec![0x10, 7];
+        init.extend(instruction(0xb3, field));
+        init.push(0xb1);
+        c.method("<clinit>", "()V", 0x28, &init, 1, 0);
+        let mut body = vec![0x10, 9];
+        body.extend(instruction(0xb3, field));
+        body.push(0xb1);
+        c.method("main", "([Ljava/lang/String;)V", 0x29, &body, 1, 1);
+        let inputs = Inputs::new(vec![c]);
+        let result = run_directory_application_with_monitor_limits(
+            inputs.dirs(),
+            "app.Main",
+            &[query("app.Main", "value")],
+            Default::default(),
+            MonitorLimits {
+                max_steps: steps,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(result.static_ints, [if steps == 0 { 7 } else { 9 }]);
+        assert_eq!(result.usage.engine_evaluations, 1);
+        assert_eq!(result.usage.argument_arrays, 1);
+        if steps == 2 {
+            assert!(matches!(result.completion, ApplicationCompletion::Returned));
+        } else {
+            let ApplicationCompletion::ExecutionFailed { phase, error } = result.completion else {
+                panic!("typed execution failure required")
+            };
+            assert_eq!(phase, EntryEvaluation::MainEvaluation);
+            assert!(
+                matches!(error.kind,E::Monitor(crabspot_interpreter::MonitorError::Limit{resource:crabspot_interpreter::MonitorResource::Steps,limit,required})if limit==steps&&required==steps+1)
+            );
+            assert_eq!(error.offset, if steps == 0 { None } else { Some(5) });
+        }
+    }
+}
+#[test]
+fn default_library_and_physical_cli_run_synchronized_main_with_actual_argument_array_lock() {
+    let mut c = Class::plain("app/Main");
+    c.field("value", "I", 9);
+    let value = c.reference(9, "app/Main", "value", "I");
+    let mut body = vec![0x2a, 0xc2, 0x10, 23];
+    body.extend(instruction(0xb3, value));
+    body.extend([0x2a, 0xc3, 0xb1]);
+    c.method("main", "([Ljava/lang/String;)V", 0x29, &body, 1, 1);
+    let inputs = Inputs::new(vec![c]);
+    let result = inputs
+        .run(
+            "app.Main",
+            &[query("app.Main", "value")],
+            Default::default(),
+        )
+        .unwrap();
+    assert!(matches!(result.completion, ApplicationCompletion::Returned));
+    assert_eq!(result.static_ints, [23]);
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_crabspot"))
+        .args(["run", "--platform"])
+        .arg(&inputs.platform)
+        .arg("--classes")
+        .arg(&inputs.application)
+        .arg("app.Main")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
 }

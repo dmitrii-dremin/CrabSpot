@@ -7,6 +7,8 @@ also evaluates primitive arrays with supported symbolic array exceptions. This k
 invocation, class loading, class initialization, verification or exception-object
 allocation. An explicit `InitializationSession`, described below, separately opts
 into a bounded single-owner initialization and construction procedure.
+`InitializationSession::new_with_monitors` additionally enables single-thread
+monitor bytecodes and selected synchronized Code, described in the final section.
 
 The selected standalone method must have exactly one Code attribute, a numeric/void
 descriptor, and no native, abstract or synchronized declaration or exception
@@ -23,7 +25,8 @@ adds `getfield`, `putfield`, `invokevirtual`, `invokeinterface` and ordinary
 profile adds `athrow`, for 192 total. The static-only and composed static/exception
 profiles add `getstatic`/`putstatic`, for 193 and 194 respectively. The initialization
 session adds `new` and constructor semantics for `invokespecial`, for 195 effective
-opcodes. `wide` is an encoding prefix for indexed
+opcodes. A monitored session adds `monitorenter` and `monitorexit`, for 197.
+`wide` is an encoding prefix for indexed
 loads/stores and increment; heap mode adds two reference local forms to the nine
 numeric wide forms.
 
@@ -1013,3 +1016,52 @@ opcode, VM exception object, native bootstrap, platform trust exemption or secon
 execution loop. Public tests pin inherited identities, old run_static behavior,
 shared exact/short fuel and Code limits, argument/preflight effects and stale-token
 error provenance.
+
+
+## Single-thread monitors
+
+`InitializationSession::new_with_monitors` retains the existing static/exception/
+initialization checks and permanent claim, then stores `MonitorLimits`. Its
+initialize, static-root and application-main evaluations each start one empty
+private ledger. Calls, constructors, initializer bodies, active-use continuations
+and supplied-Throwable dispatch share that evaluation's ledger and four inclusive
+ceilings: steps, active identities, active claims and recursion depth per identity.
+The defaults are 1,048,576 / 16,384 / 65,536 / 65,536. Growth is fallible and based
+on actual demand, with no host locks or global ownership table.
+
+`monitorenter` / `monitorexit` accept checked ordinary objects, primitive/reference
+arrays and private unfinished construction identities without promoting aliases.
+Null and invalid handles are checked before monitor work. Selected synchronized
+instance bodies lock their actual receiver; synchronized static bodies lock the
+actual declaring ClassId, including its defining loader. Initialization finishes
+before a deferred synchronized static/root activation acquires its lock. Incidental
+clinit flags still do not synchronize the initializer. Constructors retain their
+existing declaration and chain rules.
+
+The profile enforces both optional JVMS structured-locking rules. Each invocation
+can exit only its own positive explicit claim. A callee cannot consume its caller's
+claim or its own implicit synchronized receipt. This deliberately rejects an
+explicit exit of an implicit-only lock immediately at that exit PC, rather than
+copying reference VMs' later completion failure. Different monitors need not be
+released in LIFO order. An explicit pair costs two monitor steps; a synchronized
+invocation costs one at activation and one at completion. Completion with no claims
+or receipt is free, as is installing a matching same-frame exception handler.
+
+All six returns first validate their original operand/protocol, then close the
+frame before result transfer, constructor alias promotion or initializer completion.
+Supplied throws search handlers first; only an escaping frame closes its monitor
+state. Unbalanced completion replaces the return/throw with
+`UnsupportedVmException(IllegalMonitorStateException)` at its real boundary PC,
+without fabricating or catching a Java object. `ExecutionErrorKind::Monitor` retains
+structured resource/coherence/allocation errors and a typed source. Nested implicit
+entry errors identify the caller/invoke PC; host-root entry errors identify the
+selected method without a fabricated PC. All interruption paths, including panic,
+drop the entire evaluation-local ledger without further policy charges; committed
+Java state and initialization statuses remain inspectable.
+
+Legacy `new`, standalone numeric/heap APIs and instance-body APIs continue rejecting
+synchronized Code and these bytecodes. The older profile sections describe those
+explicit boundaries, not the monitor-enabled session. Monitor metadata uses a lazy
+frame-depth map; legacy Frame layout is unchanged and no monitor entries are allocated
+without a claim. No class mirrors, Thread.holdsLock native, VM exception production,
+wait/notify, blocking, multiple Java threads or memory-order guarantee is supplied.

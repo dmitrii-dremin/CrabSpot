@@ -1,0 +1,312 @@
+{
+  "direct/balanced": [
+    0,
+    "",
+    ""
+  ],
+  "direct/callee-exit": [
+    1,
+    "",
+    "Exception in thread \"main\" java.lang.IllegalMonitorStateException\n\tat locks.RawEntry.main(Unknown Source)"
+  ],
+  "direct/crossed": [
+    0,
+    "",
+    ""
+  ],
+  "direct/leak": [
+    0,
+    "",
+    ""
+  ],
+  "direct/null-enter": [
+    1,
+    "",
+    "Exception in thread \"main\" java.lang.NullPointerException: Cannot enter synchronized block because \"null\" is null\n\tat locks.RawEntry.main(Unknown Source)"
+  ],
+  "direct/null-exit": [
+    1,
+    "",
+    "Exception in thread \"main\" java.lang.NullPointerException: Cannot exit synchronized block because \"null\" is null\n\tat locks.RawEntry.main(Unknown Source)"
+  ],
+  "direct/recursive": [
+    0,
+    "",
+    ""
+  ],
+  "direct/synchronized-instance-exit": [
+    1,
+    "",
+    "Exception in thread \"main\" java.lang.IllegalMonitorStateException\n\tat locks.RawEntry.drop(Unknown Source)\n\tat locks.RawEntry.main(Unknown Source)"
+  ],
+  "direct/unfinished": [
+    0,
+    "",
+    ""
+  ],
+  "direct/unowned": [
+    1,
+    "",
+    "Exception in thread \"main\" java.lang.IllegalMonitorStateException\n\tat locks.RawEntry.main(Unknown Source)"
+  ],
+  "direct/wrong-object": [
+    1,
+    "",
+    "Exception in thread \"main\" java.lang.IllegalMonitorStateException\n\tat locks.RawEntry.main(Unknown Source)"
+  ],
+  "effects/balanced": [
+    0,
+    "returned 3 false/false",
+    ""
+  ],
+  "effects/callee-exit": [
+    0,
+    "IllegalMonitorStateException 2 false/false",
+    ""
+  ],
+  "effects/crossed": [
+    0,
+    "returned 3 false/false",
+    ""
+  ],
+  "effects/leak": [
+    0,
+    "returned 3 true/false",
+    ""
+  ],
+  "effects/null-enter": [
+    0,
+    "NullPointerException 1 false/false",
+    ""
+  ],
+  "effects/null-exit": [
+    0,
+    "NullPointerException 1 false/false",
+    ""
+  ],
+  "effects/recursive": [
+    0,
+    "returned 3 false/false",
+    ""
+  ],
+  "effects/synchronized-instance-exit": [
+    0,
+    "IllegalMonitorStateException 2 false/false",
+    ""
+  ],
+  "effects/unfinished": [
+    0,
+    "returned 3 false/false",
+    ""
+  ],
+  "effects/unowned": [
+    0,
+    "IllegalMonitorStateException 1 false/false",
+    ""
+  ],
+  "effects/wrong-object": [
+    0,
+    "IllegalMonitorStateException 2 true/false",
+    ""
+  ],
+  "flags/ordinary": [
+    0,
+    "0/1/false",
+    ""
+  ],
+  "flags/sync-clinit": [
+    0,
+    "0/1/false",
+    ""
+  ],
+  "flags/sync-init": [
+    0,
+    "load ClassFormatError",
+    ""
+  ],
+  "identities": [
+    0,
+    "127",
+    ""
+  ],
+  "launch/Entry": [
+    0,
+    "",
+    ""
+  ],
+  "launch/Null": [
+    1,
+    "",
+    "Exception in thread \"main\" java.lang.NullPointerException: Cannot enter synchronized block because \"null\" is null\n\tat locks.Null.main(Unknown Source)"
+  ],
+  "loader": [
+    0,
+    "0000/1000/1010/1010/1010/1000/0000",
+    ""
+  ],
+  "observe/Entry": [
+    0,
+    "returned 1/2/1/9 000000",
+    ""
+  ],
+  "observe/Null": [
+    0,
+    "NullPointerException 1/0/0/0 000000",
+    ""
+  ],
+  "raw/balanced": [
+    0,
+    "invoke I:41 3 false false",
+    ""
+  ],
+  "raw/crossed": [
+    0,
+    "invoke I:41 3 false false",
+    ""
+  ],
+  "raw/nested-exit": [
+    0,
+    "invoke IllegalMonitorStateException 2 false false",
+    ""
+  ],
+  "raw/null-enter": [
+    0,
+    "invoke NullPointerException 1 false false",
+    ""
+  ],
+  "raw/null-exit": [
+    0,
+    "invoke NullPointerException 1 false false",
+    ""
+  ],
+  "raw/reentrant": [
+    0,
+    "invoke I:1 1 false false",
+    ""
+  ],
+  "raw/sync-held": [
+    0,
+    "invoke I:1 1 false false",
+    ""
+  ],
+  "raw/sync-leak": [
+    0,
+    "invoke I:41 3 true false",
+    ""
+  ],
+  "raw/sync-reenter": [
+    0,
+    "invoke I:1 1 false false",
+    ""
+  ],
+  "raw/sync-release": [
+    0,
+    "invoke IllegalMonitorStateException 3 false false",
+    ""
+  ],
+  "raw/sync-release-throw": [
+    0,
+    "invoke IllegalMonitorStateException 2 false false",
+    ""
+  ],
+  "raw/sync-supplied-throw": [
+    0,
+    "invoke supplied 2 false false",
+    ""
+  ],
+  "raw/unbalanced-return": [
+    0,
+    "invoke I:41 3 true false",
+    ""
+  ],
+  "raw/unbalanced-throw": [
+    0,
+    "invoke supplied 2 true false",
+    ""
+  ],
+  "raw/unfinished": [
+    0,
+    "invoke I:41 3 false false",
+    ""
+  ],
+  "raw/unowned": [
+    0,
+    "invoke IllegalMonitorStateException 1 false false",
+    ""
+  ],
+  "raw/wrong-receiver": [
+    0,
+    "invoke IllegalMonitorStateException 2 true false",
+    ""
+  ],
+  "returns/double-balanced": [
+    0,
+    "1.0 1 false",
+    ""
+  ],
+  "returns/double-leak": [
+    0,
+    "1.0 1 true",
+    ""
+  ],
+  "returns/float-balanced": [
+    0,
+    "2.0 1 false",
+    ""
+  ],
+  "returns/float-leak": [
+    0,
+    "2.0 1 true",
+    ""
+  ],
+  "returns/int-balanced": [
+    0,
+    "5 1 false",
+    ""
+  ],
+  "returns/int-catch-rethrow": [
+    0,
+    "same-throwable 1 false",
+    ""
+  ],
+  "returns/int-catch-return": [
+    0,
+    "5 1 false",
+    ""
+  ],
+  "returns/int-leak": [
+    0,
+    "5 1 true",
+    ""
+  ],
+  "returns/long-balanced": [
+    0,
+    "1 1 false",
+    ""
+  ],
+  "returns/long-leak": [
+    0,
+    "1 1 true",
+    ""
+  ],
+  "returns/ref-balanced": [
+    0,
+    "same-reference 1 false",
+    ""
+  ],
+  "returns/ref-leak": [
+    0,
+    "same-reference 1 true",
+    ""
+  ],
+  "returns/void-balanced": [
+    0,
+    "null 1 false",
+    ""
+  ],
+  "returns/void-leak": [
+    0,
+    "null 1 true",
+    ""
+  ]
+}

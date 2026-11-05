@@ -1,4 +1,23 @@
-# Current checkpoint: verified application entry
+# Current checkpoint: single-thread monitors
+
+The director approved single-thread monitor execution on 2026-11-05. The launcher executes synchronized Java methods and the two monitor bytecodes. A seven-class directory fixture enters a synchronized main, calls an inherited static method and two synchronized instance methods, and uses ordinary objects and arrays as locks. Its four retained fields read `1/2/1/9` on CrabSpot, HotSpot and OpenJ9. The program uses exactly 46 monitor operations. With a ceiling of 45 the engine reports the final return at bytecode offset 112 with all four writes visible. The public launcher and both reference JVMs also exercised raw bytecode cases that distinguish valid reentry, crossed releases, missing ownership and attempted release of another invocation's lock. All 52 local acceptance commands passed and all 98 frozen inputs matched after the gate. [Reference observations](../architecture/m2-monitor-reference.md) and [technical review](../architecture/m2-single-thread-monitors-review.md) and [next class-object proposal](../architecture/m2-class-mirrors-next.md).
+
+The parser campaign on the expanded 592-class corpus ran for 300 seconds with seed 4851011501752864596. It accepted 400,993 of 13,206,553 inputs, rejected 12,805,560, performed 12,898 deterministic rechecks and retained 1,024 inputs with zero recorded failures. An initial corpus discovery run identified the intentionally invalid synchronized-constructor class as a rejected seed. Its bytes now use the project's `.class.bin` convention and the JVM reference runner restores the exact class filename in its own temporary directory.
+
+The fresh local build passed formatting, strict all-target Clippy, 1,379 debug workspace tests, 1,299 optimized verifier/runtime/interpreter/launcher tests, and 34 Python regressions. The 10,000-input parser smoke accepted 82 cases and rejected 9,918 with zero failures. Zulu HotSpot and OpenJ9 each reproduced 62 observations on the original classfiles and 62 on regenerated inputs. A separate export using Git's canonical line endings reproduced all seven tool fingerprints and both JVMs' observations.
+
+```text
+cargo fmt --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+cargo test -p crabspot-verifier -p crabspot-runtime -p crabspot-interpreter -p crabspot-launcher --release --locked
+python -m unittest discover -s tools -p test_monitor_reference.py
+python tools/monitor_reference.py --check --compare-openj9 PATH_TO_OPENJ9_21_JAVA
+python tools/verify_monitor_entry.py
+cargo run -p crabspot-classfile --example fuzz_parser --release --locked -- tests/fixtures --seconds 300 --seed 4851011501752864596 --failures target/monitor-fuzz-failures
+```
+
+## Prior checkpoint: verified application entry
 
 The director approved verified directory application entry on 2026-11-05. The launcher ran a genuine Java 21 `main(String[])` from a class directory.
 The six-class application created two implementations of an interface, invoked both and
@@ -208,7 +227,7 @@ java.base archive and checked its module descriptor separately.
 ## Previous checkpoint: modern method verification
 
 Updated 2026-11-05. The new verifier checks a selected method against immutable
-loader-scoped hierarchy and member facts. It covers class-file majors 51–65,
+loader-scoped hierarchy and member facts. It covers class-file majors 51вЂ“65,
 including stack maps, exception edges, constructors and all modern instruction
 transfers. The director approved this bounded increment for publication on 2026-11-05.
 [Acceptance review](../architecture/m2-type-state-verification-review.md).

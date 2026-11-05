@@ -156,6 +156,7 @@ pub struct InitializationSession<'context, 'registry> {
     exceptions: ExceptionProfile,
     claim: InitializationClaim,
     state: SessionState,
+    monitors: Option<crate::MonitorLimits>,
 }
 impl<'context, 'registry> InitializationSession<'context, 'registry> {
     pub fn new(
@@ -198,6 +199,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             statics: *statics,
             exceptions: *exceptions,
             claim,
+            monitors: None,
             state: SessionState {
                 records,
                 indices,
@@ -210,6 +212,20 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
                 construction: ConstructionState::default(),
             },
         })
+    }
+    /// Enable bounded monitors for one logical thread. Each evaluation owns a fresh
+    /// ledger; a failed evaluation cannot leak ownership into a later one.
+    pub fn new_with_monitors(
+        context: &'context mut FieldResolutionContext<'registry>,
+        statics: &StaticStateProfile,
+        exceptions: &ExceptionProfile,
+        error_class: ClassId,
+        limits: InitializationLimits,
+        monitors: crate::MonitorLimits,
+    ) -> Result<Self, ExecutionError> {
+        let mut session = Self::new(context, statics, exceptions, error_class, limits)?;
+        session.monitors = Some(monitors);
+        Ok(session)
     }
     pub fn initialize(
         &mut self,
@@ -246,6 +262,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             exceptions: &self.exceptions,
             state: &mut *guard.state,
             owner,
+            monitors: self.monitors,
         };
         match crate::execute::execute_initializing(
             execution,
@@ -302,6 +319,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             exceptions: &self.exceptions,
             state: &mut *guard.state,
             owner,
+            monitors: self.monitors,
         };
         match crate::execute::execute_initializing(
             execution,
@@ -349,6 +367,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             exceptions: &self.exceptions,
             state: &mut *guard.state,
             owner,
+            monitors: self.monitors,
         };
         match crate::execute::execute_initializing(
             execution,

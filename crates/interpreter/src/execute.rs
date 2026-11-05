@@ -2,6 +2,7 @@ use crate::initialization::{
     InitializationResource, Phase, Record, RecordStatus, SessionState,
     allocation as init_allocation, overflow as init_overflow,
 };
+use crate::monitor::{MonitorFailure, MonitorKey, MonitorLedger};
 use crate::{
     CallSite, ExecutionError, ExecutionErrorKind as E, MethodIdentity, Value, ValueKind,
     frame::{AliasKey, FrameValue, Locals, Stack, Uninitialized, protocol},
@@ -130,6 +131,97 @@ fn exception_failure(error: ExceptionAccessError, pc: Option<u32>) -> ExecutionE
             ExecutionError::new(pc, E::UnsupportedVmException(kind))
         }
         error => ExecutionError::new(pc, E::ExceptionAccess(Box::new(error))),
+    }
+}
+
+fn monitor_failure(error: MonitorFailure, pc: Option<u32>) -> ExecutionError {
+    ExecutionError::new(
+        pc,
+        match error {
+            MonitorFailure::Java(kind) => E::UnsupportedVmException(kind),
+            MonitorFailure::Host(error) => E::Monitor(error),
+        },
+    )
+}
+fn finish_monitors(
+    ledger: Option<&mut MonitorLedger>,
+    depth: usize,
+    pc: u32,
+) -> Result<(), ExecutionError> {
+    if let Some(ledger) = ledger {
+        ledger
+            .finish(depth)
+            .map_err(|error| monitor_failure(error, Some(pc)))?;
+    }
+    Ok(())
+}
+// Invoked only for a fully provisioned frame, immediately before publication.
+fn activate_monitors(
+    ledger: Option<&mut MonitorLedger>,
+    depth: usize,
+    frame: &Frame,
+    prepared: &PreparedMethod,
+    services: &mut Services<'_, '_>,
+    claim: Option<&InitializationClaim>,
+) -> Result<(), ExecutionError> {
+    let Some(ledger) = ledger else {
+        if prepared.synchronized {
+            return Err(ExecutionError::new(
+                None,
+                E::UnsupportedMethod("synchronized methods require monitor services"),
+            ));
+        }
+        return Ok(());
+    };
+    ledger
+        .check_new_frame(depth)
+        .map_err(|e| monitor_failure(e, None))?;
+    if !prepared.synchronized {
+        return Ok(());
+    }
+    let key = if prepared.instance {
+        let reference = frame.locals.load_reference(0, 0)?.reference(0)?;
+        let handle = reference.heap_ref().ok_or_else(|| {
+            ExecutionError::new(
+                None,
+                E::UnsupportedVmException(VmExceptionKind::NullPointerException),
+            )
+        })?;
+        services
+            .heap()
+            .ok_or_else(|| operand_error(0))?
+            .validate_root(handle)
+            .map_err(|error| ExecutionError::new(None, E::Heap(error)))?;
+        MonitorKey::Object(handle)
+    } else {
+        let Services::Fields { context, .. } = services else {
+            return Err(ExecutionError::new(
+                None,
+                E::InvalidMethod("monitor context absent"),
+            ));
+        };
+        let class = frame.method.owner().ok_or_else(|| operand_error(0))?;
+        let claim = claim.ok_or_else(|| operand_error(0))?;
+        context
+            .check_initialization_class(claim, class)
+            .map_err(|error| initialization_failure(error, None))?;
+        MonitorKey::Class(class)
+    };
+    ledger
+        .enter_implicit(depth, key)
+        .map_err(|e| monitor_failure(e, None))
+}
+fn activation_error(
+    bodies: Bodies<'_>,
+    mut error: ExecutionError,
+    frame: &Frame,
+) -> ExecutionError {
+    if let Some((caller, pc)) = frame.origin {
+        error.offset = Some(pc);
+        contextualize(bodies, error, caller, frame.origin)
+    } else {
+        error.offset = None;
+        contextualize(bodies, error, frame.method, None)
     }
 }
 
@@ -264,6 +356,7 @@ struct PreparedMethod {
     instance: bool,
     initializer: bool,
     constructor: bool,
+    synchronized: bool,
     shape: MethodValueShape,
     // Index of the original Code attribute; rows stay borrowed from immutable metadata.
     handlers: Option<usize>,
@@ -481,6 +574,11 @@ struct Frame {
     reserved_slots: usize,
 }
 enum Action {
+    Monitor {
+        reference: Reference,
+        enter: bool,
+        next: u32,
+    },
     Continue,
     New {
         access: ResolvedNew,
@@ -1077,6 +1175,7 @@ pub(crate) struct SessionExecution<'a, 'registry> {
     pub exceptions: &'a ExceptionProfile,
     pub state: &'a mut SessionState,
     pub owner: u64,
+    pub monitors: Option<crate::MonitorLimits>,
 }
 pub(crate) enum InitializationRoot<'a> {
     Application {
@@ -1109,6 +1208,7 @@ pub(crate) fn execute_initializing(
         exceptions,
         state,
         owner,
+        monitors,
     } = execution;
     context
         .check_initialization_claim(claim)
@@ -1152,6 +1252,7 @@ pub(crate) fn execute_initializing(
             owner,
             activations: Vec::new(),
         }),
+        monitors,
     )?;
     match outcome {
         EngineOutcome::InitializationCompleted => Ok(InitializationResult::Completed),
@@ -1345,7 +1446,7 @@ fn prepare_initializer(
             &mut java.used_code_bytes,
             limits.max_prepared_code_bytes,
             Preparation::Initializer,
-            Some((&mut **context, method)),
+            Some((&mut **context, method, java.monitors.is_some())),
             exceptions,
         )
         .map_err(|mut error| {
@@ -1593,6 +1694,15 @@ fn resume_initialization(
                 .map_err(|_| init_allocation("static root frame"))?;
             let frame = make_frame(target, prepared, &args, None, None)
                 .map_err(|error| contextualize(bodies, error, target, None))?;
+            activate_monitors(
+                java.monitors.as_mut(),
+                java.frames.len(),
+                &frame,
+                prepared,
+                services,
+                Some(init.claim),
+            )
+            .map_err(|e| activation_error(bodies, e, &frame))?;
             java.frames.push(frame);
             java.reserved = reserved;
             Ok(None)
@@ -1670,10 +1780,21 @@ fn resume_initialization(
                         .map_err(|error| {
                             contextualize(bodies, error, target, Some((method, pc)))
                         })?;
-                    java.frames.get_mut(frame).ok_or_else(invalid)?.pc = next;
                     java.frames
                         .try_reserve(1)
                         .map_err(|_| init_allocation("resumed static call frame"))?;
+                    let depth = java.frames.len();
+                    let caller = java.frames.get_mut(frame).ok_or_else(invalid)?;
+                    activate_monitors(
+                        java.monitors.as_mut(),
+                        depth,
+                        &callee,
+                        prepared,
+                        services,
+                        Some(init.claim),
+                    )
+                    .map_err(|e| activation_error(bodies, e, &callee))?;
+                    caller.pc = next;
                     java.frames.push(callee);
                     java.reserved = reserved;
                 }
@@ -1783,6 +1904,15 @@ fn advance_initialization(
                 let mut frame = make_frame(key, prepared, &[], origin, None)
                     .map_err(|error| contextualize(bodies, error, key, origin))?;
                 frame.role = FrameRole::Initializer(class);
+                activate_monitors(
+                    java.monitors.as_mut(),
+                    java.frames.len(),
+                    &frame,
+                    prepared,
+                    services,
+                    Some(init.claim),
+                )
+                .map_err(|e| activation_error(bodies, e, &frame))?;
                 activation.phase = Phase::Body;
                 record.status = RecordStatus::InProgress {
                     owner: init.owner,
@@ -1826,6 +1956,7 @@ struct JavaState {
     reserved: usize,
     used_code_bytes: usize,
     remaining: u64,
+    monitors: Option<MonitorLedger>,
 }
 fn execute_engine(
     class: &ClassFile,
@@ -1847,6 +1978,7 @@ fn execute_engine(
         services,
         exceptions,
         None,
+        None,
     )
 }
 fn run_engine(
@@ -1856,6 +1988,7 @@ fn run_engine(
     mut services: Services<'_, '_>,
     mut exceptions: Option<ExceptionState<'_>>,
     mut initialization: Option<InitExecution<'_>>,
+    monitor_limits: Option<crate::MonitorLimits>,
 ) -> Result<EngineOutcome, ExecutionError> {
     let result = (|| {
         let bodies = Bodies {
@@ -1871,6 +2004,7 @@ fn run_engine(
             reserved: 0,
             used_code_bytes: 0,
             remaining: options.instruction_budget,
+            monitors: monitor_limits.map(MonitorLedger::new),
         };
         let requested = match root {
             EngineRoot::Initialize(class) => Some((class, InitContinuation::RootInitialize)),
@@ -1949,7 +2083,7 @@ fn run_engine(
                     },
                     match (&mut services, root_key) {
                         (Services::Fields { context, .. }, MethodKey::Registered(method)) => {
-                            Some((&mut **context, method))
+                            Some((&mut **context, method, java.monitors.is_some()))
                         }
                         _ => None,
                     },
@@ -2015,6 +2149,15 @@ fn run_engine(
                 } else {
                     let frame = make_frame(root_key, &root, args, None, receiver)
                         .map_err(|error| contextualize(bodies, error, root_key, None))?;
+                    activate_monitors(
+                        java.monitors.as_mut(),
+                        0,
+                        &frame,
+                        &root,
+                        &mut services,
+                        None,
+                    )
+                    .map_err(|e| activation_error(bodies, e, &frame))?;
                     java.cache.insert(root_key, root);
                     java.frames.push(frame);
                     java.reserved = checked;
@@ -2099,9 +2242,32 @@ fn run_engine(
                 &mut services,
                 exceptions.as_ref().map(|state| state.profile),
                 initialization.as_ref().map(|init| init.claim),
+                java.monitors.is_some(),
             )
             .map_err(|error| contextualize(bodies, error, current, origin))?;
             match action {
+                Action::Monitor {
+                    reference,
+                    enter,
+                    next,
+                } => {
+                    let depth = java
+                        .frames
+                        .len()
+                        .checked_sub(1)
+                        .ok_or_else(|| operand_error(pc))?;
+                    let ledger = java.monitors.as_mut().ok_or_else(|| operand_error(pc))?;
+                    let handle = reference.heap_ref().ok_or_else(|| operand_error(pc))?;
+                    let result = if enter {
+                        ledger.enter_explicit(depth, MonitorKey::Object(handle))
+                    } else {
+                        ledger.exit_explicit(depth, MonitorKey::Object(handle))
+                    };
+                    result.map_err(|error| {
+                        contextualize(bodies, monitor_failure(error, Some(pc)), current, origin)
+                    })?;
+                    java.frames.last_mut().ok_or_else(|| operand_error(pc))?.pc = next;
+                }
                 Action::New { access, next } => {
                     let class = access.class();
                     let index = java
@@ -2228,7 +2394,7 @@ fn run_engine(
                             &mut java.used_code_bytes,
                             limits.max_prepared_code_bytes,
                             Preparation::Constructor,
-                            Some((&mut **context, access.method())),
+                            Some((&mut **context, access.method(), java.monitors.is_some())),
                             exceptions.as_mut(),
                         )
                         .map_err(|e| contextualize(bodies, e, target, site))?;
@@ -2297,6 +2463,15 @@ fn run_engine(
                     java.frames
                         .try_reserve(1)
                         .map_err(|_| init_allocation("constructor frame"))?;
+                    activate_monitors(
+                        java.monitors.as_mut(),
+                        java.frames.len(),
+                        &frame,
+                        prepared,
+                        &mut services,
+                        Some(init.claim),
+                    )
+                    .map_err(|e| activation_error(bodies, e, &frame))?;
                     java.frames.push(frame);
                     java.reserved = reserved;
                 }
@@ -2468,10 +2643,14 @@ fn run_engine(
                                 )
                             })?;
                         let init = initialization.as_mut().ok_or_else(|| operand_error(pc))?;
+                        finish_monitors(java.monitors.as_mut(), java.frames.len() - 1, pc)
+                            .map_err(|e| contextualize(bodies, e, current, origin))?;
                         finish_constructor_boundary(&mut java, init, true, pc)
                             .map_err(|e| contextualize(bodies, e, current, origin))?;
                         continue;
                     }
+                    finish_monitors(java.monitors.as_mut(), java.frames.len() - 1, pc)
+                        .map_err(|e| contextualize(bodies, e, current, origin))?;
                     let completed = java.frames.pop().ok_or_else(|| {
                         ExecutionError::new(None, E::InvalidMethod("empty engine frame stack"))
                     })?;
@@ -2655,7 +2834,7 @@ fn run_engine(
                                 (
                                     Services::Fields { context, .. },
                                     MethodKey::Registered(method),
-                                ) => Some((&mut **context, method)),
+                                ) => Some((&mut **context, method, java.monitors.is_some())),
                                 _ => None,
                             },
                             exceptions.as_mut(),
@@ -2804,6 +2983,18 @@ fn run_engine(
                     }
                     let callee = make_frame(target, prepared, args, call_site, receiver)
                         .map_err(|error| contextualize(bodies, error, target, call_site))?;
+                    java.frames
+                        .try_reserve(1)
+                        .map_err(|_| init_allocation("ordinary call frame"))?;
+                    activate_monitors(
+                        java.monitors.as_mut(),
+                        java.frames.len(),
+                        &callee,
+                        prepared,
+                        &mut services,
+                        initialization.as_ref().map(|init| init.claim),
+                    )
+                    .map_err(|e| activation_error(bodies, e, &callee))?;
                     java.frames.push(callee);
                     java.reserved = next_reserved;
                 }
@@ -2892,6 +3083,7 @@ fn handle_initializer_escape(
     let caller_pc = unwind_frame(&mut ActiveFrames {
         frames: &mut java.frames,
         reserved: &mut java.reserved,
+        monitors: None,
     })
     .map_err(diagnose)?;
     let activation = init
@@ -3001,6 +3193,7 @@ fn handle_throw(
             ActiveFrames {
                 frames: &mut java.frames,
                 reserved: &mut java.reserved,
+                monitors: java.monitors.as_mut(),
             },
             services,
             exceptions,
@@ -3147,6 +3340,7 @@ fn charge_dispatch(used: &mut u64, limit: u64) -> Result<(), ExecutionError> {
 struct ActiveFrames<'a> {
     frames: &'a mut Vec<Frame>,
     reserved: &'a mut usize,
+    monitors: Option<&'a mut MonitorLedger>,
 }
 fn unwind_frame(active: &mut ActiveFrames<'_>) -> Result<Option<u32>, ExecutionError> {
     let frame = active.frames.last().ok_or_else(|| {
@@ -3247,6 +3441,12 @@ fn dispatch_throw(
         }
         charge_dispatch(&mut state.dispatch_steps, state.limits.max_dispatch_steps)
             .map_err(diagnose)?;
+        finish_monitors(
+            active.monitors.as_deref_mut(),
+            active.frames.len() - 1,
+            search_pc,
+        )
+        .map_err(diagnose)?;
         if frame.role == FrameRole::Constructor {
             return Ok(DispatchResult::ConstructorBoundary { pc: search_pc });
         }
@@ -3287,7 +3487,7 @@ fn prepare_method_with_context(
     used_code_bytes: &mut usize,
     code_limit: usize,
     mode: Preparation,
-    runtime: Option<(&mut FieldResolutionContext<'_>, MethodId)>,
+    runtime: Option<(&mut FieldResolutionContext<'_>, MethodId, bool)>,
     mut exceptions: Option<&mut ExceptionState<'_>>,
 ) -> Result<PreparedMethod, ExecutionError> {
     let instance = mode.is_instance();
@@ -3346,7 +3546,10 @@ fn prepare_method_with_context(
             E::UnsupportedMethod("abstract methods have no executable body"),
         ));
     }
-    if !initializer && method.access_flags & 0x0020 != 0 {
+    if !initializer
+        && method.access_flags & 0x0020 != 0
+        && !runtime.as_ref().is_some_and(|(_, _, monitors)| *monitors)
+    {
         return Err(ExecutionError::new(
             None,
             E::UnsupportedMethod("synchronized methods require monitor services"),
@@ -3365,7 +3568,7 @@ fn prepare_method_with_context(
             parameter_slots: 0,
             result: MethodReturnKind::Void,
         }
-    } else if let Some((context, method)) = runtime {
+    } else if let Some((context, method, _)) = runtime {
         context
             .method_value_shape(method)
             .map_err(|error| ExecutionError::new(None, E::MethodAccess(Box::new(error))))?
@@ -3463,6 +3666,7 @@ fn prepare_method_with_context(
         instance,
         initializer,
         constructor,
+        synchronized: !initializer && method.access_flags & 0x0020 != 0,
         shape,
         handlers: exceptions.is_some().then_some(code_index),
         decoded,
@@ -3478,6 +3682,7 @@ fn step(
     services: &mut Services<'_, '_>,
     exception_profile: Option<&ExceptionProfile>,
     initialization_claim: Option<&InitializationClaim>,
+    monitors: bool,
 ) -> Result<Action, ExecutionError> {
     let pc = frame.pc;
     let locals = &mut frame.locals;
@@ -3488,6 +3693,12 @@ fn step(
         .instruction_at(pc)
         .ok_or_else(|| ExecutionError::new(Some(pc), E::InstructionPointerOutsideCode))?;
     let opcode = instruction.opcode;
+    if matches!(opcode, 0xc2 | 0xc3) && !monitors {
+        return Err(ExecutionError::new(
+            Some(pc),
+            E::UnsupportedInstruction(opcode),
+        ));
+    }
     if is_heap_instruction(opcode) && services.heap().is_none() {
         return Err(ExecutionError::new(
             Some(pc),
@@ -3529,6 +3740,21 @@ fn step(
         .checked_add(instruction.length)
         .ok_or_else(|| ExecutionError::new(Some(pc), E::InstructionPointerOutsideCode))?;
     match opcode {
+        0xc2 | 0xc3 => {
+            let value = stack.pop_reference(pc)?;
+            let reference = validate_frame_reference(services.heap(), value, pc)?;
+            if reference.is_null() {
+                return Err(ExecutionError::new(
+                    Some(pc),
+                    E::UnsupportedVmException(VmExceptionKind::NullPointerException),
+                ));
+            }
+            return Ok(Action::Monitor {
+                reference,
+                enter: opcode == 0xc2,
+                next,
+            });
+        }
         0xbb => {
             let Some(claim) = initialization_claim else {
                 return Err(ExecutionError::new(
@@ -4534,6 +4760,7 @@ mod resource_tests {
                 &mut Services::Heap(&mut heap),
                 None,
                 None,
+                false,
             ) {
                 Err(error) => error,
                 Ok(_) => panic!("foreign reference accepted"),
@@ -4925,7 +5152,8 @@ mod resource_tests {
             assert!(matches!(
                 unwind_frame(&mut ActiveFrames {
                     frames: &mut frames,
-                    reserved: &mut reserved
+                    reserved: &mut reserved,
+                    monitors: None,
                 })
                 .unwrap_err()
                 .kind,
@@ -4939,7 +5167,8 @@ mod resource_tests {
         assert_eq!(
             unwind_frame(&mut ActiveFrames {
                 frames: &mut frames,
-                reserved: &mut reserved
+                reserved: &mut reserved,
+                monitors: None,
             })
             .unwrap_err()
             .kind,
@@ -4957,7 +5186,8 @@ mod resource_tests {
         assert_eq!(
             unwind_frame(&mut ActiveFrames {
                 frames: &mut frames,
-                reserved: &mut reserved
+                reserved: &mut reserved,
+                monitors: None,
             })
             .unwrap(),
             Some(17)
@@ -4966,7 +5196,8 @@ mod resource_tests {
         assert_eq!(
             unwind_frame(&mut ActiveFrames {
                 frames: &mut frames,
-                reserved: &mut reserved
+                reserved: &mut reserved,
+                monitors: None,
             })
             .unwrap(),
             None
@@ -5152,3 +5383,100 @@ mod construction_tests;
 #[cfg(test)]
 #[path = "member_resolution_tests.rs"]
 mod member_resolution_tests;
+
+#[cfg(test)]
+mod monitor_bridge_tests {
+    use super::*;
+    #[test]
+    fn monitor_mapping_keeps_host_source_and_direct_java_production_separate() {
+        use std::error::Error;
+        let e = monitor_failure(
+            MonitorFailure::Host(crate::MonitorError::InvalidState("ledger damaged")),
+            Some(19),
+        );
+        assert_eq!(e.offset, Some(19));
+        assert_eq!(
+            e.kind,
+            E::Monitor(crate::MonitorError::InvalidState("ledger damaged"))
+        );
+        assert!(
+            e.source()
+                .unwrap()
+                .downcast_ref::<crate::MonitorError>()
+                .is_some()
+        );
+        assert!(e.to_string().contains("ledger damaged"));
+        let e = monitor_failure(
+            MonitorFailure::Java(VmExceptionKind::IllegalMonitorStateException),
+            Some(23),
+        );
+        assert_eq!(
+            e.kind,
+            E::UnsupportedVmException(VmExceptionKind::IllegalMonitorStateException)
+        );
+        assert!(e.source().is_none());
+    }
+    #[test]
+    fn monitor_operand_validation_preserves_private_and_foreign_reference_boundaries() {
+        let mut foreign_heap = ManagedHeap::new(Default::default()).unwrap();
+        let foreign = foreign_heap
+            .allocate_primitive_array(PrimitiveArrayKind::Int, 0)
+            .unwrap();
+        let mut heap = ManagedHeap::new(Default::default()).unwrap();
+        for opcode in [0xc2, 0xc3] {
+            let class = crate::tests::synthetic(&[opcode, 0xb1], "()V", 1, 0);
+            let prepared =
+                prepare_method(&class, 0, &mut 0, usize::MAX, Preparation::Static).unwrap();
+            for private in [false, true] {
+                let mut frame =
+                    make_frame(MethodKey::Standalone(0), &prepared, &[], None, None).unwrap();
+                if private {
+                    frame
+                        .stack
+                        .push_frame(
+                            FrameValue::Uninitialized(Uninitialized {
+                                reference: Reference::null(),
+                                key: AliasKey::This(1),
+                            }),
+                            0,
+                        )
+                        .unwrap();
+                } else {
+                    frame.stack.push(Value::Reference(foreign), 0).unwrap();
+                }
+                let error = match step(
+                    &class,
+                    &prepared,
+                    &mut frame,
+                    &mut Services::Heap(&mut heap),
+                    None,
+                    None,
+                    true,
+                ) {
+                    Err(e) => e,
+                    Ok(_) => panic!("invalid monitor operand accepted"),
+                };
+                if private {
+                    assert!(matches!(error.kind, E::ConstructionProtocol { .. }));
+                } else {
+                    assert_eq!(error.kind, E::Heap(HeapError::ForeignHeap));
+                }
+                assert_eq!(error.offset, Some(0));
+            }
+        }
+    }
+    #[test]
+    fn warmed_synchronized_metadata_cannot_activate_without_monitor_capability() {
+        let class = crate::tests::synthetic(&[0xb1], "()V", 0, 0);
+        let mut prepared =
+            prepare_method(&class, 0, &mut 0, usize::MAX, Preparation::Static).unwrap();
+        prepared.synchronized = true;
+        let frame = make_frame(MethodKey::Standalone(0), &prepared, &[], None, None).unwrap();
+        let e =
+            activate_monitors(None, 0, &frame, &prepared, &mut Services::None, None).unwrap_err();
+        assert_eq!(
+            e.kind,
+            E::UnsupportedMethod("synchronized methods require monitor services")
+        );
+    }
+}

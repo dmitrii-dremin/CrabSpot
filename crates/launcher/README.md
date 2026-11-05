@@ -63,7 +63,7 @@ cannot acquire an execution layout through a callback or late auto-admission.
 
 The execution adapter binds the universe before opening one checked context,
 selects an opaque checked main token, allocates checked static state and one real
-non-null empty bootstrap String array, and runs one InitializationSession. The
+non-null empty bootstrap String array, and runs one monitored InitializationSession. The
 array needs no Class CP entry naming String and does not initialize its component.
 Inherited main uses one shared engine evaluation for named-child initialization
 and the selected declaring body; preflight/fuel/frame/Code limits are not reset
@@ -82,3 +82,25 @@ Ordinary Rust tests use bounded synthetic metadata and do not need a JDK. Explic
 private genuine-directory checks accept CRABSPOT_APPLICATION_BOOT and
 CRABSPOT_APPLICATION_CLASSES and run with --ignored; reference compilation,
 extraction and other-VM observations belong to the separate coordinator tooling.
+
+
+## Monitor-enabled applications
+
+The ordinary library entry and CLI now enable bounded single-thread monitors and
+synchronized selected methods, including main. The same verified image, actual
+empty String array and one named-root initialization/evaluation are used.
+`run_directory_application_with_monitor_limits` adds an explicit `MonitorLimits`
+argument; the existing entry uses its defaults. ApplicationOptions and usage layouts
+are unchanged. Class initialization remains distinct from the implicit class lock:
+the named/target initializer completes before synchronized main/helper activation.
+
+A monitor entry limit failure after named initialization is `MainEvaluation` and
+retains initializer writes; a later return/exit failure retains earlier body writes.
+Resource failures have a typed `ExecutionErrorKind::Monitor` source. Null and illegal
+monitor state remain explicit unsupported exception materialization, never a fake
+Throwable or handler match. The profile enforces both structured-locking rules,
+including immediate failure when a callee explicitly exits only an implicit/caller
+claim. This authorized phase can differ from raw reference-VM malformed-locking
+observations. There are no application-visible monitor inspection natives, class
+mirrors, waits, blocking or concurrent Java threads. Existing lower-level unmonitored
+APIs retain their old instruction/declaration gates.

@@ -8,6 +8,7 @@ mod options;
 mod source;
 use crabspot_classfile::JavaString;
 use crabspot_interpreter::ExecutionError;
+pub use crabspot_interpreter::MonitorLimits;
 use crabspot_verifier::ClassTypeVerificationUsage;
 pub use error::*;
 pub use options::*;
@@ -84,6 +85,23 @@ pub fn run_directory_application(
     observations: &[StaticIntObservation<'_>],
     options: ApplicationOptions,
 ) -> std::result::Result<ApplicationRun, Box<ApplicationError>> {
+    run_directory_application_with_monitor_limits(
+        directories,
+        entry,
+        observations,
+        options,
+        MonitorLimits::default(),
+    )
+}
+
+/// Execute the same proved image with explicit single-thread monitor ceilings.
+pub fn run_directory_application_with_monitor_limits(
+    directories: ApplicationDirectories<'_>,
+    entry: &str,
+    observations: &[StaticIntObservation<'_>],
+    options: ApplicationOptions,
+    monitors: MonitorLimits,
+) -> std::result::Result<ApplicationRun, Box<ApplicationError>> {
     let prepared = image::prepare(directories, entry, observations, options)?;
-    entry::run_prepared(prepared, observations)
+    entry::run_prepared(prepared, observations, monitors)
 }

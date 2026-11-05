@@ -33,6 +33,7 @@ pub struct CallSite {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExecutionErrorKind {
+    Monitor(crate::MonitorError),
     ApplicationMain(Box<crabspot_runtime::ApplicationMainError>),
     ConstructionAccess(Box<crabspot_runtime::ConstructionAccessError>),
     ConstructionProtocol {
@@ -209,6 +210,9 @@ impl fmt::Display for ExecutionError {
             write!(formatter, "bytecode offset {offset}: ")?;
         }
         match &self.kind {
+            ExecutionErrorKind::Monitor(error) => {
+                write!(formatter, "monitor operation failed: {error}")
+            }
             ExecutionErrorKind::ArrayAccess(error) => {
                 write!(formatter, "reference array service failed: {error}")
             }
@@ -399,6 +403,7 @@ impl fmt::Display for ExecutionError {
 impl std::error::Error for ExecutionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.kind {
+            ExecutionErrorKind::Monitor(error) => Some(error),
             ExecutionErrorKind::ApplicationMain(error) => Some(error.as_ref()),
             ExecutionErrorKind::ConstructionAccess(error) => Some(error.as_ref()),
             ExecutionErrorKind::InitializationAccess(error) => Some(error.as_ref()),

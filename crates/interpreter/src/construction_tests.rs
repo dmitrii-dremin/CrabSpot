@@ -285,6 +285,7 @@ fn mismatched_and_duplicate_constructor_authority_cannot_promote_aliases_or_writ
             reserved,
             used_code_bytes: 0,
             remaining: 10,
+            monitors: None,
         };
         let mut state = state();
         let mut init = InitExecution {
@@ -324,6 +325,7 @@ fn mismatched_and_duplicate_constructor_authority_cannot_promote_aliases_or_writ
             &mut services,
             Some(&exceptions),
             Some(&claim),
+            false,
         ) {
             Err(e) => e,
             Ok(_) => panic!("corrupt constructor authority wrote a field"),
@@ -387,6 +389,7 @@ fn failed_new_publication_keeps_old_site_locals_and_does_not_recharge_alias_work
         reserved,
         used_code_bytes: 0,
         remaining: 1,
+        monitors: None,
     };
     let mut state = state();
     state
@@ -574,7 +577,15 @@ fn identity_branches_extract_both_ordinary_operands_before_foreign_handle_valida
             frame.stack.push(Value::Reference(foreign), 0).unwrap();
             let mut heap = ManagedHeap::new(HeapOptions::default()).unwrap();
             let mut services = Services::Heap(&mut heap);
-            let error = match step(&class, &prepared, &mut frame, &mut services, None, None) {
+            let error = match step(
+                &class,
+                &prepared,
+                &mut frame,
+                &mut services,
+                None,
+                None,
+                false,
+            ) {
                 Err(error) => error,
                 Ok(_) => panic!("malformed identity comparison succeeded"),
             };

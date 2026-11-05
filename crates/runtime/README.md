@@ -858,7 +858,11 @@ public exact `main([Ljava/lang/String;)V` declarations nearest first along the
 superclass chain. A named interface searches only itself. Static interface methods
 are not inherited by implementing classes. Private and nonvoid-only methods are
 not entries; an exact public instance/native/abstract/synchronized declaration is
-an explicit wrong-flags error, with no fallback past it. The named class itself
+an explicit wrong-flags error, with no fallback past it.
+`resolve_application_main_with_monitors` shares the same lookup, charges and token
+affinity but permits synchronized Code; native/abstract/nonstatic eligibility is
+unchanged. The token grants no monitor capability by itself, so an ordinary
+unmonitored interpreter session still rejects that synchronized body. The named class itself
 need not be public or instantiable.
 
 Each class, examined member and full compared UTF-16 span consumes the existing
@@ -874,3 +878,9 @@ launcher independently proves its complete executable image before selecting one
 The existing direct reference-array allocator can create a real empty array with
 the bootstrap String ClassId without inserting a synthetic CP entry or initializing
 String. It provides no Java String materialization or general startup service.
+
+
+The runtime's additive `VmExceptionKind::IllegalMonitorStateException` identifies
+an unmaterialized failure from the optional interpreter monitor profile. Monitor
+ownership itself remains interpreter-private; this adds no runtime lock handle,
+Class mirror, Java thread, scheduler or exception allocator.

@@ -71,6 +71,10 @@ jobs:
         run: |
           python -m unittest discover -s tools -p test_application_entry_reference.py
           python tools/application_entry_reference.py --check
+      - name: Replay monitor ownership and return behavior on JDK 21
+        run: |
+          python -m unittest discover -s tools -p test_monitor_reference.py
+          python tools/monitor_reference.py --check
       - name: Build independent JDK metadata inspector
         run: cargo build -p crabspot-launcher --locked
       - name: Capture this JDK's verifier metadata
@@ -143,3 +147,5 @@ jobs:
         run: python tools/verify_java_base.py
       - name: Run verified Java applications on CrabSpot with this JDK's platform classes
         run: python tools/verify_application_entry.py
+      - name: Run synchronized applications and check monitor failures on CrabSpot
+        run: python tools/verify_monitor_entry.py
