@@ -1079,6 +1079,11 @@ pub(crate) struct SessionExecution<'a, 'registry> {
     pub owner: u64,
 }
 pub(crate) enum InitializationRoot<'a> {
+    Application {
+        named: ClassId,
+        method: MethodId,
+        arguments: &'a [Value],
+    },
     Class(ClassId),
     Static {
         method: MethodId,
@@ -1110,7 +1115,17 @@ pub(crate) fn execute_initializing(
         .map_err(|error| initialization_failure(error, None))?;
     let root = match root {
         InitializationRoot::Class(class) => EngineRoot::Initialize(class),
+        InitializationRoot::Application {
+            named,
+            method,
+            arguments,
+        } => EngineRoot::Static {
+            named,
+            method,
+            args: arguments,
+        },
         InitializationRoot::Static { method, arguments } => EngineRoot::Static {
+            named: method.owner(),
             method,
             args: arguments,
         },
@@ -1800,6 +1815,7 @@ enum EngineRoot<'a> {
     },
     Initialize(ClassId),
     Static {
+        named: ClassId,
         method: MethodId,
         args: &'a [Value],
     },
@@ -1859,7 +1875,7 @@ fn run_engine(
         let requested = match root {
             EngineRoot::Initialize(class) => Some((class, InitContinuation::RootInitialize)),
             root => {
-                let (root_key, args, receiver) = match root {
+                let (root_key, args, receiver, active_class) = match root {
                     EngineRoot::Body {
                         method_index, args, ..
                     } => {
@@ -1873,11 +1889,13 @@ fn run_engine(
                             Services::Fields { receiver, .. } => *receiver,
                             _ => None,
                         };
-                        (key, args, receiver)
+                        (key, args, receiver, None)
                     }
-                    EngineRoot::Static { method, args } => {
-                        (MethodKey::Registered(method), args, None)
-                    }
+                    EngineRoot::Static {
+                        named,
+                        method,
+                        args,
+                    } => (MethodKey::Registered(method), args, None, Some(named)),
                     EngineRoot::Initialize(_) => {
                         return Err(ExecutionError::new(
                             None,
@@ -1988,7 +2006,7 @@ fn run_engine(
                         ));
                     };
                     Some((
-                        method.owner(),
+                        active_class.unwrap_or(method.owner()),
                         InitContinuation::RootStatic {
                             target: root_key,
                             args: arguments,

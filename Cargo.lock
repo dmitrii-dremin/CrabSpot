@@ -24,6 +24,9 @@ name = "crabspot-launcher"
 version = "0.1.0"
 dependencies = [
  "crabspot-classfile",
+ "crabspot-interpreter",
+ "crabspot-runtime",
+ "crabspot-verifier",
 ]
 
 [[package]]

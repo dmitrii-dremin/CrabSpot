@@ -1,4 +1,35 @@
-# Current checkpoint: member resolution during execution
+# Current checkpoint: verified application entry
+
+The director approved verified directory application entry on 2026-11-05. The launcher ran a genuine Java 21 `main(String[])` from a class directory.
+The six-class application created two implementations of an interface, invoked both and
+stored 37. Its five observed static fields matched one call on both reference JVMs.
+With an inherited main, launching the child ran the parent and child initializers in order
+before the parent's main observed 12. The real-source reference checks ran on HotSpot and
+OpenJ9. All 48 commands in the combined local gate passed and all 83 frozen source and fixture hashes matched after the run.
+[Run the application](../../README.md#run-a-java-application), [technical review](../architecture/m2-verified-application-entry-review.md) and [next monitor increment](../architecture/m2-monitors-next.md).
+
+The development check launched 15 scenarios through the command line and again through the public Rust API. A failure in the inherited main preserved both writes already made. A failure in the named child's initializer preserved the initialization trace of 14 and left the main-body counter at zero. A malformed unused sibling failed verification before the application ran. The reference controls load each application in a fresh process on Zulu HotSpot 21.0.7 and OpenJ9 21.0.13.0. The directory launcher eagerly checks every supplied application class, so it can reject an unused sibling that a reference launcher never loads.
+
+Two additional explicit tests on the frozen launcher used the extracted Zulu `java.base` and six compiled application classes. The image read 7,519 ordinary platform definitions and one module descriptor. It proved and prepared the 16 classes admitted for execution, checking 222 method bodies and 16 bodyless declarations. Image preparation alone recorded zero argument arrays and zero engine evaluations. The public run recorded one of each and returned the five expected fields.
+
+The parser campaign included all 541 fixture classes and used seed 4851011501752864596. In 300 seconds it processed 11,962,266 inputs, accepted 403,525, rejected 11,558,741 and repeated 11,682 deterministic checks. It retained 1,024 corpus inputs and recorded zero failures.
+
+The fresh Windows build passed formatting, strict workspace Clippy, 1,326 debug workspace tests and 1,246 optimized verifier, runtime, interpreter and launcher tests. The four Python regression suites passed 27 tests. The 10,000-input parser smoke accepted 108 inputs and rejected 9,892 with zero failures. The two example boundary tests and two explicitly selected genuine-directory tests passed separately.
+
+To reproduce the cross-VM observations and exercise both CrabSpot entry points, set `JAVA_HOME` to the primary Java 21 HotSpot JDK and run:
+
+```text
+cargo fmt --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+cargo test -p crabspot-verifier -p crabspot-runtime -p crabspot-interpreter -p crabspot-launcher --release --locked
+python -m unittest discover -s tools -p test_application_entry_reference.py
+python tools/application_entry_reference.py --check --compare-openj9 PATH_TO_OPENJ9_21_JAVA
+python tools/verify_application_entry.py
+cargo run -p crabspot-classfile --example fuzz_parser --release --locked -- tests/fixtures --seconds 300 --seed 4851011501752864596 --failures target/application-entry-fuzz-failures
+```
+
+## Prior checkpoint: member resolution during execution
 
 The technical director approved checked member resolution on 2026-11-05. The interpreter now resolves ordinary field and method references against the loader records of the referring class. When a field or method is inherited, its declaring loader supplies the other side of the signature agreement. A later call can reuse that result and select a different overriding body for its receiver. [Implementation contract](../architecture/m2-resolution-constraints.md) and [reference observations and limitations](../architecture/m2-member-resolution-reference.md).
 

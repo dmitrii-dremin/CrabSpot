@@ -982,3 +982,34 @@ protected and private access, read-only E/S repair, smaller heaps, exact opening
 and quota limits, a 65,535-unit descriptor, many equal CP slots and a deep graph.
 Actual bytecode tests cover normal/supplied-throw/session paths and prior effects;
 private mapper tests preserve direct-only error projection.
+
+
+## Named application main in one session evaluation
+
+`InitializationSession::run_application_main` accepts a checked runtime
+`ResolvedApplicationMain`, one reference argument and the existing execution,
+call, exception and construction limits. It retains the selected declaring method
+M for Code, parameter checks, locals, CP and return behavior, while requesting the
+named initial class N for active-use initialization. An inherited parent main
+therefore follows parent and child initialization, then executes the actual parent
+body. A directly named interface can execute its own static main. The old
+`run_static` still initializes only its MethodId owner.
+
+The method reuses the existing engine, RootStatic continuation, scheduler, frame
+vector and MethodId cache. It performs normal M Code/frame/slot/argument preflight
+before N can write an initializer field. One evaluation funds both named
+initialization and main: fuel, prepared Code, handlers, dispatch and construction
+work never reset between them. A failed child initializer preserves earlier
+parent/child effects and never enters M. Root preflight failures preserve
+Uninitialized state; later initializer/body failures retain their genuine class,
+method and PC diagnostics. Token failures remain boxed
+`ExecutionErrorKind::ApplicationMain` host errors, with no fabricated method or PC.
+
+The low-level method still uses ordinary reference assignment checks; it does not
+promise that a caller-supplied array is empty. The launcher creates exactly one
+non-null bootstrap String[] of length zero and owns whole-image verification and
+sealing. Merely creating that array does not initialize String. This adds no
+opcode, VM exception object, native bootstrap, platform trust exemption or second
+execution loop. Public tests pin inherited identities, old run_static behavior,
+shared exact/short fuel and Code limits, argument/preflight effects and stale-token
+error provenance.

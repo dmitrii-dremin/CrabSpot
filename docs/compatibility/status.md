@@ -55,8 +55,9 @@ completion of that goal.
 | Modern class type verification (4.10.1) | Implemented and approved for a canonical definition | All declared methods under an immutable loader environment, cumulative quotas, first-failure attribution, historical and preview header checks. All 174 ordinary javac classes and all 7,519 ordinary classes in the tested Zulu 21.0.7 java.base archive passed locally. |
 | Initiating-loader records and preparation constraints (5.3.4, selected 5.3.5, 5.4.2, 5.4.5/6) | Implemented and approved in the checked loading domain | Tracks actual initiations separately from required equalities, including both preparation producers and per-obligation rollback. Fresh-loader HotSpot and OpenJ9 runs recorded 130 stage outcomes each. Rust applies the specified rules in the documented disagreement cases. [Results](../architecture/m2-loading-constraints-review.md) |
 | Field and ordinary method resolution during execution (5.3.4, 5.4.3.2–4, 5.4.4) | Implemented, tested and approved in the checked unnamed-module context | Original callers exercise CP-indexed successes and failures across loaders and heaps, descriptor agreement, per-receiver method selection and retained effects. The five reference families produced 119 observations per VM. [Behavior and differences](../architecture/m2-member-resolution-reference.md) |
-| Full linkage, verification and initialization | Partial | A canonical definition can pass modern whole-class verification and a checked heap can use preparation evidence. A lifecycle owner that verifies every executable app class before entry, historical verification by inference, named modules, full nestmate access and VM-created exceptions remain open. |
-| Application class-path loading and Java startup, GC, threads, JNI and JIT | Unimplemented | Application startup with genuine platform classes is the proposed next increment. Kotlin and Spring Boot application execution and performance relative to HotSpot remain untested. |
+| Full linkage, verification and initialization | Partial | Directory entry verifies and prepares every class admitted to its executable heap. Historical verification by inference, arbitrary loader behavior, named modules, full nestmate access and VM-created exceptions remain open. |
+| Directory class loading and Java startup (5.2, selected 5.3–5.5) | Implemented, tested and approved for a single-use directory image | The launcher verified and ran a six-class Java application with genuine java.base inputs and an empty bootstrap String array. All 15 cases passed through the CLI and public API, including inherited main, initialization failure and eager rejection of an invalid unused class. [Run the example](../../README.md#run-a-java-application) and [technical review](../architecture/m2-verified-application-entry-review.md). |
+| General class-path/JAR loading, GC, threads, JNI and JIT | Unimplemented | Kotlin and Spring Boot application execution and performance relative to HotSpot remain untested. |
 
 No executed test currently remains failing. This statement is limited to the
 recorded tests; it is not proof that no defect exists.
@@ -200,10 +201,11 @@ tests plus 751 optimized tests (2,427 Rust test executions), strict formatting/l
 and parser smoke: 134 accepted, 9,866 rejected, ten rechecks, corpus 256 and zero
 failures over 10,000 cases at seed 4851011501752864596.
 
-[Bounded technical approval](../architecture/m2-initialization-session-review.md)
-is recorded. This remains a single-session subset. String constants, generated wrappers and
-NCDFE, constructors, full loading constraints, concurrent initialization,
-loading and Java startup are unsupported. Full M2 and conformance remain open.
+At the single-session initialization checkpoint, String constants, generated exception
+wrappers, constructors, full loading constraints, concurrent initialization and Java startup
+were still open. Later increments added constructor execution and checked loader agreements.
+The current directory-launch status and remaining limits appear in the table above.
+[Single-session initialization review](../architecture/m2-initialization-session-review.md).
 
 ## Registered static-call evidence
 

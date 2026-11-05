@@ -33,6 +33,7 @@ pub struct CallSite {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExecutionErrorKind {
+    ApplicationMain(Box<crabspot_runtime::ApplicationMainError>),
     ConstructionAccess(Box<crabspot_runtime::ConstructionAccessError>),
     ConstructionProtocol {
         reason: &'static str,
@@ -235,6 +236,9 @@ impl fmt::Display for ExecutionError {
             ExecutionErrorKind::ConstructionAccountingOverflow { resource } => {
                 write!(formatter, "construction accounting overflow: {resource}")
             }
+            ExecutionErrorKind::ApplicationMain(error) => {
+                write!(formatter, "application main failed: {error}")
+            }
             ExecutionErrorKind::ConstructionAccess(error) => {
                 write!(formatter, "construction service failed: {error}")
             }
@@ -395,6 +399,7 @@ impl fmt::Display for ExecutionError {
 impl std::error::Error for ExecutionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.kind {
+            ExecutionErrorKind::ApplicationMain(error) => Some(error.as_ref()),
             ExecutionErrorKind::ConstructionAccess(error) => Some(error.as_ref()),
             ExecutionErrorKind::InitializationAccess(error) => Some(error.as_ref()),
             ExecutionErrorKind::StaticAccess(error) => Some(error.as_ref()),

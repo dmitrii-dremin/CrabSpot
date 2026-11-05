@@ -9,8 +9,10 @@ JVM specification implementation with the required observable behavior of
 conforming JVMs, using HotSpot as the primary reference, and demonstrated
 performance superiority over HotSpot on representative workloads. Java SE 21 is
 the first complete conformance target; later specification versions need explicit
-support and validation. Application startup, class loading and concurrent class
-initialization are not implemented yet.
+support and validation. The directory launcher supports single-threaded startup
+from a closed set of verified Java 21 application classes and platform inputs.
+JAR class paths, general platform-library access and concurrent initialization
+remain open.
 
 Kotlin and Spring Boot are integration milestones toward that goal. Correctness
 remains mandatory: performance claims require reproducible comparisons covering
@@ -21,6 +23,36 @@ The project charter is [ARCHITECTURE.md](ARCHITECTURE.md). See the
 [compatibility report](docs/compatibility/status.md), and
 [current milestone](docs/milestones/current.md) for implementation boundaries,
 evidence, and remaining work.
+
+## Run a Java application
+
+The launcher reads a platform directory and an application directory, verifies
+the executable classes, then invokes a public static `main(String[])` with
+an empty array. A fresh run has its own loaders, heap and static state.
+
+With the Java 21 tools on your path, create empty `target/app-platform` and
+`target/app-classes` directories. Substitute your JDK's `java.base.jmod` path
+in the first command.
+
+```text
+jmod extract --dir target/app-platform PATH_TO_JDK_21/jmods/java.base.jmod
+javac --release 21 -d target/app-classes -sourcepath tests/fixtures/application-entry/src tests/fixtures/application-entry/src/app/Entry.java
+cargo run --release -p crabspot-launcher --bin crabspot -- run --platform target/app-platform/classes --classes target/app-classes app.Entry
+```
+
+This example constructs two implementations of a Java interface, invokes both,
+stores their combined result of 37 and exits successfully with empty stdout.
+To inspect the resulting static fields, run the fixture observer through the same
+public CrabSpot launcher API.
+
+```text
+cargo run --release -p crabspot-launcher --example replay_application_entry -- target/app-platform/classes target/app-classes app.Entry
+```
+
+The expected observation is `returned 1/1/37/1/0` for entries, completions,
+result, helper initialization count and argument count. The launcher checks all
+classes supplied in the application directory before running main. Its current
+platform imports and runtime limits are listed in the [directory entry contract](docs/architecture/m2-verified-application-entry.md).
 
 ## Build and inspect
 

@@ -1,0 +1,162 @@
+{
+  "abrupt": {
+    "direct": [
+      1,
+      ""
+    ],
+    "once": [
+      0,
+      "invoke NullPointerException 1/0/0/0/0"
+    ],
+    "twice": [
+      0,
+      "invoke NullPointerException 1/0/0/0/0"
+    ]
+  },
+  "invalid": {
+    "direct": [
+      1,
+      ""
+    ],
+    "once": [
+      0,
+      "resolve-entry VerifyError 0/0/0/0/0"
+    ],
+    "twice": [
+      0,
+      "resolve-entry VerifyError 0/0/0/0/0"
+    ]
+  },
+  "missing": {
+    "direct": [
+      1,
+      ""
+    ],
+    "once": [
+      0,
+      "invoke NoClassDefFoundError 1/0/0/0/0"
+    ],
+    "twice": [
+      0,
+      "invoke NoClassDefFoundError 1/0/0/0/0"
+    ]
+  },
+  "named-direct": {
+    "Broken": [
+      1,
+      ""
+    ],
+    "Child": [
+      0,
+      ""
+    ],
+    "Face": [
+      0,
+      ""
+    ],
+    "Hidden": [
+      0,
+      ""
+    ],
+    "Impl": [
+      1,
+      ""
+    ],
+    "Nonstatic": [
+      1,
+      ""
+    ],
+    "Parent": [
+      1,
+      ""
+    ],
+    "Private": [
+      1,
+      ""
+    ],
+    "Wide": [
+      1,
+      ""
+    ]
+  },
+  "no-main": {
+    "direct": [
+      1,
+      ""
+    ],
+    "once": [
+      0,
+      "resolve-entry NoSuchMethodException 0/0/0/0/0"
+    ],
+    "twice": [
+      0,
+      "resolve-entry NoSuchMethodException 0/0/0/0/0"
+    ]
+  },
+  "ordinary": {
+    "direct": [
+      0,
+      ""
+    ],
+    "once": [
+      0,
+      "invoke returned 1/1/37/1/0"
+    ],
+    "twice": [
+      0,
+      "invoke returned 2/2/74/1/0"
+    ]
+  },
+  "printing-control": {
+    "BrokenInit": [
+      1,
+      ""
+    ],
+    "Child": [
+      0,
+      "Parent:12:0"
+    ],
+    "Face": [
+      0,
+      "Face:0"
+    ],
+    "Hidden": [
+      0,
+      "Hidden:123:0"
+    ],
+    "Impl": [
+      1,
+      ""
+    ],
+    "Nonstatic": [
+      1,
+      ""
+    ],
+    "Parent": [
+      0,
+      "Parent:1:0"
+    ],
+    "Private": [
+      1,
+      ""
+    ],
+    "Wide": [
+      1,
+      ""
+    ]
+  },
+  "unused-invalid": {
+    "direct": [
+      0,
+      ""
+    ],
+    "once": [
+      0,
+      "invoke returned 1/1/37/1/0"
+    ],
+    "twice": [
+      0,
+      "invoke returned 2/2/74/1/0"
+    ]
+  }
+}

@@ -847,3 +847,30 @@ class-loader executor, module/nest implementation, verifier or complete linker.
 Direct linkage failures have symbolic categories; no exception materializer is
 provided, and checked exception execution retains its explicit unsupported VM
 exception policy.
+
+
+## Checked application-main selection
+
+A domain-backed `FieldResolutionContext` can mint a private
+`ResolvedApplicationMain` with `resolve_application_main(named)`. It preserves
+both the named class and the actual declaring MethodId. Class lookup examines
+public exact `main([Ljava/lang/String;)V` declarations nearest first along the
+superclass chain. A named interface searches only itself. Static interface methods
+are not inherited by implementing classes. Private and nonvoid-only methods are
+not entries; an exact public instance/native/abstract/synchronized declaration is
+an explicit wrong-flags error, with no fallback past it. The named class itself
+need not be public or instantiable.
+
+Each class, examined member and full compared UTF-16 span consumes the existing
+field lookup budget. Selection creates no member CP site, equality, object or
+initialization record. `check_application_main` rechecks the opaque token's
+checked-mode registry/heap/layout affinity and canonical handles without another
+name lookup or additional lookup charge. A new heap, stale admitted snapshot,
+foreign handle or legacy context cannot consume it. `ApplicationMainError` keeps
+structured eligibility, context and token failures.
+
+This token certifies this bounded lookup, not whole-class verification. The
+launcher independently proves its complete executable image before selecting one.
+The existing direct reference-array allocator can create a real empty array with
+the bootstrap String ClassId without inserting a synthetic CP entry or initializing
+String. It provides no Java String materialization or general startup service.

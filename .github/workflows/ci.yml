@@ -67,6 +67,10 @@ jobs:
         run: |
           python -m unittest discover -s tools -p test_member_resolution_reference.py
           python tools/member_resolution_reference.py --check
+      - name: Check original directory-launch cases against JDK 21
+        run: |
+          python -m unittest discover -s tools -p test_application_entry_reference.py
+          python tools/application_entry_reference.py --check
       - name: Build independent JDK metadata inspector
         run: cargo build -p crabspot-launcher --locked
       - name: Capture this JDK's verifier metadata
@@ -127,6 +131,8 @@ jobs:
         run: cargo test -p crabspot-runtime --release --locked
       - name: Code validation in optimized builds
         run: cargo test -p crabspot-verifier --release --locked
+      - name: Verified launcher in optimized builds
+        run: cargo test -p crabspot-launcher --release --locked
       - name: Check parser fuzz seed limits
         run: cargo test -p crabspot-classfile --example fuzz_parser --locked
       - name: Seeded parser fuzz smoke test
@@ -135,3 +141,5 @@ jobs:
         run: cargo test -p crabspot-verifier --example verify_java_base --locked
       - name: Verify every ordinary definition in this JDK's java.base module
         run: python tools/verify_java_base.py
+      - name: Run verified Java applications on CrabSpot with this JDK's platform classes
+        run: python tools/verify_application_entry.py

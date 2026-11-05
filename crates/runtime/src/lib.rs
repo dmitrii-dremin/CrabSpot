@@ -5,6 +5,7 @@
 //! This crate does not execute code, perform complete Java linkage, initialize
 //! classes, or open files.
 //! Default static allocation does not perform full preparation or initialization.
+mod application_main;
 mod construction;
 mod error;
 mod exception;
@@ -69,3 +70,5 @@ pub use method_values::{
 pub use types::{
     ArrayElement, ReferenceType, ReferenceTypeUniverse, TypeAccessError, TypeJavaError,
 };
+
+pub use application_main::{ApplicationMainError, ResolvedApplicationMain};

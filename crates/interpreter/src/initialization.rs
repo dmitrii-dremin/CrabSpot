@@ -322,6 +322,57 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             )),
         }
     }
+    /// Invoke the checked actual main after initializing its named entry class,
+    /// in one evaluation with the normal shared root preflight and all budgets.
+    pub fn run_application_main(
+        &mut self,
+        entry: &crabspot_runtime::ResolvedApplicationMain,
+        argument_array: Reference,
+        options: ExecutionOptions,
+        call_limits: CallLimits,
+        exception_limits: ExceptionLimits,
+        construction_limits: ConstructionLimits,
+    ) -> Result<ExceptionOutcome, ExecutionError> {
+        self.state.construction.reset(construction_limits);
+        self.context
+            .check_application_main(entry)
+            .map_err(|error| ExecutionError::new(None, E::ApplicationMain(error)))?;
+        let guard = EvaluationGuard {
+            state: &mut self.state,
+        };
+        let owner = guard.state.begin_evaluation()?;
+        let arguments = [Value::Reference(argument_array)];
+        let execution = crate::execute::SessionExecution {
+            context: self.context,
+            claim: &self.claim,
+            statics: &self.statics,
+            exceptions: &self.exceptions,
+            state: &mut *guard.state,
+            owner,
+        };
+        match crate::execute::execute_initializing(
+            execution,
+            crate::execute::InitializationRoot::Application {
+                named: entry.named_class(),
+                method: entry.method(),
+                arguments: &arguments,
+            },
+            options,
+            call_limits,
+            exception_limits,
+        )? {
+            crate::execute::InitializationResult::Returned(value) => {
+                Ok(ExceptionOutcome::Returned(value))
+            }
+            crate::execute::InitializationResult::Uncaught(reference) => {
+                Ok(ExceptionOutcome::Uncaught(reference))
+            }
+            crate::execute::InitializationResult::Completed => Err(ExecutionError::new(
+                None,
+                E::InvalidMethod("initializer completion escaped application main root"),
+            )),
+        }
+    }
     pub fn status(&self, class: ClassId) -> Result<InitializationStatus, ExecutionError> {
         self.context
             .check_initialization_class(&self.claim, class)

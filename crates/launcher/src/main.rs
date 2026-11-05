@@ -1,4 +1,7 @@
 use crabspot_classfile::{Attribute, AttributeBody, ClassFile, ParseOptions, parse_with_options};
+use crabspot_launcher::{
+    ApplicationCompletion, ApplicationDirectories, ApplicationOptions, run_directory_application,
+};
 use std::{
     env,
     fs::File,
@@ -7,21 +10,88 @@ use std::{
     process::ExitCode,
 };
 
+enum CliError {
+    Usage(String),
+    Failure(String),
+}
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
-        Err(error) => {
-            eprintln!("crabspot: {error}");
+        Err(CliError::Usage(message)) => {
+            eprintln!("crabspot: {message}");
+            ExitCode::from(2)
+        }
+        Err(CliError::Failure(message)) => {
+            eprintln!("crabspot: {message}");
             ExitCode::FAILURE
         }
     }
 }
-
-fn run() -> Result<(), String> {
+fn full_usage() -> String {
+    format!(
+        "{}\n       crabspot run --platform DIR --classes DIR BINARY.MAIN",
+        usage()
+    )
+}
+fn run() -> Result<(), CliError> {
     let mut arguments = env::args_os().skip(1);
-    if arguments.next().as_deref() != Some(std::ffi::OsStr::new("inspect")) {
-        return Err(usage());
+    match arguments.next().as_deref() {
+        Some(command) if command == "inspect" => inspect_run(arguments).map_err(CliError::Failure),
+        Some(command) if command == "run" => application_run(arguments),
+        _ => Err(CliError::Usage(full_usage())),
     }
+}
+fn application_run(
+    mut arguments: impl Iterator<Item = std::ffi::OsString>,
+) -> Result<(), CliError> {
+    let mut platform = None;
+    let mut classes = None;
+    for _ in 0..2 {
+        let switch = arguments
+            .next()
+            .ok_or_else(|| CliError::Usage(full_usage()))?;
+        let path = arguments
+            .next()
+            .ok_or_else(|| CliError::Usage(full_usage()))?;
+        if switch == "--platform" && platform.is_none() {
+            platform = Some(PathBuf::from(path));
+        } else if switch == "--classes" && classes.is_none() {
+            classes = Some(PathBuf::from(path));
+        } else {
+            return Err(CliError::Usage(full_usage()));
+        }
+    }
+    let entry = arguments
+        .next()
+        .ok_or_else(|| CliError::Usage(full_usage()))?
+        .into_string()
+        .map_err(|_| CliError::Failure("Input: binary entry name is not valid UTF-8".into()))?;
+    if arguments.next().is_some() {
+        return Err(CliError::Usage(full_usage()));
+    }
+    let platform = platform.ok_or_else(|| CliError::Usage(full_usage()))?;
+    let classes = classes.ok_or_else(|| CliError::Usage(full_usage()))?;
+    let run = run_directory_application(
+        ApplicationDirectories {
+            platform: &platform,
+            classes: &classes,
+        },
+        &entry,
+        &[],
+        ApplicationOptions::default(),
+    )
+    .map_err(|error| CliError::Failure(error.to_string()))?;
+    match run.completion {
+        ApplicationCompletion::Returned => Ok(()),
+        ApplicationCompletion::ExecutionFailed { phase, error } => {
+            Err(CliError::Failure(format!("{phase:?}: {error}")))
+        }
+        ApplicationCompletion::SuppliedUncaught { phase, class_name } => Err(CliError::Failure(
+            format!("{phase:?}: uncaught {}", class_name.escaped()),
+        )),
+    }
+}
+fn inspect_run(arguments: impl Iterator<Item = std::ffi::OsString>) -> Result<(), String> {
     let mut options = ParseOptions::default();
     let mut path = None;
     for argument in arguments {
