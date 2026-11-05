@@ -11,6 +11,10 @@ def applications(work, directory=DIRECTORY):
     for files, group in ((apps, "original"), (raw, "encoded")):
         if {name: digest(data) for name, data in files.items()} != manifest[group]:
             raise ValueError(f"changed String application inputs: {group}")
+    return stage_selected(work, apps, raw)
+
+
+def stage_selected(work, apps, raw):
     cases = {}
 
     def add(key, main, files):

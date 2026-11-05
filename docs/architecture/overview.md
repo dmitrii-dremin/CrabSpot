@@ -1,6 +1,6 @@
 # CrabSpot architecture
 
-The director approved canonical Java class objects on 2026-11-05. The verified directory launcher can load class literals, select the genuine Object.getClass native, store the resulting references and use a class object as the lock for its declaring class. The five-class application returned `127/3/1` on CrabSpot, HotSpot and OpenJ9. Class state and general reflection remain open. The next proposal covers Java String constants, interning and application arguments. [Class-object review](m2-class-mirrors-review.md), [reference JVM observations](m2-class-mirror-reference.md) and [String proposal](m2-string-constants-next.md).
+The verified directory launcher supports class objects, String literals, static String constants, the genuine native methods `Object.getClass` and `String.intern`, and nonempty application arguments. Each heap retains canonical String references across defining loaders. The supplied Java bodies of `String.length` and `String.isEmpty` are the next proposed step. [Class-object review](m2-class-mirrors-review.md), [String contract](m2-string-constants.md) and [next proposal](m2-string-java-bodies-next.md).
 
 `ARCHITECTURE.md` is the project charter. This document refines its initial layout without reducing its roadmap. CrabSpot is an independent Rust JVM project targeting Linux x86-64. The first deliverable reads class files; it does not execute Java programs or claim JVM compatibility. NanoSpec is not used in this project.
 
@@ -23,7 +23,7 @@ Only create crates containing implemented behavior:
 | `classfile` | Parse class-file bytes into an inspection representation; expose structured errors and resource limits | Rust standard library; infrastructure dependencies require justification |
 | `launcher` | Read an explicitly selected file, invoke the parser, print metadata and errors | `classfile`, standard library |
 
-M2 added independent instruction decoding in `bytecode` and a method-body execution kernel in `interpreter`. The initial launcher exposed class-file inspection. The development launcher also accepts a Java application directory, verifies its executable classes against a supplied platform directory and invokes a selected `main(String[])` with an empty argument array. [Foundation review](m2-foundation-review.md) and [application entry contract](m2-verified-application-entry.md).
+M2 added independent instruction decoding in `bytecode` and a method-body execution kernel in `interpreter`. The initial launcher exposed class-file inspection. The directory launcher verifies executable classes against a supplied platform directory and invokes the selected `main(String[])` with a managed argument array. [Foundation review](m2-foundation-review.md) and [application entry contract](m2-verified-application-entry.md).
 
 The six-crate workspace includes `runtime` for loader and member identities, managed storage, preparation and resolution. The `verifier` borrows parsed metadata and uses explicit loader facts to check modern class definitions. The application launcher combines those proofs with preparation records and checked member resolution before handing control to the interpreter. [Modern verification and runtime evidence](../compatibility/status.md).
 

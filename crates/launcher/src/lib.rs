@@ -1,6 +1,8 @@
 //! One-shot verified directory image. Parsed metadata, proofs and execution
 //! authority are distinct; private image ownership connects their exact identities.
 mod entry;
+mod invocation;
+pub use invocation::*;
 mod error;
 mod image;
 mod meter;
@@ -9,7 +11,7 @@ mod source;
 use crabspot_classfile::JavaString;
 use crabspot_interpreter::ExecutionError;
 pub use crabspot_interpreter::MonitorLimits;
-pub use crabspot_runtime::ClassMirrorLimits;
+pub use crabspot_runtime::{ClassMirrorLimits, StringLimits, StringUsage};
 use crabspot_verifier::ClassTypeVerificationUsage;
 pub use error::*;
 pub use options::*;
@@ -74,6 +76,8 @@ pub struct ApplicationUsage {
     pub admitted_executable_classes: u64,
     pub engine_evaluations: u64,
     pub argument_arrays: u64,
+    pub argument_strings: u64,
+    pub strings: StringUsage,
     pub orchestration: OrchestrationUsage,
 }
 #[cfg(test)]
@@ -122,6 +126,27 @@ pub fn run_directory_application_with_mirror_limits(
     monitors: MonitorLimits,
     mirrors: ClassMirrorLimits,
 ) -> std::result::Result<ApplicationRun, Box<ApplicationError>> {
+    run_directory_application_with_arguments(
+        directories,
+        entry,
+        observations,
+        options,
+        ApplicationInvocation {
+            monitors,
+            mirrors,
+            ..Default::default()
+        },
+    )
+}
+/// Execute one verified image with exact UTF-16 arguments and bounded String services.
+pub fn run_directory_application_with_arguments(
+    directories: ApplicationDirectories<'_>,
+    entry: &str,
+    observations: &[StaticIntObservation<'_>],
+    options: ApplicationOptions,
+    invocation: ApplicationInvocation<'_>,
+) -> std::result::Result<ApplicationRun, Box<ApplicationError>> {
+    invocation::validate(&invocation)?;
     let prepared = image::prepare(directories, entry, observations, options)?;
-    entry::run_prepared(prepared, observations, monitors, mirrors)
+    entry::run_prepared(prepared, observations, invocation)
 }

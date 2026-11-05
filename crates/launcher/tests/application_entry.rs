@@ -36,7 +36,7 @@ impl Inputs {
             "java/lang/invoke/MethodHandle",
         ] {
             let mut class = Class::plain(name);
-            if name == "java/lang/Class" {
+            if matches!(name, "java/lang/Class" | "java/lang/String") {
                 class.flags |= 0x10;
             }
             write(&platform, &class);
@@ -572,7 +572,7 @@ fn fact_only_target_cannot_gain_execution_authority_from_a_platform_caller() {
     body.push(0xb1);
     app.method("main", "([Ljava/lang/String;)V", 9, &body, 1, 1);
     let inputs = Inputs::new(vec![app]);
-    let mut string = Class::plain("java/lang/String");
+    let mut string = Class::new("java/lang/String", Some("java/lang/Object"), 0x31);
     let hidden = string.reference(10, "closed/Fact", "call", "()V");
     let mut body = instruction(0xb8, hidden);
     body.push(0xb1);
@@ -739,7 +739,7 @@ fn field_query_uses_unqualified_grammar_not_filesystem_component_grammar() {
 #[test]
 fn imported_boot_class_is_not_an_application_observation_owner() {
     let inputs = Inputs::new(vec![plain_main()]);
-    let mut string = Class::plain("java/lang/String");
+    let mut string = Class::new("java/lang/String", Some("java/lang/Object"), 0x31);
     string.field("value", "I", 9);
     write(&inputs.platform, &string);
     let e = inputs
@@ -1163,4 +1163,258 @@ fn unused_missing_getclass_is_allowed_but_exact_java_replacement_cannot_run_as_n
         matches!(error.kind,E::ClassMirror(ref e)if matches!(**e,crabspot_runtime::ClassMirrorError::InvalidBinding(_)))
     );
     assert_eq!(error.offset, Some(1));
+}
+
+#[test]
+fn utf16_arguments_are_input_checked_before_any_source_access() {
+    let values: [&[u16]; 2] = [&[0xd800, 0], &[0x20ac]];
+    for (resource, limits, index, required) in [
+        (
+            ArgumentResource::Arguments,
+            ApplicationStringLimits {
+                max_arguments: 1,
+                ..Default::default()
+            },
+            None,
+            2,
+        ),
+        (
+            ArgumentResource::UnitsPerArgument,
+            ApplicationStringLimits {
+                max_units_per_argument: 1,
+                ..Default::default()
+            },
+            Some(0),
+            2,
+        ),
+        (
+            ArgumentResource::ArgumentUnits,
+            ApplicationStringLimits {
+                max_argument_units: 2,
+                ..Default::default()
+            },
+            Some(1),
+            3,
+        ),
+    ] {
+        let error = run_directory_application_with_arguments(
+            ApplicationDirectories {
+                platform: Path::new("missing-platform"),
+                classes: Path::new("missing-classes"),
+            },
+            "C",
+            &[],
+            Default::default(),
+            ApplicationInvocation {
+                arguments: &values,
+                strings: limits,
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.stage, ApplicationStage::Input);
+        assert!(
+            matches!(error.kind,ApplicationErrorKind::Arguments(ArgumentError::Limit{index:i,resource:r,required:n,..}) if i==index&&r==resource&&n==required)
+        );
+        assert_eq!(error.usage.strings, Default::default());
+        assert_eq!(error.usage.argument_arrays, 0);
+        assert_eq!(error.usage.engine_evaluations, 0);
+    }
+}
+fn arguments_program(fail_initializer: bool) -> Class {
+    let mut c = Class::plain("Args");
+    c.field("count", "I", 9);
+    let field = c.reference(9, "Args", "count", "I");
+    c.method(
+        "main",
+        "([Ljava/lang/String;)V",
+        9,
+        &[vec![0x2a, 0xbe], instruction(0xb3, field), vec![0xb1]].concat(),
+        1,
+        1,
+    );
+    if fail_initializer {
+        c.method(
+            "<clinit>",
+            "()V",
+            8,
+            &[
+                vec![4],
+                instruction(0xb3, field),
+                vec![4, 3, 0x6c, 0x57, 0xb1],
+            ]
+            .concat(),
+            2,
+            0,
+        );
+    }
+    c
+}
+#[test]
+fn actual_argument_array_is_sized_and_fresh_strings_are_not_interned() {
+    let inputs = Inputs::new(vec![arguments_program(false)]);
+    let raw: [&[u16]; 5] = [
+        &[0, 0xd800, 0xdc00, 0x20ac],
+        &[],
+        &[],
+        &[32, 45, 45],
+        &[0xdfff],
+    ];
+    let run = run_directory_application_with_arguments(
+        inputs.dirs(),
+        "Args",
+        &[query("Args", "count")],
+        Default::default(),
+        ApplicationInvocation {
+            arguments: &raw,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(matches!(run.completion, ApplicationCompletion::Returned));
+    assert_eq!(run.static_ints, [5]);
+    assert_eq!(run.usage.argument_arrays, 1);
+    assert_eq!(run.usage.argument_strings, 5);
+    assert_eq!(run.usage.engine_evaluations, 1);
+    assert_eq!(run.usage.strings.objects, 5);
+    assert_eq!(run.usage.strings.retained_units, 8);
+    assert_eq!(run.usage.strings.interned, 0);
+    assert_eq!(run.usage.strings.literal_sites, 0);
+    assert_eq!(run.usage.strings.work_units, 13);
+}
+#[test]
+fn argument_setup_failure_reports_issued_prefix_without_starting_engine() {
+    let inputs = Inputs::new(vec![arguments_program(false)]);
+    let raw: [&[u16]; 2] = [&[120], &[121]];
+    for cap in [0, 1] {
+        let invocation = ApplicationInvocation {
+            arguments: &raw,
+            strings: ApplicationStringLimits {
+                strings: crabspot_runtime::StringLimits {
+                    max_objects: cap,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let error = run_directory_application_with_arguments(
+            inputs.dirs(),
+            "Args",
+            &[],
+            Default::default(),
+            invocation,
+        )
+        .unwrap_err();
+        assert_eq!(error.stage, ApplicationStage::Setup);
+        assert!(matches!(
+            error.kind,
+            ApplicationErrorKind::Setup {
+                kind: SetupKind::String,
+                ..
+            }
+        ));
+        assert_eq!(error.usage.argument_arrays, 1);
+        assert_eq!(error.usage.argument_strings, cap);
+        assert_eq!(error.usage.strings.objects, cap);
+        assert_eq!(error.usage.engine_evaluations, 0);
+    }
+}
+#[test]
+fn full_argument_setup_survives_failing_named_initializer() {
+    let inputs = Inputs::new(vec![arguments_program(true)]);
+    let raw: [&[u16]; 2] = [&[], &[120]];
+    let run = run_directory_application_with_arguments(
+        inputs.dirs(),
+        "Args",
+        &[query("Args", "count")],
+        Default::default(),
+        ApplicationInvocation {
+            arguments: &raw,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(
+        matches!(run.completion,ApplicationCompletion::ExecutionFailed{phase:EntryEvaluation::NamedInitialization,error} if matches!(error.kind,E::UnsupportedVmException(VmExceptionKind::ArithmeticException)))
+    );
+    assert_eq!(run.static_ints, [1]);
+    assert_eq!(run.usage.argument_arrays, 1);
+    assert_eq!(run.usage.argument_strings, 2);
+    assert_eq!(run.usage.strings.objects, 2);
+    assert_eq!(run.usage.engine_evaluations, 1);
+}
+#[test]
+fn argument_exact_zero_and_max_small_controls() {
+    let inputs = Inputs::new(vec![arguments_program(false)]);
+    for (raw, limits) in [
+        (
+            vec![],
+            ApplicationStringLimits {
+                max_arguments: 0,
+                max_argument_units: 0,
+                max_units_per_argument: 0,
+                ..Default::default()
+            },
+        ),
+        (
+            vec![&[1, 2][..]],
+            ApplicationStringLimits {
+                max_arguments: 1,
+                max_argument_units: 2,
+                max_units_per_argument: 2,
+                ..Default::default()
+            },
+        ),
+        (
+            vec![&[1, 2][..]],
+            ApplicationStringLimits {
+                max_arguments: u64::MAX,
+                max_argument_units: u64::MAX,
+                max_units_per_argument: u64::MAX,
+                ..Default::default()
+            },
+        ),
+    ] {
+        let run = run_directory_application_with_arguments(
+            inputs.dirs(),
+            "Args",
+            &[query("Args", "count")],
+            Default::default(),
+            ApplicationInvocation {
+                arguments: &raw,
+                strings: limits,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(matches!(run.completion, ApplicationCompletion::Returned));
+        assert_eq!(run.static_ints, [raw.len() as i32]);
+        assert_eq!(run.usage.argument_strings, raw.len() as u64);
+    }
+}
+#[test]
+fn physical_cli_separator_empty_optionlike_and_whitespace_arguments() {
+    let inputs = Inputs::new(vec![arguments_program(false)]);
+    for tail in [vec![], vec!["--"], vec!["--", "", "--classes", " left "]] {
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_crabspot"))
+            .args(["run", "--platform"])
+            .arg(&inputs.platform)
+            .arg("--classes")
+            .arg(&inputs.application)
+            .arg("Args")
+            .args(&tail)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{:?}", output);
+    }
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_crabspot"))
+        .args(["run", "--platform"])
+        .arg(&inputs.platform)
+        .arg("--classes")
+        .arg(&inputs.application)
+        .args(["Args", "bad", "--"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
 }

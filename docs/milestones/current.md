@@ -1,4 +1,20 @@
-# Current checkpoint: Java class objects
+# Current checkpoint: String literals, interning and arguments
+
+The technical director approved this increment on 2026-11-05. [Technical review](../architecture/m2-string-constants-review.md).
+
+The directory launcher accepts Java arguments after `--`, represents them as fresh Strings and passes a real `String[]` to the program. The runtime canonicalizes String literals and the result of the genuine `String.intern` native across defining loaders in the same heap. Static String constants are installed before the superclass initializer can read them. [Implementation contract](../architecture/m2-string-constants.md) and [Java 21 reference observations](../architecture/m2-string-reference.md).
+
+On the original four-argument Java program, CrabSpot, HotSpot and OpenJ9 produced flags 127, one initializer call, one synchronized-counter increment and argument count four. CrabSpot proved 21 classes and created four argument Strings plus one new literal object. The superclass-initialization fixture returned `41/1/41/3`. Giving it only one literal site left all four observed fields at zero while retaining the first pooled literal. Two distinct constant-pool entries containing the same units shared one object, used two sites and consumed exactly 25 String work units.
+
+The public Rust API reproduced the raw class containing 21,845 isolated low surrogates, distinguished canonically equivalent Unicode spellings and preserved a NUL followed by an isolated surrogate in an argument. A bytecode wrapper checked argument effects through the actual OS launcher, including whitespace, empty arguments, option-looking strings and a supplementary character. On Windows a separate process test passed an isolated surrogate intact. An invocation with an invalid String load category failed verification before argument creation. The broader program retains flags 3 and stops at its real `String.length` call at bytecode offset 68.
+
+Reproduce the public replay with `python tools/verify_string_entry.py` and a Java 21 HotSpot JDK at `JAVA_HOME`. It tests 27 API cases on archived definitions and 14 on freshly rebuilt definitions, with physical CLI tests on both sets. The exact-source parser campaign used 721 seeds and ran for 300 seconds. It accepted 319,142 generated cases, rejected 30,260,714 and completed 29,864 deterministic rechecks with zero failures.
+
+All 61 commands in the combined local gate passed, including formatting, strict workspace Clippy, 1,501 debug tests, 1,421 optimized tests and 50 Python tests. The 32 integrated source hashes matched again after the final public replay. On the Zulu 21.0.7 archive, whole-platform verification covered 7,519 classes and 61,708 method bodies. The two earlier hosted reference jobs for `3ab1bbc` also passed. [Linux](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42119677756/job/127568472735) and [Windows](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42119677756/job/127568441613).
+
+The next proposal targets execution of the Java library's `String.length`, `String.isEmpty` and `coder` bodies against managed byte arrays. The two reference VMs agreed on UTF-16 lengths, while inspection of their supplied class files showed different String initializer dependencies. [Proposed scope](../architecture/m2-string-java-bodies-next.md).
+
+## Earlier class-object checkpoint
 
 The technical director approved the class-object increment on 2026-11-05. The verified directory launcher executes class literals and the genuine bootstrap `Object.getClass()`. Java code can compare the resulting references, store them in fields and arrays, pass them through methods and use them as locks. Repeated requests for the same represented type return the same object in one heap. Array rank and component type matter, and defining loaders distinguish ordinary classes with the same name. An explicit lock on a nominal class object reenters the same monitor used by a synchronized static method on its declaring class. [Implementation contract](../architecture/m2-class-mirrors.md), [reference observations](../architecture/m2-class-mirror-reference.md) and [technical review](../architecture/m2-class-mirrors-review.md).
 

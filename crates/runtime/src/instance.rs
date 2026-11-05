@@ -53,6 +53,12 @@ pub enum InstanceError {
         class: ClassId,
     },
     MirrorLayoutSealed,
+    ReservedStringObject {
+        class: ClassId,
+    },
+    OpaqueStringObject {
+        class: ClassId,
+    },
     Registry(RegistryError),
     Heap(HeapError),
     ForeignRegistry,
@@ -98,6 +104,10 @@ impl fmt::Display for InstanceError {
                 write!(f, "ordinary allocation of VM Class {class:?} is sealed")
             }
             Self::OpaqueClassObject { class } => write!(f, "Class {class:?} has opaque VM state"),
+            Self::ReservedStringObject { class } => {
+                write!(f, "ordinary allocation of VM String {class:?} is sealed")
+            }
+            Self::OpaqueStringObject { class } => write!(f, "String {class:?} has opaque VM state"),
             Self::MirrorLayoutSealed => {
                 f.write_str("mirror binding seals the admitted layout graph")
             }
@@ -421,7 +431,7 @@ pub(crate) struct ConstructorWrite {
 fn instance(payload: &EntryPayload) -> Result<&InstancePayload, InstanceError> {
     match payload {
         EntryPayload::Instance(value) => Ok(value),
-        EntryPayload::Mirror(_) => Err(InstanceError::InvalidMetadata(
+        EntryPayload::Mirror(_) | EntryPayload::String(_) => Err(InstanceError::InvalidMetadata(
             "opaque mirror passed to unguarded instance helper",
         )),
         EntryPayload::Array(_) => Err(HeapError::WrongEntryKind {
@@ -599,12 +609,23 @@ fn parse_error(error: ParseError) -> InstanceError {
 
 impl ManagedHeap {
     pub(crate) fn check_reserved_class(&self, class: ClassId) -> Result<(), InstanceError> {
+        if self.strings.as_ref().is_some_and(|s| s.class == class) {
+            return Err(InstanceError::ReservedStringObject { class });
+        }
         if self.mirrors.as_ref().is_some_and(|m| m.class == class) {
             return Err(InstanceError::ReservedClassObject { class });
         }
         Ok(())
     }
     pub(crate) fn reject_opaque(&self, reference: Reference) -> Result<(), InstanceError> {
+        if matches!(self.entry(reference)?.payload, EntryPayload::String(_)) {
+            let class = self
+                .strings
+                .as_ref()
+                .ok_or(InstanceError::InvalidMetadata("String without binding"))?
+                .class;
+            return Err(InstanceError::OpaqueStringObject { class });
+        }
         if matches!(self.entry(reference)?.payload, EntryPayload::Mirror(_)) {
             let class = self
                 .mirrors
@@ -1023,6 +1044,12 @@ impl ManagedHeap {
     pub fn instance_class(&self, reference: Reference) -> Result<ClassId, InstanceError> {
         self.instances.as_ref().ok_or(InstanceError::Disabled)?;
         let class = match &self.entry(reference)?.payload {
+            EntryPayload::String(_) => {
+                self.strings
+                    .as_ref()
+                    .ok_or(InstanceError::InvalidMetadata("String without binding"))?
+                    .class
+            }
             EntryPayload::Mirror(_) => {
                 self.mirrors
                     .as_ref()
@@ -1281,7 +1308,9 @@ impl ManagedHeap {
         reference: Reference,
     ) -> Result<impl Iterator<Item = HeapRef> + '_, HeapError> {
         let (values, references): (&[Value], &[Reference]) = match &self.entry(reference)?.payload {
-            EntryPayload::Array(_) | EntryPayload::Mirror(_) => (&[], &[]),
+            EntryPayload::Array(_) | EntryPayload::Mirror(_) | EntryPayload::String(_) => {
+                (&[], &[])
+            }
             EntryPayload::ReferenceArray(array) => (&[], array.values.as_slice()),
             EntryPayload::Instance(object) => (object.values.as_slice(), &[]),
         };

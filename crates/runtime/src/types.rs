@@ -394,7 +394,9 @@ impl<'a> FieldResolutionContext<'a> {
         }
         let universe = self.universe()?;
         let value = match &self.heap().entry(reference)?.payload {
-            crate::heap::EntryPayload::Instance(_) | crate::heap::EntryPayload::Mirror(_) => {
+            crate::heap::EntryPayload::Instance(_)
+            | crate::heap::EntryPayload::Mirror(_)
+            | crate::heap::EntryPayload::String(_) => {
                 let class = self.heap().instance_class(reference)?;
                 self.nominal(class)?;
                 ReferenceType::Class(class)

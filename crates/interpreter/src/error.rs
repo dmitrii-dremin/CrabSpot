@@ -34,6 +34,7 @@ pub struct CallSite {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExecutionErrorKind {
     ClassMirror(Box<crabspot_runtime::ClassMirrorError>),
+    String(Box<crabspot_runtime::StringError>),
     Monitor(crate::MonitorError),
     ApplicationMain(Box<crabspot_runtime::ApplicationMainError>),
     ConstructionAccess(Box<crabspot_runtime::ConstructionAccessError>),
@@ -211,6 +212,9 @@ impl fmt::Display for ExecutionError {
             write!(formatter, "bytecode offset {offset}: ")?;
         }
         match &self.kind {
+            ExecutionErrorKind::String(error) => {
+                write!(formatter, "String service failed: {error}")
+            }
             ExecutionErrorKind::ClassMirror(error) => {
                 write!(formatter, "class mirror operation failed: {error}")
             }
@@ -407,6 +411,7 @@ impl fmt::Display for ExecutionError {
 impl std::error::Error for ExecutionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.kind {
+            ExecutionErrorKind::String(error) => Some(error.as_ref()),
             ExecutionErrorKind::ClassMirror(error) => Some(error.as_ref()),
             ExecutionErrorKind::Monitor(error) => Some(error),
             ExecutionErrorKind::ApplicationMain(error) => Some(error.as_ref()),

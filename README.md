@@ -27,8 +27,9 @@ evidence, and remaining work.
 ## Run a Java application
 
 The launcher reads a platform directory and an application directory, verifies
-the executable classes, then invokes a public static `main(String[])` with
-an empty array. A fresh run has its own loaders, heap and static state.
+the executable classes, then invokes a public static `main(String[])`. Pass
+application arguments after `--`. Omitting them supplies an empty array.
+A fresh run has its own loaders, heap, interned Strings and static state.
 
 With the Java 21 tools on your path, create empty `target/app-platform` and
 `target/app-classes` directories. Substitute your JDK's `java.base.jmod` path
@@ -76,6 +77,17 @@ cargo run --release -p crabspot-launcher --example replay_class_mirror_entry -- 
 ```
 
 The expected fields are `127/3/1`. The program compares class literals with the results of `getClass()` on objects, arrays and class objects. It also checks how many initializers ran and enters a static synchronized method while already holding the declaring class object's lock. The observer reports how many application and platform classes the launcher verified. [Class-object behavior and reference JVM results](docs/architecture/m2-class-mirror-reference.md).
+
+### Run a program with String arguments
+
+With the extracted platform above, compile the String-lock fixture into a fresh directory. The program interns its first two arguments and takes a nested lock on the resulting canonical String.
+
+```text
+javac --release 21 -d target/string-classes tests/fixtures/string-constants/src/locks/Strings.java
+cargo run --release -p crabspot-launcher --bin crabspot -- run --platform target/app-platform/classes --classes target/string-classes locks.Strings -- crab crab shared
+```
+
+The program returns silently. Run `python tools/verify_string_entry.py` with a Java 21 JDK at `JAVA_HOME` to inspect the test results for literal identity, static constants, argument contents and resource limits. [String reference behavior](docs/architecture/m2-string-reference.md).
 
 ## Build and inspect
 
@@ -203,10 +215,10 @@ rejected. The separate initialization session adds superclass/default-interface
 ordering, recursive use, once-only completion and suspended active-use operations
 without replaying fuel or popped operands. Actual initializer frames can write
 their own final statics. Supplied Error identity survives dependency failure; host
-interruption permanently aborts affected activations. String constants, VM-created
-wrappers and later NoClassDefFoundError production remain explicit unsupported
-cases. One session permanently claims its heap; this is not concurrent Java
-initialization or application startup.
+interruption permanently aborts affected activations. The directory launcher's
+String-enabled session installs static String constants. VM-created wrappers
+and later NoClassDefFoundError production remain open. One session permanently
+claims its heap.
 A bounded noncollecting heap owns primitive arrays of all
 eight kinds through checked opaque references. Heap-service tests additionally
 match 151 OpenJDK array store/load outcomes. The opt-in instance service admits

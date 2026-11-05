@@ -293,6 +293,7 @@ fn mismatched_and_duplicate_constructor_authority_cannot_promote_aliases_or_writ
             state: &mut state,
             owner: 1,
             activations: Vec::new(),
+            strings: false,
         };
         assert!(matches!(
             finish_constructor_boundary(&mut java, &mut init, true, 5)
@@ -401,6 +402,7 @@ fn failed_new_publication_keeps_old_site_locals_and_does_not_recharge_alias_work
         state: &mut state,
         owner: 1,
         activations: Vec::new(),
+        strings: false,
     };
     let bodies = Bodies {
         standalone: None,

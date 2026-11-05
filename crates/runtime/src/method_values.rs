@@ -286,6 +286,7 @@ impl<'a> FieldResolutionContext<'a> {
         if let Some(receiver) = receiver {
             self.heap()
                 .check_class_mirror_method_entry(method, receiver)?;
+            self.check_string_method_entry(method, receiver)?;
         }
         if !signature.nominal || member.access_flags & 8 != 0 {
             return Ok(());

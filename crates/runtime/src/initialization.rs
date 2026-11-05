@@ -44,11 +44,12 @@ pub struct InitializationPlanLimits {
     pub max_dependencies: usize,
     pub max_constants: usize,
 }
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct InitializationConstant {
     pub(crate) field: FieldId,
     pub(crate) location: usize,
     pub(crate) value: Value,
+    pub(crate) string: bool,
     descriptor: u16,
     attribute: usize,
     constant: u16,
@@ -61,6 +62,8 @@ pub struct InitializationPlan {
     dependencies: Vec<ClassId>,
     constants: Vec<InitializationConstant>,
     constant_count: usize,
+    strings: Option<ClassId>,
+    string_count: usize,
 }
 impl InitializationPlan {
     pub fn class(&self) -> ClassId {
@@ -112,6 +115,7 @@ impl ResolvedInitializationStatic {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum InitializationAccessError {
+    String(Box<crate::StringError>),
     Context(FieldAccessError),
     Static(Box<StaticAccessError>),
     Exception(Box<ExceptionAccessError>),
@@ -144,6 +148,7 @@ pub enum InitializationAccessError {
 impl fmt::Display for InitializationAccessError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::String(error) => error.fmt(f),
             Self::Context(error) => write!(f, "initialization context failed: {error}"),
             Self::Static(error) => write!(f, "initialization static operation failed: {error}"),
             Self::Exception(error) => {
@@ -186,6 +191,7 @@ impl fmt::Display for InitializationAccessError {
 impl std::error::Error for InitializationAccessError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::String(error) => Some(error.as_ref()),
             Self::Context(error) => Some(error),
             Self::Static(error) => Some(error.as_ref()),
             Self::Exception(error) => Some(error.as_ref()),
@@ -408,11 +414,37 @@ impl FieldResolutionContext<'_> {
         class: ClassId,
         limits: InitializationPlanLimits,
     ) -> Result<InitializationPlan, InitializationAccessError> {
+        self.plan_initialization_common(claim, class, limits, None)
+    }
+    pub fn plan_initialization_with_strings(
+        &mut self,
+        claim: &InitializationClaim,
+        class: ClassId,
+        limits: InitializationPlanLimits,
+    ) -> Result<InitializationPlan, InitializationAccessError> {
+        self.check_string_profile()
+            .map_err(InitializationAccessError::String)?;
+        let role = self
+            .heap
+            .strings
+            .as_ref()
+            .ok_or_else(|| invalid("String planner authority is absent"))?
+            .class;
+        self.plan_initialization_common(claim, class, limits, Some(role))
+    }
+    fn plan_initialization_common(
+        &mut self,
+        claim: &InitializationClaim,
+        class: ClassId,
+        limits: InitializationPlanLimits,
+        strings: Option<ClassId>,
+    ) -> Result<InitializationPlan, InitializationAccessError> {
         self.check_initialization_claim(claim)?;
         let definition = self.registry().class(class)?;
         self.heap().instance_graph_node(class)?;
         self.step()?;
         let mut constants = Vec::new();
+        let mut string_count = 0usize;
         let mut kinds = HashMap::new();
         for (field_index, member) in definition.fields.iter().enumerate() {
             self.step()?;
@@ -452,19 +484,53 @@ impl FieldResolutionContext<'_> {
                 if retained != kind {
                     return Err(invalid("retained constant field kind differs"));
                 }
-                let value = constant_value(
-                    field,
-                    kind,
-                    definition
-                        .constant_pool
-                        .get(constant)
-                        .map_err(RegistryError::Parse)?,
-                )?;
+                let source = definition
+                    .constant_pool
+                    .get(constant)
+                    .map_err(RegistryError::Parse)?;
+                let string = matches!(source, Constant::String { .. });
+                let value = if string && strings.is_some() {
+                    if kind != FieldKind::Reference
+                        || !definition
+                            .constant_pool
+                            .utf8(member.descriptor_index)
+                            .map_err(RegistryError::Parse)?
+                            .equals_ascii("Ljava/lang/String;")
+                    {
+                        return Err(invalid("String constant descriptor differs"));
+                    }
+                    if string_count == 0 {
+                        let descriptor = definition
+                            .constant_pool
+                            .utf8(member.descriptor_index)
+                            .map_err(RegistryError::Parse)?
+                            .units();
+                        let target = self
+                            .resolve_reference_span(class, descriptor)
+                            .map_err(|e| InitializationAccessError::String(e.into()))?;
+                        if Some(target) != strings.map(crate::ReferenceType::Class) {
+                            return Err(InitializationAccessError::String(Box::new(
+                                crate::StringError::InvalidBinding(
+                                    "constant owner does not initiate the designated String",
+                                ),
+                            )));
+                        }
+                    }
+                    Value::Reference(crate::Reference::null())
+                } else {
+                    constant_value(field, kind, source)?
+                };
+                if string {
+                    string_count = string_count
+                        .checked_add(1)
+                        .ok_or_else(|| invalid("String constant count overflow"))?;
+                }
                 reserve(&mut constants, 1)?;
                 constants.push(InitializationConstant {
                     field,
                     location,
                     value,
+                    string,
                     descriptor: member.descriptor_index,
                     attribute,
                     constant,
@@ -525,6 +591,8 @@ impl FieldResolutionContext<'_> {
             dependencies,
             constants,
             constant_count,
+            strings,
+            string_count,
         })
     }
     fn initialization_interfaces(
@@ -621,6 +689,7 @@ impl FieldResolutionContext<'_> {
         let count = self.initialization_own_fields(plan.class)?.len();
         self.charge_bulk_work(count, 0)?;
         let mut next = 0usize;
+        let mut strings_seen = 0usize;
         for field in self.initialization_own_fields(plan.class)? {
             if field.owner() != plan.class {
                 return Err(invalid("constant destination owner range differs"));
@@ -636,18 +705,33 @@ impl FieldResolutionContext<'_> {
                     {
                         return Err(invalid("constant plan differs from immutable declaration"));
                     }
-                    let expected = constant_value(
-                        *field,
-                        kind,
-                        definition
-                            .constant_pool
-                            .get(entry.constant)
-                            .map_err(RegistryError::Parse)?,
-                    )?;
-                    if expected != entry.value {
-                        return Err(invalid(
-                            "constant plan value differs from immutable constant",
-                        ));
+                    let source = definition
+                        .constant_pool
+                        .get(entry.constant)
+                        .map_err(RegistryError::Parse)?;
+                    if entry.string {
+                        strings_seen += 1;
+                        if plan.strings.is_none()
+                            || kind != FieldKind::Reference
+                            || !matches!(source, Constant::String { .. })
+                            || !definition
+                                .constant_pool
+                                .utf8(entry.descriptor)
+                                .map_err(RegistryError::Parse)?
+                                .equals_ascii("Ljava/lang/String;")
+                            || entry.value != Value::Reference(crate::Reference::null())
+                        {
+                            return Err(invalid(
+                                "String constant plan differs from immutable source",
+                            ));
+                        }
+                    } else {
+                        let expected = constant_value(*field, kind, source)?;
+                        if expected != entry.value {
+                            return Err(invalid(
+                                "constant plan value differs from immutable constant",
+                            ));
+                        }
                     }
                     next += 1;
                 }
@@ -658,7 +742,40 @@ impl FieldResolutionContext<'_> {
                 "constant plan destinations are unordered or absent",
             ));
         }
-        self.publish_initialization_constants(plan.class, &plan.constants)?;
+        if strings_seen != plan.string_count {
+            return Err(invalid("String constant count differs"));
+        }
+        if plan.string_count != 0 {
+            self.check_string_profile()
+                .map_err(InitializationAccessError::String)?;
+            let role = self
+                .heap
+                .strings
+                .as_ref()
+                .ok_or_else(|| invalid("String constant authority absent"))?
+                .class;
+            if plan.strings != Some(role) {
+                return Err(invalid("String plan role differs"));
+            }
+            // The new String-capable staging pass copies scalar rows, not text.
+            // Fund its actual row visits; old all-numeric paths remain unchanged.
+            self.charge_bulk_work(plan.constants.len(), 0)?;
+            let mut staged = Vec::new();
+            reserve(&mut staged, plan.constants.len())?;
+            for entry in &plan.constants {
+                let mut value = entry.clone();
+                if entry.string {
+                    value.value = Value::Reference(
+                        self.string_literal(plan.class, entry.constant)
+                            .map_err(InitializationAccessError::String)?,
+                    );
+                }
+                staged.push(value);
+            }
+            self.publish_initialization_constants(plan.class, &staged)?;
+        } else {
+            self.publish_initialization_constants(plan.class, &plan.constants)?;
+        }
         Ok(())
     }
     pub fn resolve_initialization_static(
@@ -1150,6 +1267,55 @@ mod tests {
                 ),
                 Err(InitializationAccessError::InvalidMetadata(_))
             ));
+        }
+    }
+}
+
+#[cfg(test)]
+mod string_plan_guards {
+    use super::*;
+    use crate::strings::tests::{claim, context, fixture};
+    #[test]
+    fn corrupt_late_string_plan_rows_reject_before_derivation_or_any_field_write() {
+        for damage in 0..7 {
+            let mut f = fixture(Default::default());
+            let boot = f.g.boot;
+            let class = f.constants;
+            let fields = f.fields;
+            let caller = f.caller;
+            let mut c = context(&mut f);
+            let (claim, statics) = claim(&mut c, boot);
+            let mut plan = c
+                .plan_initialization_with_strings(
+                    &claim,
+                    class,
+                    InitializationPlanLimits {
+                        max_dependencies: 100,
+                        max_constants: 100,
+                    },
+                )
+                .unwrap();
+            match damage {
+                0 => plan.constants[2].location = usize::MAX,
+                1 => plan.constants[2].field = fields[0],
+                2 => plan.constants[2].attribute = usize::MAX,
+                3 => plan.constants[2].constant = 0,
+                4 => plan.constants[2].value = Value::Int(17),
+                5 => plan.string_count = 0,
+                _ => plan.strings = Some(caller),
+            }
+            assert!(c.install_initialization_constants(&claim, &plan).is_err());
+            assert_eq!(c.heap().string_usage(), crate::StringUsage::default());
+            assert_eq!(
+                c.inspect_static(&statics, fields[0]).unwrap(),
+                Value::Int(0)
+            );
+            for field in &fields[1..] {
+                assert_eq!(
+                    c.inspect_static(&statics, *field).unwrap(),
+                    Value::Reference(crate::Reference::null())
+                );
+            }
         }
     }
 }

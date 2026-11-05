@@ -26,6 +26,7 @@ pub enum MethodJavaError {
 pub enum MethodAccessError {
     MemberResolution(Box<crate::MemberResolutionError>),
     ClassMirror(Box<crate::ClassMirrorError>),
+    String(Box<crate::StringError>),
     Java(MethodJavaError),
     Context(FieldAccessError),
     Type(Box<TypeAccessError>),
@@ -79,6 +80,7 @@ impl fmt::Display for MethodAccessError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ClassMirror(error) => error.fmt(f),
+            Self::String(error) => error.fmt(f),
             Self::MemberResolution(error) => error.fmt(f),
             Self::Java(error) => write!(f, "method access failed: {error:?}"),
             Self::Context(error) => write!(f, "method context failed: {error}"),
@@ -153,6 +155,7 @@ impl std::error::Error for MethodAccessError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::ClassMirror(error) => Some(error.as_ref()),
+            Self::String(error) => Some(error.as_ref()),
             Self::MemberResolution(error) => Some(error.as_ref()),
             Self::Context(error) => Some(error),
             Self::Type(error) => Some(error.as_ref()),

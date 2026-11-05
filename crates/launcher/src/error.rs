@@ -48,6 +48,7 @@ pub enum ApplicationResource {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SetupKind {
     ClassMirror,
+    String,
     Member,
     Heap,
     Instance,
@@ -61,6 +62,7 @@ pub enum SetupKind {
 }
 #[derive(Debug)]
 pub enum ApplicationErrorKind {
+    Arguments(crate::ArgumentError),
     InvalidInput(&'static str),
     InvalidPath(&'static str),
     OverlappingRoots,
@@ -146,6 +148,7 @@ impl ApplicationError {
 impl fmt::Display for ApplicationErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Arguments(e) => e.fmt(f),
             Self::Io(e) => e.fmt(f),
             Self::Parse(e) => e.fmt(f),
             Self::Registry(e) => e.fmt(f),
@@ -171,6 +174,7 @@ impl fmt::Display for ApplicationError {
 impl Error for ApplicationErrorKind {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::Arguments(e) => Some(e),
             Self::Io(e) => Some(e),
             Self::Parse(e) => Some(e),
             Self::Registry(e) => Some(e),

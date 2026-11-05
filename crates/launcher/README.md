@@ -5,13 +5,14 @@ platform and application directories. The CLI provides:
 
 ```
 crabspot inspect [--enable-preview] FILE
-crabspot run --platform DIR --classes DIR BINARY.MAIN
+crabspot run --platform DIR --classes DIR BINARY.MAIN [-- ARG ...]
 ```
 
 A successful run prints nothing and exits zero. Run syntax errors and unknown
 commands exit 2; legacy inspect errors remain exit 1. Image, setup and engine
-failures exit 1 with a structured stage diagnostic. Application
-arguments, JARs, arbitrary loader code, standard streams and general native
+failures exit 1 with a structured stage diagnostic. Exact UTF-16 application
+arguments are supported as described below. JARs, arbitrary loader code,
+standard streams and general native
 methods are outside this profile. The launcher never invokes Java tools or uses
 CLASSPATH, JAVA_HOME or PATH to find a missing definition.
 
@@ -52,7 +53,7 @@ closed-input policy can reject an unused invalid/missing class earlier than a
 lazy reference JVM; that is an image-preflight difference.
 
 Hierarchy plans are built under remaining physical row/edge budgets. Every
-application definition, the six imports and their transitive superclass/interface
+application definition, the seven imports and their transitive superclass/interface
 closure receive whole-class type proof. Other platform definitions are fact-only.
 Proof usage is aggregated across the image with independent inclusive counters,
 remaining-child clamps and exact nested error sources. Per-class/per-method
@@ -63,7 +64,7 @@ cannot acquire an execution layout through a callback or late auto-admission.
 
 The execution adapter binds the universe before opening one checked context,
 selects an opaque checked main token, allocates checked static state and one real
-non-null empty bootstrap String array, and runs one monitored InitializationSession. The
+non-null bootstrap String array with the requested argument count, and runs one monitored InitializationSession. The
 array needs no Class CP entry naming String and does not initialize its component.
 Inherited main uses one shared engine evaluation for named-child initialization
 and the selected declaring body; preflight/fuel/frame/Code limits are not reset
@@ -88,10 +89,10 @@ extraction and other-VM observations belong to the separate coordinator tooling.
 
 The ordinary library entry and CLI now enable bounded single-thread monitors and
 synchronized selected methods, including main. The same verified image, actual
-empty String array and one named-root initialization/evaluation are used.
+String array and one named-root initialization/evaluation are used.
 `run_directory_application_with_monitor_limits` adds an explicit `MonitorLimits`
-argument; the existing entry uses its defaults. ApplicationOptions and usage layouts
-are unchanged. Class initialization remains distinct from the implicit class lock:
+argument; the existing entry uses its defaults. ApplicationOptions remains
+unchanged; String diagnostics add fields to ApplicationUsage. Class initialization remains distinct from the implicit class lock:
 the named/target initializer completes before synchronized main/helper activation.
 
 A monitor entry limit failure after named initialization is `MainEvaluation` and
@@ -101,8 +102,8 @@ monitor state remain explicit unsupported exception materialization, never a fak
 Throwable or handler match. The profile enforces both structured-locking rules,
 including immediate failure when a callee explicitly exits only an implicit/caller
 claim. This authorized phase can differ from raw reference-VM malformed-locking
-observations. There are no application-visible monitor inspection natives, class
-mirrors, waits, blocking or concurrent Java threads. Existing lower-level unmonitored
+observations. There are no application-visible monitor inspection natives,
+waits, blocking or concurrent Java threads. Existing lower-level unmonitored
 APIs retain their old instruction/declaration gates.
 
 
@@ -111,8 +112,8 @@ APIs retain their old instruction/declaration gates.
 Ordinary and custom-monitor directory entry points now enable canonical mirrors.
 `run_directory_application_with_mirror_limits` takes the same image options plus
 MonitorLimits and ClassMirrorLimits. Defaults allow 16,384 heap mirrors and 262,144
-domain Class sites; existing options and usage structure layouts are unchanged.
-The CLI syntax and legacy inspect behavior are unchanged.
+domain Class sites; existing options remain unchanged. String diagnostics later
+add usage fields; legacy inspect behavior remains unchanged.
 
 Class is now the seventh universally requested bootstrap import, even when an
 application compares class literals typed as Object and has no Class spelling in
@@ -125,8 +126,8 @@ need not contain a getClass declaration in its test-only bootstrap metadata.
 
 Setup enables the domain Class-site store, binds the reference universe, then binds
 mirror issuance on the pristine heap before opening the one checked context. It
-still selects the opaque actual main, allocates static state and one real empty
-String array, and runs one initialization evaluation. Class and represented types
+still selects the opaque actual main, allocates static state and one real
+String array of the requested length, and runs one initialization evaluation. Class and represented types
 are not initialized by a passive literal or getClass. Genuine Class static active
 use still runs its actual initializer and can stop at an unsupported registerNatives
 operation; this feature does not mark the Java library initialized.
@@ -143,6 +144,58 @@ Typed mirror and ordinary instance quotas retain earlier Java writes. Resolution
 outcomes and issued objects have separate lifetimes; the closed image can reject
 missing definitions before execution rather than fabricate a JVM linkage object.
 The profile supplies no scalar primitive/void mirrors, reflective Class services,
-Java ClassLoader objects, general native access, VM-created Throwable or String
-implementation. Genuine reference programs and their vendor-specific failure stages
+Java ClassLoader objects, general native access, a VM-created Throwable allocator
+or general String library execution. Genuine reference programs and their vendor-specific failure stages
 remain separate coordinator evidence.
+
+
+## UTF-16 arguments and bounded String constants
+
+All directory entry wrappers now select the String-enabled initialization session.
+The old function signatures and ApplicationOptions remain intact. Their default
+invocation has zero arguments and default String limits; custom monitor/mirror
+wrappers preserve their supplied ceilings. The additive
+`run_directory_application_with_arguments(directories, entry, observations, options,
+invocation)` accepts `ApplicationInvocation { arguments: &[&[u16]], monitors, mirrors,
+strings }`. Its default borrows an empty slice. Values preserve every code unit,
+including NUL, isolated surrogates, duplicate empties and whitespace; they never
+round-trip through a Rust UTF-8 String.
+
+`ApplicationStringLimits` contains the heap String policy and argument ceilings.
+Defaults allow 65,536 arguments, 4,194,304 total argument units and 1,048,576 units
+per argument. Count also has the independent Java i32 array-length ceiling. Count,
+then each value's individual/cumulative length, are checked before directory
+traversal or Java effects. Typed indexed `ArgumentError` failures use Input stage.
+No policy maximum is used as an allocation size.
+
+Bind the String role on the pristine mirror-enabled heap before opening its checked
+context. After main/observation/static/exception setup, allocate one real String[] of the exact length and
+issue/store one fresh object per position. Equal inputs remain distinct, including
+empty arguments, and setup does not intern them. Setup failures start no engine
+evaluation. `ApplicationUsage.argument_strings` counts each successful issuance,
+including one whose subsequent checked store fails; `.strings` reports all accepted
+heap String usage on every post-binding exit. `.argument_arrays` records published
+array allocation immediately. A failing named initializer still retains its full
+argument setup usage and earlier Java writes in the result. No live reference
+escapes the one-shot image.
+
+CLI suffix syntax is `BINARY.MAIN -- ARG ...`; absence of a suffix or a lone `--`
+means zero arguments. A token before the separator is a syntax error (exit 2).
+After it, option-like tokens, empty strings and whitespace are data. Windows uses
+native UTF-16, preserving lone surrogates. Unix requires strict UTF-8 and converts
+it to UTF-16; malformed bytes are indexed Input failures (exit 1). Width/count
+validation precedes retained copies; rejected oversized values stop at a bounded
+prefix. No lossy replacement, Unicode normalization or shell interpolation occurs.
+OS argv cannot contain NUL; the public library API can. Platform transport tests
+and exact-unit language tests establish separate claims.
+
+The heap's initially empty pool is shared across loaders within the image. Literals,
+String ConstantValue installation and exact selected native intern share canonical
+objects. Literal/argument creation and intern do not initialize java.lang.String.
+Real static active use keeps the actual initializer and its unsupported bootstrap
+boundaries. Genuine Java String instance bodies, arbitrary natives, constructors,
+assertion/Throwable boot dependencies and concatenation remain outside this kernel.
+The public library supplies actual String references, not fabricated results for
+length, hashing or other library methods. Synthetic platform role stubs must make
+String a public final ordinary direct Object subclass; original genuine application
+and platform bytes remain unchanged.

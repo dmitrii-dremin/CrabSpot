@@ -229,6 +229,11 @@ fn activation_error(
     }
 }
 
+fn string_failure(error: Box<crabspot_runtime::StringError>, pc: Option<u32>) -> ExecutionError {
+    // String policy/authority failures are always host errors, even if a nested
+    // existing service error resembles a Java exception category.
+    ExecutionError::new(pc, E::String(error))
+}
 fn class_mirror_failure(
     error: Box<crabspot_runtime::ClassMirrorError>,
     pc: Option<u32>,
@@ -1215,6 +1220,7 @@ pub(crate) struct SessionExecution<'a, 'registry> {
     pub owner: u64,
     pub monitors: Option<crate::MonitorLimits>,
     pub class_mirrors: bool,
+    pub strings: bool,
 }
 pub(crate) enum InitializationRoot<'a> {
     Application {
@@ -1249,6 +1255,7 @@ pub(crate) fn execute_initializing(
         owner,
         monitors,
         class_mirrors,
+        strings,
     } = execution;
     context
         .check_initialization_claim(claim)
@@ -1291,10 +1298,12 @@ pub(crate) fn execute_initializing(
             state,
             owner,
             activations: Vec::new(),
+            strings,
         }),
         EngineCapabilities {
             monitors,
             class_mirrors,
+            strings,
         },
     )?;
     match outcome {
@@ -1340,6 +1349,7 @@ struct InitExecution<'a> {
     state: &'a mut SessionState,
     owner: u64,
     activations: Vec<Activation>,
+    strings: bool,
 }
 impl InitExecution<'_> {
     fn finish_body(&mut self, class: ClassId) -> Result<(), ExecutionError> {
@@ -1596,16 +1606,16 @@ fn request_initialization(
             .max_constant_values
             .checked_sub(init.state.constants)
             .ok_or_else(|| init_overflow("remaining constants"))?;
-        let plan = context
-            .plan_initialization(
-                init.claim,
-                class,
-                InitializationPlanLimits {
-                    max_dependencies: dependency_limit,
-                    max_constants: constant_limit,
-                },
-            )
-            .map_err(|error| initialization_failure(error, None))?;
+        let plan_limits = InitializationPlanLimits {
+            max_dependencies: dependency_limit,
+            max_constants: constant_limit,
+        };
+        let plan = if init.strings {
+            context.plan_initialization_with_strings(init.claim, class, plan_limits)
+        } else {
+            context.plan_initialization(init.claim, class, plan_limits)
+        }
+        .map_err(|error| initialization_failure(error, None))?;
         let dependencies = session_totals(
             init.state.dependencies,
             plan.dependencies().len(),
@@ -2028,6 +2038,7 @@ fn execute_engine(
 struct EngineCapabilities {
     monitors: Option<crate::MonitorLimits>,
     class_mirrors: bool,
+    strings: bool,
 }
 fn run_engine(
     root: EngineRoot<'_>,
@@ -2905,6 +2916,38 @@ fn run_engine(
                                 caller
                                     .stack
                                     .push(Value::Reference(mirror), pc)
+                                    .map_err(diagnose)?;
+                                continue;
+                            }
+                        }
+                    }
+                    if capabilities.strings {
+                        if let (Services::Fields { context, .. }, MethodKey::Registered(method)) =
+                            (&mut services, target)
+                        {
+                            let diagnose = |error| contextualize(bodies, error, current, call_site);
+                            if context
+                                .is_string_intern(method)
+                                .map_err(|error| diagnose(string_failure(error, Some(pc))))?
+                            {
+                                let receiver =
+                                    receiver.ok_or_else(|| diagnose(operand_error(pc)))?;
+                                if !kind.is_instance()
+                                    || arguments.as_ref().is_none_or(|args| !args.is_empty())
+                                {
+                                    return Err(diagnose(operand_error(pc)));
+                                }
+                                let caller = java
+                                    .frames
+                                    .last_mut()
+                                    .ok_or_else(|| diagnose(operand_error(pc)))?;
+                                caller.stack.reserve_one(pc).map_err(diagnose)?;
+                                let canonical = context
+                                    .intern_string(receiver)
+                                    .map_err(|error| diagnose(string_failure(error, Some(pc))))?;
+                                caller
+                                    .stack
+                                    .push(Value::Reference(canonical), pc)
                                     .map_err(diagnose)?;
                                 continue;
                             }
@@ -4122,6 +4165,19 @@ fn step(
                     .class_mirror_for_type(ty)
                     .map_err(|error| class_mirror_failure(error, Some(pc)))?;
                 stack.push(Value::Reference(mirror), pc)?;
+            } else if capabilities.strings
+                && opcode != 0x14
+                && matches!(class.constant_pool.get(*index), Ok(Constant::String { .. }))
+            {
+                let Services::Fields { context, .. } = services else {
+                    return Err(operand_error(pc));
+                };
+                let origin = frame.method.owner().ok_or_else(|| operand_error(pc))?;
+                stack.reserve_one(pc)?;
+                let literal = context
+                    .string_literal(origin, *index)
+                    .map_err(|error| string_failure(error, Some(pc)))?;
+                stack.push(Value::Reference(literal), pc)?;
             } else {
                 stack.push(constant(class, *index, opcode == 0x14, pc)?, pc)?;
             }
@@ -5569,6 +5625,7 @@ mod monitor_bridge_tests {
                     EngineCapabilities {
                         monitors: Some(Default::default()),
                         class_mirrors: false,
+                        strings: false,
                     },
                 ) {
                     Err(e) => e,
@@ -5636,5 +5693,27 @@ mod class_mirror_bridge_tests {
             method_failure(nested.clone(), 17).unwrap_err().kind,
             E::MethodAccess(Box::new(nested))
         );
+    }
+}
+
+#[cfg(test)]
+mod string_bridge_tests {
+    use super::*;
+    use std::error::Error;
+    #[test]
+    fn nested_java_shaped_string_errors_remain_typed_host_errors() {
+        for category in [
+            FieldJavaError::NullPointer,
+            FieldJavaError::LinkageError,
+            FieldJavaError::IllegalAccess,
+        ] {
+            let source =
+                crabspot_runtime::StringError::Context(Box::new(FieldAccessError::Java(category)));
+            let error = string_failure(Box::new(source.clone()), Some(7));
+            assert_eq!(error.kind, E::String(Box::new(source)));
+            assert_eq!(error.offset, Some(7));
+            assert!(error.source().is_some());
+            assert_eq!(error.initialization_class, None);
+        }
     }
 }

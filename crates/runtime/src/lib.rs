@@ -27,6 +27,8 @@ mod registry;
 mod source;
 mod static_state;
 mod storage;
+mod strings;
+pub use strings::{StringError, StringLimits, StringResource, StringUsage};
 mod types;
 mod values;
 

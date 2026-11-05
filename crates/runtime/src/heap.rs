@@ -298,6 +298,7 @@ pub(crate) enum EntryPayload {
     ReferenceArray(crate::reference_array::ReferenceArrayPayload),
     Instance(InstancePayload),
     Mirror(crate::ReferenceType),
+    String(crate::strings::StringPayload),
 }
 impl EntryPayload {
     fn array(&self) -> Result<&Payload, HeapError> {
@@ -307,10 +308,12 @@ impl EntryPayload {
                 expected: HeapEntryKind::PrimitiveArray,
                 actual: HeapEntryKind::ReferenceArray,
             }),
-            Self::Instance(_) | Self::Mirror(_) => Err(HeapError::WrongEntryKind {
-                expected: HeapEntryKind::PrimitiveArray,
-                actual: HeapEntryKind::Instance,
-            }),
+            Self::Instance(_) | Self::Mirror(_) | Self::String(_) => {
+                Err(HeapError::WrongEntryKind {
+                    expected: HeapEntryKind::PrimitiveArray,
+                    actual: HeapEntryKind::Instance,
+                })
+            }
         }
     }
     fn array_mut(&mut self) -> Result<&mut Payload, HeapError> {
@@ -320,10 +323,12 @@ impl EntryPayload {
                 expected: HeapEntryKind::PrimitiveArray,
                 actual: HeapEntryKind::ReferenceArray,
             }),
-            Self::Instance(_) | Self::Mirror(_) => Err(HeapError::WrongEntryKind {
-                expected: HeapEntryKind::PrimitiveArray,
-                actual: HeapEntryKind::Instance,
-            }),
+            Self::Instance(_) | Self::Mirror(_) | Self::String(_) => {
+                Err(HeapError::WrongEntryKind {
+                    expected: HeapEntryKind::PrimitiveArray,
+                    actual: HeapEntryKind::Instance,
+                })
+            }
         }
     }
 }
@@ -384,6 +389,7 @@ pub struct ManagedHeap {
     pub(crate) instances: Option<InstanceState>,
     pub(crate) reference_universe: Option<crate::ReferenceTypeUniverse>,
     pub(crate) static_state: Option<crate::static_state::StaticState>,
+    pub(crate) strings: Option<crate::strings::Strings>,
     pub(crate) mirrors: Option<crate::mirror::Mirrors>,
     pub(crate) initialization_claim: Option<crate::initialization::InitializationFingerprint>,
     arrays: usize,
@@ -401,6 +407,7 @@ impl ManagedHeap {
             static_state: None,
             initialization_claim: None,
             mirrors: None,
+            strings: None,
             arrays: 0,
             elements: 0,
             bytes: 0,
@@ -545,10 +552,12 @@ impl ManagedHeap {
         match &self.entry(reference)?.payload {
             EntryPayload::Array(payload) => payload.length(),
             EntryPayload::ReferenceArray(payload) => payload.length(),
-            EntryPayload::Instance(_) | EntryPayload::Mirror(_) => Err(HeapError::WrongEntryKind {
-                expected: HeapEntryKind::Array,
-                actual: HeapEntryKind::Instance,
-            }),
+            EntryPayload::Instance(_) | EntryPayload::Mirror(_) | EntryPayload::String(_) => {
+                Err(HeapError::WrongEntryKind {
+                    expected: HeapEntryKind::Array,
+                    actual: HeapEntryKind::Instance,
+                })
+            }
         }
     }
     pub fn load(&self, reference: Reference, index: i32) -> Result<Value, HeapError> {

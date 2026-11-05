@@ -667,7 +667,12 @@ fn unix_symlink_special_and_nonunicode_root_are_refused() {
     assert!(matches!(e.kind, ApplicationErrorKind::InvalidPath(_)));
 }
 fn field_definition(name: &str, field: &str) -> Vec<u8> {
-    let b = definition(name, Some("java/lang/Object"), 0x21, true, false);
+    let flags = if name == "java/lang/String" {
+        0x31
+    } else {
+        0x21
+    };
+    let b = definition(name, Some("java/lang/Object"), flags, true, false);
     let mut p = 10;
     for _ in 1..8 {
         match b[p] {

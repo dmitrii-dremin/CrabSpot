@@ -1,6 +1,8 @@
+mod native_arguments;
 use crabspot_classfile::{Attribute, AttributeBody, ClassFile, ParseOptions, parse_with_options};
 use crabspot_launcher::{
-    ApplicationCompletion, ApplicationDirectories, ApplicationOptions, run_directory_application,
+    ApplicationCompletion, ApplicationDirectories, ApplicationInvocation, ApplicationOptions,
+    ApplicationStringLimits, run_directory_application_with_arguments,
 };
 use std::{
     env,
@@ -29,7 +31,7 @@ fn main() -> ExitCode {
 }
 fn full_usage() -> String {
     format!(
-        "{}\n       crabspot run --platform DIR --classes DIR BINARY.MAIN",
+        "{}\n       crabspot run --platform DIR --classes DIR BINARY.MAIN [-- ARG ...]",
         usage()
     )
 }
@@ -42,7 +44,7 @@ fn run() -> Result<(), CliError> {
     }
 }
 fn application_run(
-    mut arguments: impl Iterator<Item = std::ffi::OsString>,
+    mut arguments: impl ExactSizeIterator<Item = std::ffi::OsString>,
 ) -> Result<(), CliError> {
     let mut platform = None;
     let mut classes = None;
@@ -66,12 +68,22 @@ fn application_run(
         .ok_or_else(|| CliError::Usage(full_usage()))?
         .into_string()
         .map_err(|_| CliError::Failure("Input: binary entry name is not valid UTF-8".into()))?;
-    if arguments.next().is_some() {
-        return Err(CliError::Usage(full_usage()));
+    if let Some(separator) = arguments.next() {
+        if separator != "--" {
+            return Err(CliError::Usage(full_usage()));
+        }
     }
+    let limits = ApplicationStringLimits::default();
+    let values = native_arguments::decode(arguments, limits)
+        .map_err(|e| CliError::Failure(format!("Input: {e}")))?;
+    let mut borrowed = Vec::new();
+    borrowed
+        .try_reserve_exact(values.len())
+        .map_err(|_| CliError::Failure("Input: argument references allocation failed".into()))?;
+    borrowed.extend(values.iter().map(Vec::as_slice));
     let platform = platform.ok_or_else(|| CliError::Usage(full_usage()))?;
     let classes = classes.ok_or_else(|| CliError::Usage(full_usage()))?;
-    let run = run_directory_application(
+    let run = run_directory_application_with_arguments(
         ApplicationDirectories {
             platform: &platform,
             classes: &classes,
@@ -79,6 +91,11 @@ fn application_run(
         &entry,
         &[],
         ApplicationOptions::default(),
+        ApplicationInvocation {
+            arguments: &borrowed,
+            strings: limits,
+            ..Default::default()
+        },
     )
     .map_err(|error| CliError::Failure(error.to_string()))?;
     match run.completion {

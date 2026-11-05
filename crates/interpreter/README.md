@@ -714,9 +714,10 @@ predicate includes supported private/bridge/synthetic methods and excludes stati
 abstract and initializer declarations. Explicit interface initialization does not
 initialize its parents. Already-completed child interfaces do not prune ancestors
 from a later class plan. Instance ConstantValue attributes are ignored; any static
-String ConstantValue rejects the whole plan before installation or publication.
+String ConstantValue rejects the whole plan before installation or publication in
+these older session constructors; the opted-in String session below expands this.
 B/C/S/Z constants use raw descriptor normalization, and F/D retain their raw bits.
-Constant installation itself does not materialize a String or execute constructors.
+Their constant installation does not materialize a String or execute constructors.
 
 A scheduler-created initializer frame has a distinct preparation/cache role and
 executes the actual `<clinit>()V` body. Historical ignored access flags are treated
@@ -832,7 +833,7 @@ handler search. Nested Java-shaped Context/Type failures remain boxed MethodAcce
 host errors. Diagnostics keep caller resolution/pops at the invoke site, target
 preparation/return failures at the real target and actual caller transition origins.
 Static resolution alone adds no constructor execution. Native binding, monitors,
-String materialization, VM exception construction, a general loading lifecycle and
+general String library execution, VM exception construction, a general loading lifecycle and
 Java startup remain outside that scope. Persistent member resolution is separately
 opted into through the checked loading domain below.
 
@@ -927,7 +928,7 @@ remain boxed ConstructionAccess host failures.
 
 This is dynamic enforcement on executed supported paths, not the complete verifier,
 stack-map merge validation or full JVM rejection timing. No VM exception objects,
-String materialization, concurrent initialization, native binding, synchronization,
+general String library execution, concurrent initialization, native binding, synchronization,
 complete loading constraints, Java library bootstrap or startup are added. Heap
 children/static roots expose lawful ordinary writes; retained_roots still enumerates
 initialization-failure causes. Transient frame tokens are conceptual roots, but no
@@ -1012,7 +1013,8 @@ method and PC diagnostics. Token failures remain boxed
 
 The low-level method still uses ordinary reference assignment checks; it does not
 promise that a caller-supplied array is empty. The launcher creates exactly one
-non-null bootstrap String[] of length zero and owns whole-image verification and
+non-null bootstrap String[] (now with explicit UTF-16 arguments when requested)
+and owns whole-image verification and
 sealing. Merely creating that array does not initialize String. This adds no
 opcode, VM exception object, native bootstrap, platform trust exemption or second
 execution loop. Public tests pin inherited identities, old run_static behavior,
@@ -1133,5 +1135,54 @@ host errors. Per-heap mirror and instance quotas are distinct from domain class-
 quotas. Warm objects and sites survive context drops; compatible different heaps
 still issue distinct references. Strong roots remain owned by the runtime heap.
 This adds no new opcode values: the monitored profile remains 197 effective opcodes.
-There is no general native binding, reflection, String materialization, primitive
+There is no general native binding, reflection, general String library execution, primitive
 scalar mirrors, ClassLoader object, VM exception allocator or complete Java startup.
+
+
+## Immutable Strings and exact native intern
+
+`InitializationSession::new_with_strings` is the explicit String capability on the
+same engine, with the parameters of `new_with_class_mirrors`. Mirror authority is
+checked first, String authority second, before the permanent initialization claim.
+The heap owns its inclusive String limits. Older body APIs and session constructors
+keep their prior literal/native/ConstantValue gates, even on a String-bound heap.
+Directory launcher wrappers use the expanded session by default.
+
+Enabled `ldc`/`ldc_w` String constants use the actual current method owner and CP
+index. Caller result space is reserved before String work or minting. Numeric and
+Class constants preserve their previous paths; `ldc2_w` String remains invalid.
+The exact selected bootstrap public native `String.intern()Ljava/lang/String;`
+executes in its caller after normal resolution, access, receiver and typed argument
+checks. It consumes the one invoke fuel debit and no Java frame or prepared Code.
+It cannot open a host-preselected native root. An exact Java substitute is invalid
+binding; other String-owned instance Code cannot run on an opaque kernel String.
+Other owners and signatures use ordinary paths. Object.getClass, casts, ordinary
+application fields/arrays, checked reference calls and monitors accept these actual
+String references under their existing rules.
+
+The common initializer scheduler uses a String-aware plan only in this session.
+Planning creates no String objects/sites. Installation validates the entire immutable
+batch, derives values in declaration order, then atomically publishes all constant
+fields before superclass/interface dependencies. If a later derivation fails, its
+successful pool/site prefix survives, no class constant field is written, and the
+active class is Aborted. Preactivation planning failures remain Uninitialized.
+Numeric/nonstatic constants and initializer authority keep their earlier semantics.
+Neither literal derivation nor instance intern requests String initialization.
+A genuine static active use still runs the real initializer and may fail at an
+unsupported library/bootstrap operation.
+
+`ExecutionErrorKind::String` retains the exact structured runtime cause, current PC
+and normal method/transition provenance. Nested Java-shaped errors stay host errors;
+this adds no VM Throwable allocator. Strong intern roots and exact read-only units
+are runtime services. The current profile still has 197 effective opcode values;
+String support expands constant/native behavior without adding opcodes. There is no
+implementation of String.length/charAt/equals/hashCode, constructors, concatenation,
+reflection or general native binding by replacing genuine Java library bodies.
+
+Independent tests pin exact UTF-16 (including NUL and isolated surrogates), duplicate
+and wide CP sites, cross-loader pooling, first receiver identity, fresh distinct
+objects, maximum modified-UTF8 source length, 4,096 one-work warmed hits, zero/exact/
+one-less/MAX limits, atomic ConstantValue failure, pre-dependency installation,
+legacy/direct/cache boundaries, original diagnostics and pooled versus distinct
+monitor identities. Genuine Java programs and OS transport evidence are maintained
+separately by the coordinator.

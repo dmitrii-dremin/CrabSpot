@@ -161,3 +161,5 @@ jobs:
         run: |
           python -m unittest discover -s tools -p test_class_mirror_launch.py
           python tools/verify_class_mirror_entry.py
+      - name: Run String literals, intern and application arguments through the public launcher
+        run: python tools/verify_string_entry.py

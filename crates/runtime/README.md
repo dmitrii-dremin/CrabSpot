@@ -937,3 +937,52 @@ type. No Class reflection state, primitive/void mirrors, Java loader execution,
 exception materialization or privileged initialization completion is supplied.
 Legacy unbound heaps retain ordinary low-level allocation behavior; a preexisting
 ordinary Class instance prevents a later VM binding rather than being retyped.
+
+## Immutable kernel String values
+
+A pristine mirror-bound heap can bind the final bootstrap String role with
+`bind_strings`. Each heap owns its exact UTF-16 payloads, content pool, canonical
+roots and literal-site cache. Registry/domain state never stores a heap String
+handle. Binding is immutable and idempotent at the same authority and limits;
+existing ordinary String objects cannot be reinterpreted by late binding.
+
+`fresh_string` always issues a new object, including for empty/repeated values.
+`intern_string` returns an earlier equal canonical object or installs the receiver
+itself. `string_literal` shares the same pool across callers/loaders while caching
+each actual String CP site separately. Every UTF-16 unit, including NUL and lone
+surrogates, is preserved. Canonical roots are enumerated in insertion order.
+Strings have the actual bound String runtime type, participate in ordinary
+reference operations and consume one instance plus their own retained-unit
+allowance, with zero Java instance slots and no array/payload-byte debit.
+
+`StringLimits` bounds objects, retained units, canonical entries, literal sites and
+heap-lifetime work. Accepted work is retained on failure. Content hashing,
+candidate comparisons, copies and publication are funded before the operation;
+scalar fingerprints avoid rehashing retained text during table growth. A warm
+literal site and an already canonical intern request each cost one String work
+unit without rereading contents. All buffers and map/root/arena capacity needed by
+a request are reserved before logical publication. `string_units` borrows immutable
+units for inspection; there is no mutable backing-array or pool-reset API.
+
+The opted-in initialization planner validates the declaring loader's actual
+String identity once during preflight and retains only scalar source metadata.
+Installation validates destinations first and stages values in declaration order.
+A later derivation failure can retain successful pool/site effects, but writes
+none of that class's ConstantValue fields. After all staged values validate, the
+class's fields publish together. The original planner still explicitly rejects
+String ConstantValue, and prior numeric-only accounting is preserved.
+
+The canonical native classifier accepts only the immutable actual bootstrap
+String.intern declaration with its public native instance role. The shared
+method-profile guard checks that role before ordinary opaque-body rejection;
+Java replacements and incompatible flags fail rather than executing substituted
+Code. Other String-owned Java bodies and field operations on issued kernel values
+remain explicit opaque-state boundaries. Ordinary allocation and constructor
+authority for the bound String identity are sealed. Unbound legacy heaps retain
+prior memory behavior, and old interpreter profiles gain no native capability.
+
+This is not Java String backing storage, reflection, concatenation, JNI or general
+String library execution. It performs no active initialization of String and
+provides no privileged completion state. The interpreter/launcher owns opt-in
+instruction/native integration and application argument transport; the runtime
+accepts borrowed UTF-16 directly and does not open files or inspect OS arguments.
