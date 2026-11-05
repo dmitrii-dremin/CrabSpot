@@ -75,6 +75,10 @@ jobs:
         run: |
           python -m unittest discover -s tools -p test_monitor_reference.py
           python tools/monitor_reference.py --check
+      - name: Replay class literals and getClass calls on JDK 21
+        run: |
+          python -m unittest discover -s tools -p test_class_mirror_reference.py
+          python tools/class_mirror_reference.py --check
       - name: Build independent JDK metadata inspector
         run: cargo build -p crabspot-launcher --locked
       - name: Capture this JDK's verifier metadata

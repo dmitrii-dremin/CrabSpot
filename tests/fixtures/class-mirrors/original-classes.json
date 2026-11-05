@@ -1,0 +1,11 @@
+{
+  "mirrors/Base.class": "18bfb474e6f6d6b9c7981a0e63983c044c2d64cef0eb7bcc2528db51b4fa829a",
+  "mirrors/Child.class": "9a44a815133a5643b99ccfbfea2aa468b71a7a67e00cb2d54df93761a4a307ab",
+  "mirrors/Entry.class": "7b6f00e463df0c0850f1ad1dc5df4dc19a24d422a1a13f18549d489b56c2d0ba",
+  "mirrors/Marks.class": "5f57e8a9c72d1544efd8292892a60c7de757884503c1890468f8aac75b1db041",
+  "mirrors/Never.class": "26ffc25aeba800812af771c89ba38205727bf86d103911076a6c0cab84cbca47",
+  "simple/Plain.class": "9cebfb1f01fe308b4749a8751155c8e8371c55d27d2226dc7e9d45025acaaaa3",
+  "store/Entry.class": "c2ee213f2af6f59b6bffe5ac8cd6d2727cab004b1d1f891ee18074f146aa62b8",
+  "store/Later.class": "02dfd728475cb176b50e3522a68a58eecdb1c1abf0d8e19571647db609e3e07d",
+  "store/State.class": "ae94cb2cd2832f571f1e93acdaacc682452ce23eddb64d504f058d5d98f2e4c9"
+}
