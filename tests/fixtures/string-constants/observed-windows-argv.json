@@ -1,0 +1,12 @@
+{
+  "hotspot/spaces": "5/95/-1940061501/3813251",
+  "hotspot/unicode": "5/125/-1932115988/3813251",
+  "hotspot/zero": "0/0/0/0",
+  "openj9/spaces": "5/79/-1940061501/3813251",
+  "openj9/unicode": "5/109/-1932115988/3813251",
+  "openj9/zero": "0/0/0/0",
+  "sources": {
+    "Inputs.java": "5653276a548f08e1c568e7e90b93361ffbcc252263ebe65c8b93825b8f70c6f9",
+    "Watch.java": "7175768df4c03452190dec3eae463c3e88cb0f4a88091c5b8ac47baa4cf36316"
+  }
+}
