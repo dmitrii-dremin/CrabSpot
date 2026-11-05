@@ -1,0 +1,81 @@
+{
+  "compiled": {
+    "compact/EmptyOnly.class": "90308075e527acfe0a620a51b6a87a57e1fabf89c0d9b889d7dea38e5f74f2c5",
+    "compact/Entry.class": "36fd1017c4ac9ca3d1424e477d784fbb5913f4c64ca0089f2632e0b1ec788e3e",
+    "peer/Host$Inner.class": "d73c3fea8fce0bdae10b3355e5f63d5894d7ece585fdd11aedaf360b10dbbe0f",
+    "peer/Host.class": "78172023e68356a3079a37408d895f20ef34b4c4f0fe0f57bfe71be0043da7a9",
+    "split/Parent$Child.class": "f8785b4c4786eca76aa06b59f088e4fc45f3afbde4ad92bca84b970e2bf0e6dd",
+    "split/Parent.class": "6fe6fcb1628ee8dd7a5e81d9ee9b1eff826ce3c2bc0e9f93ee1d401d95ccdc51"
+  },
+  "compiler": "javac 21.0.7",
+  "controls": {
+    "ClassBytes.class": "536f06644f2a572b11082212f0fa8e7269eb95e908ad01d78d801b8eb7b1f539",
+    "Layout.class": "7ce069fd6f8b979b088b4f0e7ab33bd4912f8b9919671215f4a43bb3ac24df8d",
+    "NestOutcome.class": "31e49e1db34fb366b16b7838470e347a5adb509395d378b8bc5a33673b4cb2af",
+    "Observe.class": "93251cae4dd024734b0e478a7d3153b60800559e5357da8650783247ffa89a23",
+    "ObserveEmpty.class": "502d72bde549675846918fbbc7ec06b29d6bdd561db94258bd432ae6d3a06c1a",
+    "Split$1.class": "3c051e6ca406004947409808b6e9188a6276fa84be03e5ed17c41a33ce169106",
+    "Split.class": "4432fbe53142308de9f786095d25edc37a28b6d66fcf4f2a70d6cef976af1d31"
+  },
+  "encoded": {
+    "absent-host/peer/Host$Inner.class": "0c4c744a4f3ae6f761312a3bdbcabda4ed157fa7c8ef5e77924c91a98b7436b6",
+    "absent-host/peer/Host.class": "7490afe55a25765ad50a947500fbcd704a0f6c6478c8169cd83e0ffd30a43404",
+    "extra-missing/peer/Host$Inner.class": "4e956e49bc77c9342ccea4f4ac746bcace9cd52bce77d1b71ad76ef2f9ac3a43",
+    "extra-missing/peer/Host.class": "b2f73aafc38464e617526525343721be1294d380af06adee285e436cbeb84fbb",
+    "genuine-names/peer/Host$Inner.class": "4e956e49bc77c9342ccea4f4ac746bcace9cd52bce77d1b71ad76ef2f9ac3a43",
+    "genuine-names/peer/Host.class": "7490afe55a25765ad50a947500fbcd704a0f6c6478c8169cd83e0ffd30a43404",
+    "neither/peer/Host$Inner.class": "c052f4a2ea373420f1210a6f840cdb7faefe15afea73ea6ffa2f43166d66cca2",
+    "neither/peer/Host.class": "63f948ff1a4067016522182a86d0b51a3ad8592b9bfe09574ec70899cb6ec404",
+    "no-host/peer/Host$Inner.class": "c052f4a2ea373420f1210a6f840cdb7faefe15afea73ea6ffa2f43166d66cca2",
+    "no-host/peer/Host.class": "7490afe55a25765ad50a947500fbcd704a0f6c6478c8169cd83e0ffd30a43404",
+    "no-members/peer/Host$Inner.class": "4e956e49bc77c9342ccea4f4ac746bcace9cd52bce77d1b71ad76ef2f9ac3a43",
+    "no-members/peer/Host.class": "63f948ff1a4067016522182a86d0b51a3ad8592b9bfe09574ec70899cb6ec404",
+    "other-host/peer/Host$Inner.class": "ee9920ef87396843e75825b21337bb1b51c9877ee3c3c1d058d8290475f6b722",
+    "other-host/peer/Host.class": "7490afe55a25765ad50a947500fbcd704a0f6c6478c8169cd83e0ffd30a43404",
+    "other-host/peer/Other.class": "ea10a67bfa726f3ca3bd0068951de6efa885527cd9b418c9bc64dc6d0680dce9",
+    "other-package/elsewhere/Other.class": "6b56e6d0fc2a6ab21e4cdf1c83f9947d8a48d39cfb72c4bf36ef35565bb7d87c",
+    "other-package/peer/Host$Inner.class": "eab6b438fbda333ce5676ecbe7d9bec827d11323eb475984e6efe1d225128ec2",
+    "other-package/peer/Host.class": "7490afe55a25765ad50a947500fbcd704a0f6c6478c8169cd83e0ffd30a43404",
+    "unlisted/peer/Host$Inner.class": "4e956e49bc77c9342ccea4f4ac746bcace9cd52bce77d1b71ad76ef2f9ac3a43",
+    "unlisted/peer/Host.class": "c1331b13cf3493951b1d6199f63a47e7c3a8dfb39a786b9a9d46e77b6d06eadc"
+  },
+  "flags": [
+    "--release",
+    "21",
+    "-g:none",
+    "-encoding",
+    "UTF-8"
+  ],
+  "original": {
+    "compact/EmptyOnly.class": "90308075e527acfe0a620a51b6a87a57e1fabf89c0d9b889d7dea38e5f74f2c5",
+    "compact/Entry.class": "36fd1017c4ac9ca3d1424e477d784fbb5913f4c64ca0089f2632e0b1ec788e3e",
+    "peer/Host$Inner.class": "d73c3fea8fce0bdae10b3355e5f63d5894d7ece585fdd11aedaf360b10dbbe0f",
+    "peer/Host.class": "78172023e68356a3079a37408d895f20ef34b4c4f0fe0f57bfe71be0043da7a9",
+    "split/Parent$Child.class": "f8785b4c4786eca76aa06b59f088e4fc45f3afbde4ad92bca84b970e2bf0e6dd",
+    "split/Parent.class": "6fe6fcb1628ee8dd7a5e81d9ee9b1eff826ce3c2bc0e9f93ee1d401d95ccdc51"
+  },
+  "primary": "openjdk version \"21.0.7\" 2025-04-15 LTS\nOpenJDK Runtime Environment Zulu21.42+19-CA (build 21.0.7+6-LTS)\nOpenJDK 64-Bit Server VM Zulu21.42+19-CA (build 21.0.7+6-LTS, mixed mode, sharing)",
+  "secondary": "openjdk version \"21.0.13.0.3\" 2026-10-24 LTS\nIBM Semeru Runtime Open Edition 21.0.13.0 (build 21.0.13.0.3+1-LTS)\nEclipse OpenJ9 VM 21.0.13.0 (build 21.0.13.0.3+1-openj9-0.63.0, JRE 21 Windows 11 amd64-64-Bit Compressed References 20261024_885 (JIT enabled, AOT enabled)\nOpenJ9   - dcc7ee16aa\nOMR      - c2a3a9ae0\nJCL      - 62d1b70e191 based on jdk-21.0.13.0.3+1)",
+  "secondary_archive_sha256": "b296dc9f53cc933ebbf75d64b6bb5a17f30cd365f8ce8ab93df5a71a925a9c37",
+  "sources": {
+    "controls/ClassBytes.java": "64055796c17171a261db84b2b173fb2b4d105265f33afc36894d58ddc1d5bd92",
+    "controls/Layout.java": "10b479dbe735092617b706e89b27a01e3308860f9e8476c5c86a22fc852621b7",
+    "controls/NestOutcome.java": "453081b78c66dadae8995da4205a00471dd25249fbaff970c0d29c4c556d6bfb",
+    "controls/Observe.java": "25c5be5e1e0421354206fa4d60625af1cf19d0db5ee0d3f009aeefc839af5df2",
+    "controls/ObserveEmpty.java": "1aab7013483da6b7d46e57efb39d3d4ee417e85cdafdba48f5b06235e111e835",
+    "controls/Split.java": "c79b58430951504437aa89a1df9d5d4bee37645defd7cb836d7b69e93c9492a6",
+    "src/compact/EmptyOnly.java": "32230c8ad23a8808418474c77ccb638243fdd1874deff71ac42e3e55294c469c",
+    "src/compact/Entry.java": "d0e8f7814ff064303ea0fd8cc38aebbaa19c190a45e9715e32bbc7073aec9e56",
+    "src/peer/Host.java": "c1f111e97dd31ee36f2b5de5ebbcabfb887edec451d4d913da218975e6297e96",
+    "src/split/Parent.java": "d429a4ba53f3e905bd37b2fc3b01933e6a78414842689840f33071abc41715c8"
+  },
+  "tools": {
+    "application_entry_reference.py": "77a3dfbb47bf77a841f7e4e7c67949da15cd78c46fdc93355ee620e8f15876a2",
+    "fixture_source.py": "56898e5e6d252fcf41521aad42a2aaa0163c2f9a03ad500ef25e6e72905ca201",
+    "loading_constraint_reference.py": "32c9909fdffc66c358dedc15b03f996729b7eb2e74ab40e82eb3ea0509a06910",
+    "string_body_nests.py": "72361bfc359432fa7eef1d29c8bb7195c7283557bd0c868193851b3cd0e2f4a6",
+    "string_body_reference.py": "5679adcf8e4a9b61277342f72bb5aaa411d6db17bcbbf91bb83d37c6d4585fe4",
+    "type_state_encodings.py": "d5812bff65385cc8994f18da92979b1f38ab9b4c9ea7d6d9df2c1057eecb8b9d",
+    "type_state_reference.py": "7ae96317309b7a27064d068502879e92feed2416613d0eb79e07b3edd9480eaf"
+  }
+}

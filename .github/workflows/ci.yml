@@ -83,6 +83,10 @@ jobs:
         run: |
           python -m unittest discover -s tools -p test_string_constant_reference.py
           python tools/string_constant_reference.py --check
+      - name: Replay Java String methods and nest access on JDK 21
+        run: |
+          python -m unittest discover -s tools -p test_string_body_reference.py
+          python tools/string_body_reference.py --check
       - name: Build independent JDK metadata inspector
         run: cargo build -p crabspot-launcher --locked
       - name: Capture this JDK's verifier metadata

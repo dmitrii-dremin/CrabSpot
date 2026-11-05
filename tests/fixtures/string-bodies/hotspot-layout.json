@@ -1,0 +1,11 @@
+{
+  "classes": {
+    "java/io/ObjectStreamField.class": "69e0e69f3deff58180bfcd2e6076b7d6e062939e3a507deccf16fca7e72e2ea5",
+    "java/lang/Object.class": "10cc90d16479279e1d6ee258fdaea4c5640ac6125acb5a7100a7b0a20237a9f2",
+    "java/lang/String$CaseInsensitiveComparator.class": "7b2be0ef762972b97b12ce5f44761f0c78f20a1f64644f6c25d75cc9e49b8d8e",
+    "java/lang/String.class": "d4f87fcde6a7a0f4fea37f7c56e29279e94a9da55ccb41a6155d68cb44fe25d0",
+    "java/util/Comparator.class": "31213c77d79b01f269b7e3ee1008a1cbe0ce11b4442d2401346de6ca80d8d095"
+  },
+  "default": "compact=true\n0/0/0/\n3/0/3/4100ff\n4/1/8/4100ac203dd880de\n1/1/2/ffdf\n2/1/4/3dd880de\n[Ljava.io.ObjectStreamField;/0\njava.lang.String$CaseInsensitiveComparator/true/true/true",
+  "wide": "compact=false\n0/1/0/\n3/1/6/41000000ff00\n4/1/8/4100ac203dd880de\n1/1/2/ffdf\n2/1/4/3dd880de\n[Ljava.io.ObjectStreamField;/0\njava.lang.String$CaseInsensitiveComparator/true/true/true"
+}

@@ -1,0 +1,14 @@
+# Java String method and nest access reference programs
+
+The compact String program exercises real Java 21 length and emptiness methods on empty, Latin-1, mixed, isolated-surrogate and supplementary values, including an array alias and application arguments. Zulu HotSpot and OpenJ9 both returned `63/0/3/4/1/2/0` with no arguments and `127/0/3/4/1/2/3` with two arguments supplied by numeric UTF-16 units. A separate entry uses only isEmpty and returns flags 3 with no arguments or 7 with a fresh empty argument. Disabling compact strings on HotSpot produced the same observed lengths. The preceding CrabSpot implementation stops at the first length call, at bytecode offset 33 of the compiled application.
+
+The reference-only layout observer reads actual implementation fields. Both pinned default JVMs stored the three Latin-1 units in bytes `41 00 ff` with coder zero. A mixed four-unit String used eight little-endian bytes and coder one. A lone low surrogate survived as `ff df`. With compact strings disabled, HotSpot used coder one even for an empty String. Each runtime also supplied a zero-length ObjectStreamField array and a comparator whose class was a reciprocal nestmate of String. The observer reads these values after the host JVM has booted. The bytecode of the actual initializer and the runtime image hashes identify which code a CrabSpot profile must execute. [Next implementation proposal](m2-string-java-bodies-next.md).
+
+Nine independently encoded class groups exercise private method access. Both VMs accepted a reciprocal nest even when an unrelated missing class appeared earlier in the host's member list. A missing host, a missing membership entry, a host in a different package or absent attributes resulted in IllegalAccessError, after the caller's first field write. A valid but different host remained the member's actual nest host and also denied access. Querying the nest through reflection before the access produced the same Java outcome. Another probe placed identically named parent and child classes in different defining loaders; only the same-loader pair could read the private field. The genuine compiled nested class also exercises a private constructor, private field and private instance method. [Java SE 21 access control](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-5.html#jvms-5.4.4).
+
+Run the following with a Java 21 HotSpot JDK at `JAVA_HOME` and the pinned OpenJ9 runtime. Each VM checks 24 observations on the archived application classes, then reruns those checks on fresh javac and synthetic class files. Private class files obtained from either runtime stay in temporary storage. The repository records hashes and actual observed values. [Fixture manifest](../../tests/fixtures/string-bodies/manifest.json).
+
+```text
+python -m unittest discover -s tools -p test_string_body_reference.py
+python tools/string_body_reference.py --check --compare-openj9 PATH_TO_OPENJ9_21_JAVA
+```
