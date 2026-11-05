@@ -48,6 +48,22 @@ parser smoke started with 407 valid seeds. It accepted 116 mutations, rejected
 The two raw fixtures that require preview opt-in or fail class-format admission
 are kept separately from default-parser fuzz seeds.
 
+## Hosted class verification
+
+Both jobs passed at commit `158262d9e5b36ab2244e8f26391d74d42719b48c`.
+Each ran 1,111 workspace tests before and after fixture regeneration, 1,024
+optimized package tests and two example boundary tests, for 3,248 Rust test
+executions per platform. Each parser smoke recorded 116 accepted and 9,884
+rejected mutations with zero failures.
+
+Both runners verified every ordinary definition in their Temurin 21.0.13+9
+java.base archive and checked its module descriptor separately.
+
+| Runner | Archive SHA-256 | Ordinary classes | Code bodies | Bodyless | Declarations |
+| --- | --- | ---: | ---: | ---: | ---: |
+| [Linux job](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42072413723/job/127403592291) | `0f6d16706108b9f6382de8875b8cb1a3c22e559d14d6a4f1742e3d6efcbdb550` | 7,615 | 62,599 | 4,666 | 67,265 |
+| [Windows job](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42072413723/job/127403592682) | `573894d2cf4d7f19421e4696582532716dbfaad247c7427b9e44d233f1df98c2` | 7,589 | 62,186 | 4,694 | 66,880 |
+
 ## Previous checkpoint: modern method verification
 
 Updated 2026-11-05. The new verifier checks a selected method against immutable

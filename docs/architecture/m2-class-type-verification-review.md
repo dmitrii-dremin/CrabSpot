@@ -1,6 +1,6 @@
 # Modern class type verification review
 
-**Approved for publication on 2026-11-05.** The technical director accepts the standalone modern class proof under contract SHA-256 `25CCD6CA4EDD540EA5A8E4AF76AE27B562F892439C30262150970263FE8719B0`. The caller can now check every declared method of one canonical class or interface against one immutable loader environment. The returned proof identifies the exact class and environment and records resource use. Hosted CI for this increment is pending publication.
+**Approved for publication on 2026-11-05.** The technical director accepts the standalone modern class proof under contract SHA-256 `25CCD6CA4EDD540EA5A8E4AF76AE27B562F892439C30262150970263FE8719B0`. The caller can now check every declared method of one canonical class or interface against one immutable loader environment. The returned proof identifies the exact class and environment and records resource use. Commit `158262d` subsequently passed both hosted jobs. [Linux job](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42072413723/job/127403592291) and [Windows job](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42072413723/job/127403592682).
 
 ## Source review
 
