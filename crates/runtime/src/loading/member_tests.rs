@@ -224,10 +224,10 @@ fn corrupted_terminal_key_tag_failure_and_qualifier_are_rejected_before_observat
                 }
             }
             4 => {
-                record.owner = ClassId {
+                record.owner = crate::ReferenceType::Class(ClassId {
                     registry: c.registry,
                     index: usize::MAX,
-                }
+                })
             }
             _ => {
                 if let Cached::Field(ref mut f) = record.value {
@@ -271,7 +271,15 @@ fn damaged_ticket_never_displaces_an_existing_terminal_or_publishes_an_alias() {
                 symbolic_owner: c,
                 protected_receiver: None,
             });
-            assert!(a.commit(context.registry, ticket, c, value).is_err());
+            assert!(
+                a.commit(
+                    context.registry,
+                    ticket,
+                    crate::ReferenceType::Class(c),
+                    value
+                )
+                .is_err()
+            );
             if damage == 4 {
                 a.store.usage.sites -= 1;
             }
@@ -550,5 +558,64 @@ fn method_terminal_corruptions_cannot_cross_role_or_affinity_boundaries() {
         }
         assert!(d.member_site(c, 13).is_err());
         assert!(open(&mut d, &mut heap).resolve_static(c, 13).is_err());
+    }
+}
+
+#[test]
+fn structural_member_records_must_match_the_original_terminal_class_slot() {
+    use crate::mirror_support::*;
+    for terminal_failure in [false, true] {
+        for damage in 0..3 {
+            let mut w = world(crate::ClassMirrorLimits::default());
+            let d = w.caller;
+            let site = w.methods[if terminal_failure { 5 } else { 1 }];
+            let boot = w.u.bootstrap_loader;
+            let foreign = w.g.loader();
+            let array =
+                w.h.allocate_primitive_array(crate::PrimitiveArrayKind::Int, 0)
+                    .unwrap();
+            {
+                let mut c = ctx(&mut w);
+                if terminal_failure {
+                    assert!(c.select_interface(d, site, array).is_err());
+                } else {
+                    c.select_virtual(d, site, array).unwrap();
+                }
+            }
+            let record =
+                w.g.domain
+                    .members
+                    .as_mut()
+                    .unwrap()
+                    .sites
+                    .get_mut(&(d, site))
+                    .unwrap();
+            let replacement = crate::ReferenceType::Array {
+                dimensions: if damage == 1 { 2 } else { 1 },
+                element: crate::ArrayElement::Primitive(if damage == 0 {
+                    crate::PrimitiveArrayKind::Long
+                } else {
+                    crate::PrimitiveArrayKind::Int
+                }),
+                defining_loader: if damage == 2 { foreign } else { boot },
+            };
+            record.owner = replacement;
+            if let Cached::Method(ref mut method) = record.value {
+                method.owner = replacement;
+            }
+            assert!(matches!(
+                w.g.domain.member_site(d, site).unwrap_err().kind,
+                M::InvalidState(_)
+            ));
+            assert!(
+                if terminal_failure {
+                    ctx(&mut w).select_interface(d, site, array)
+                } else {
+                    ctx(&mut w).select_virtual(d, site, array)
+                }
+                .is_err()
+            );
+            assert_eq!(w.h.class_mirror_count(), 0);
+        }
     }
 }

@@ -161,7 +161,7 @@ pub(crate) enum Cached {
 #[derive(Clone, Copy)]
 pub(crate) struct Record {
     key: (ClassId, u16),
-    owner: ClassId,
+    owner: crate::ReferenceType,
     tag: u8,
     pub(crate) value: Cached,
 }
@@ -174,7 +174,8 @@ impl Record {
         }
     }
 }
-pub(super) struct Store {
+pub(crate) struct Store {
+    pub(crate) class_sites: Option<crate::mirror::ClassSites>,
     limits: MemberResolutionLimits,
     usage: MemberResolutionUsage,
     prepared: HashSet<ClassId>,
@@ -195,6 +196,7 @@ impl Store {
         Self {
             limits,
             usage: Default::default(),
+            class_sites: None,
             prepared: HashSet::new(),
             sites: HashMap::new(),
         }
@@ -202,7 +204,7 @@ impl Store {
 }
 pub(crate) struct Authority<'a> {
     ledger: &'a mut Ledger,
-    store: &'a mut Store,
+    pub(crate) store: &'a mut Store,
     work: Work,
     site: Site,
 }
@@ -269,8 +271,14 @@ impl LoadingDomain {
         else {
             return Ok(None);
         };
-        validate_record(&self.registry, (origin, index), expected, record)
-            .map_err(|e| site.error(e))?;
+        validate_record(
+            &self.registry,
+            self.members.as_ref().and_then(|s| s.class_sites.as_ref()),
+            (origin, index),
+            expected,
+            record,
+        )
+        .map_err(|e| site.error(e))?;
         Ok(Some(record.outcome()))
     }
     pub fn member_context_unnamed_modules<'a>(
@@ -382,6 +390,7 @@ impl LoadingContext<'_> {
 }
 fn validate_record(
     registry: &DefinitionRegistry,
+    class_sites: Option<&crate::mirror::ClassSites>,
     key: (ClassId, u16),
     expected: u8,
     record: Record,
@@ -392,9 +401,59 @@ fn validate_record(
     if record.tag != expected {
         return Err(M::InvalidState("terminal CP tag differs"));
     }
-    registry
-        .class(record.owner)
-        .map_err(|e| M::Registry(Box::new(e)))?;
+    match record.owner {
+        crate::ReferenceType::Class(class) => {
+            registry
+                .class(class)
+                .map_err(|e| M::Registry(Box::new(e)))?;
+        }
+        crate::ReferenceType::Array {
+            dimensions,
+            element,
+            defining_loader,
+        } => {
+            if dimensions == 0 {
+                return Err(M::InvalidState("terminal array rank is zero"));
+            }
+            registry
+                .lookup_class(defining_loader, &[88])
+                .map_err(|e| M::Registry(Box::new(e)))?;
+            if let crate::ArrayElement::Class(class) = element {
+                if registry
+                    .defining_loader(class)
+                    .map_err(|e| M::Registry(Box::new(e)))?
+                    != defining_loader
+                {
+                    return Err(M::InvalidState("terminal array leaf loader differs"));
+                }
+            }
+            if expected == 9 {
+                return Err(M::InvalidState("array field record"));
+            }
+            // The original immutable owner Class slot has already resolved in
+            // the domain. Compare scalar identity, never reload/reparse a name:
+            // this remains valid for terminal replay on a smaller unbound heap.
+            let definition = registry
+                .class(key.0)
+                .map_err(|e| M::Registry(Box::new(e)))?;
+            let class_index = match definition.constant_pool.get(key.1) {
+                Ok(
+                    Constant::Methodref { class_index, .. }
+                    | Constant::InterfaceMethodref { class_index, .. },
+                ) => *class_index,
+                _ => return Err(M::InvalidState("array member has no owner Class slot")),
+            };
+            if class_sites
+                .and_then(|s| s.rows.get(&(key.0, class_index)))
+                .copied()
+                != Some(crate::ClassSiteOutcome::Resolved(record.owner))
+            {
+                return Err(M::InvalidState(
+                    "terminal structural owner differs from Class site",
+                ));
+            }
+        }
+    }
     match record.value {
         Cached::Field(field) if expected == 9 => {
             registry
@@ -403,7 +462,7 @@ fn validate_record(
             if field.protected_receiver.is_some_and(|class| class != key.0) {
                 return Err(M::InvalidState("terminal field qualifier differs"));
             }
-            if field.symbolic_owner != record.owner {
+            if crate::ReferenceType::Class(field.symbolic_owner) != record.owner {
                 return Err(M::InvalidState("terminal field owner differs"));
             }
         }
@@ -419,6 +478,47 @@ fn validate_record(
             }
             if method.owner != record.owner {
                 return Err(M::InvalidState("terminal method owner differs"));
+            }
+            if matches!(record.owner, crate::ReferenceType::Array { .. }) {
+                let origin = registry
+                    .class(key.0)
+                    .map_err(|e| M::Registry(Box::new(e)))?;
+                let class_index = match origin.constant_pool.get(key.1) {
+                    Ok(
+                        Constant::Methodref { class_index, .. }
+                        | Constant::InterfaceMethodref { class_index, .. },
+                    ) => *class_index,
+                    _ => return Err(M::InvalidState("array record lacks method owner Class")),
+                };
+                let name = origin
+                    .constant_pool
+                    .class_name(class_index)
+                    .map_err(|e| M::Registry(Box::new(RegistryError::Parse(e))))?;
+                let declaring = registry
+                    .class(method.method.owner())
+                    .map_err(|e| M::Registry(Box::new(e)))?;
+                let member = registry
+                    .method(method.method)
+                    .map_err(|e| M::Registry(Box::new(e)))?;
+                if name.units().first() != Some(&91)
+                    || method.protected_receiver.is_some()
+                    || !declaring
+                        .name()
+                        .map_err(|e| M::Registry(Box::new(RegistryError::Parse(e))))?
+                        .equals_ascii("java/lang/Object")
+                    || !declaring
+                        .constant_pool
+                        .utf8(member.name_index)
+                        .map_err(|e| M::Registry(Box::new(RegistryError::Parse(e))))?
+                        .equals_ascii("getClass")
+                    || !declaring
+                        .constant_pool
+                        .utf8(member.descriptor_index)
+                        .map_err(|e| M::Registry(Box::new(RegistryError::Parse(e))))?
+                        .equals_ascii("()Ljava/lang/Class;")
+                {
+                    return Err(M::InvalidState("array member role differs"));
+                }
             }
         }
         Cached::Failure(MemberResolutionFailure::NoSuchMethod) if expected == 9 => {
@@ -478,11 +578,47 @@ impl Authority<'_> {
             self.loading(r)?;
             self.store.validate().map_err(|e| self.err(e))?;
             if let Some(record) = self.store.sites.get(&(origin, index)).copied() {
-                validate_record(registry, (origin, index), expected, record)
-                    .map_err(|e| self.err(e))?;
+                validate_record(
+                    registry,
+                    self.store.class_sites.as_ref(),
+                    (origin, index),
+                    expected,
+                    record,
+                )
+                .map_err(|e| self.err(e))?;
                 if !matches!(record.value, Cached::Failure(_)) {
-                    heap.instance_graph_node(record.owner)
-                        .map_err(|e| self.err(M::Field(Box::new(e.into()))))?;
+                    match record.owner {
+                        crate::ReferenceType::Class(class) => {
+                            heap.instance_graph_node(class)
+                                .map_err(|e| self.err(M::Field(Box::new(e.into()))))?;
+                        }
+                        crate::ReferenceType::Array {
+                            dimensions: _,
+                            element,
+                            defining_loader,
+                        } => {
+                            let u = heap.reference_type_universe().ok_or_else(|| {
+                                self.err(M::InvalidState(
+                                    "array member requires a reference universe",
+                                ))
+                            })?;
+                            let expected = match element {
+                                crate::ArrayElement::Primitive(_) => u.bootstrap_loader,
+                                crate::ArrayElement::Class(class) => {
+                                    heap.instance_graph_node(class)
+                                        .map_err(|e| self.err(M::Field(Box::new(e.into()))))?;
+                                    registry
+                                        .defining_loader(class)
+                                        .map_err(|e| self.err(M::Registry(Box::new(e))))?
+                                }
+                            };
+                            if expected != defining_loader {
+                                return Err(
+                                    self.err(M::InvalidState("terminal array loader differs"))
+                                );
+                            }
+                        }
+                    }
                     let declaring = match record.value {
                         Cached::Field(f) => f.field.owner(),
                         Cached::Method(m) => m.method.owner(),
@@ -490,6 +626,15 @@ impl Authority<'_> {
                     };
                     heap.instance_graph_node(declaring)
                         .map_err(|e| self.err(M::Field(Box::new(e.into()))))?;
+                    if matches!(record.owner, crate::ReferenceType::Array { .. })
+                        && heap
+                            .reference_type_universe()
+                            .is_none_or(|u| u.object != declaring)
+                    {
+                        return Err(
+                            self.err(M::InvalidState("array member declaring Object differs"))
+                        );
+                    }
                 }
                 return Ok(Ok(record));
             }
@@ -524,7 +669,7 @@ impl Authority<'_> {
         &mut self,
         registry: &DefinitionRegistry,
         ticket: Ticket,
-        owner: ClassId,
+        owner: crate::ReferenceType,
         value: Cached,
     ) -> MR<()> {
         // All fallible allocation and logical funding happened before resolution.
@@ -553,7 +698,14 @@ impl Authority<'_> {
             tag: ticket.tag,
             value,
         };
-        validate_record(registry, ticket.key, expected, record).map_err(|e| self.err(e))?;
+        validate_record(
+            registry,
+            self.store.class_sites.as_ref(),
+            ticket.key,
+            expected,
+            record,
+        )
+        .map_err(|e| self.err(e))?;
         self.store.sites.insert(ticket.key, record);
         self.store.usage.sites = ticket.next;
         Ok(())
@@ -907,7 +1059,12 @@ impl<'a> FieldResolutionContext<'a> {
             _ => None,
         };
         if let (Some(owner), Some(value)) = (owner, value) {
-            if let Err(error) = a.commit(self.registry, ticket, owner, value) {
+            if let Err(error) = a.commit(
+                self.registry,
+                ticket,
+                crate::ReferenceType::Class(owner),
+                value,
+            ) {
                 a.site = Default::default();
                 return Err(error.into());
             }
@@ -918,7 +1075,7 @@ impl<'a> FieldResolutionContext<'a> {
     pub(crate) fn member_finish_method(
         &mut self,
         ticket: Ticket,
-        owner: Option<ClassId>,
+        owner: Option<crate::ReferenceType>,
         result: std::result::Result<Resolved, MethodAccessError>,
     ) -> std::result::Result<Resolved, MethodAccessError> {
         let Some(a) = &mut self.member else {

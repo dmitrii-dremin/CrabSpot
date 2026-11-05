@@ -325,7 +325,7 @@ fn mismatched_and_duplicate_constructor_authority_cannot_promote_aliases_or_writ
             &mut services,
             Some(&exceptions),
             Some(&claim),
-            false,
+            EngineCapabilities::default(),
         ) {
             Err(e) => e,
             Ok(_) => panic!("corrupt constructor authority wrote a field"),
@@ -584,7 +584,7 @@ fn identity_branches_extract_both_ordinary_operands_before_foreign_handle_valida
                 &mut services,
                 None,
                 None,
-                false,
+                EngineCapabilities::default(),
             ) {
                 Err(error) => error,
                 Ok(_) => panic!("malformed identity comparison succeeded"),

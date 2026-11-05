@@ -216,6 +216,7 @@ impl FieldResolutionContext<'_> {
                 ConstructionJavaError::Instantiation,
             ));
         }
+        self.heap().check_reserved_class(class)?;
         let Constant::Class {
             name_index: class_name,
         } = target
@@ -353,6 +354,10 @@ impl FieldResolutionContext<'_> {
                 }
             }
         }
+        // VM Class payloads are already issued objects, never unfinished
+        // constructor receivers. Preserve symbolic/category/receiver precedence,
+        // then refuse authority even for a Class-origin call to Object.<init>.
+        self.heap().reject_opaque(receiver)?;
         if owner == self.universe()?.object {
             let definition = self.registry().class(owner)?;
             if definition.access_flags & (1 | 0x200 | 0x400) != 1

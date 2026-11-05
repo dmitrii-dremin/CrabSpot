@@ -66,6 +66,17 @@ cargo run --release -p crabspot-launcher --example replay_monitor_entry -- targe
 
 The application synchronizes on its argument array, a primitive array and ordinary objects. It also invokes synchronized static and instance methods. The observer prints `returned 1/2/1/9` for entries, calls, completions and sum. This execution profile has one logical thread. [Monitor behavior and reference JVM results](docs/architecture/m2-monitor-reference.md).
 
+### Run a program that uses class objects
+
+With the same extracted platform, compile the class-object example into a fresh application directory and run its public launcher observer.
+
+```text
+javac --release 21 -d target/mirror-classes -sourcepath tests/fixtures/class-mirrors/src tests/fixtures/class-mirrors/src/mirrors/Entry.java
+cargo run --release -p crabspot-launcher --example replay_class_mirror_entry -- target/app-platform/classes target/mirror-classes mirrors.Entry
+```
+
+The expected fields are `127/3/1`. The program compares class literals with the results of `getClass()` on objects, arrays and class objects. It also checks how many initializers ran and enters a static synchronized method while already holding the declaring class object's lock. The observer reports how many application and platform classes the launcher verified. [Class-object behavior and reference JVM results](docs/architecture/m2-class-mirror-reference.md).
+
 ## Build and inspect
 
 Install Rust stable with rustfmt and Clippy. Tests use checked-in Java 21 fixtures;

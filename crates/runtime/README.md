@@ -884,3 +884,56 @@ The runtime's additive `VmExceptionKind::IllegalMonitorStateException` identifie
 an unmaterialized failure from the optional interpreter monitor profile. Monitor
 ownership itself remains interpreter-private; this adds no runtime lock handle,
 Class mirror, Java thread, scheduler or exception allocator.
+
+## Canonical Class mirrors
+
+A checked domain can enable a separate Class-CP outcome store with
+`enable_class_mirror_sites`; its rows hold canonical `ReferenceType` metadata or
+permanent access denial, never heap references. A pristine instance heap with a
+bound reference universe may bind the final bootstrap `java/lang/Class` role.
+Binding seals its admitted graph against growth and ordinary allocation of that
+Class identity. Matching redeclarations are idempotent; reset and replacement are
+not supported.
+
+`resolve_class_mirror_type` resolves the current origin's actual Class CP slot,
+including ultimate nominal array-component accessibility. Each slot has its own
+outcome; aliases do not merge CP costs. Host missing facts and resource failures
+are repairable and are not cached Java loader failures. Permanent denial can
+replay with only the admitted origin on a smaller compatible heap. Successful
+hits revalidate the current universe and canonical leaf identity. Legacy Class
+CP consumers keep their earlier contracts.
+
+`class_mirror_for_type` issues one VM payload per loader-qualified nominal or
+array type per heap. Its runtime type is the designated Class. The canonical
+index and issuance-order root vector retain strong references; `children` has no
+Java backing-field edges for this opaque payload. A mirror counts as one managed
+instance and zero Java instance slots, with no array/payload-byte debit. Each
+miss checks mirror and instance caps, funds provisioning and reserves arena,
+index and roots before any publication. Hits allocate nothing, including at a
+full cap. `ClassMirrorLimits` independently bounds heap mirrors and domain sites;
+all name/type/probe/provisioning work uses the existing checked context budgets.
+
+Mirrors participate in ordinary reference fields, statics, arrays, assignments,
+casts and equality. Raw and checked instance-field operations reject their
+opaque Class state after the established symbolic access/category/receiver
+checks. `check_class_mirror_method_entry` also guards direct preselected Class
+instance bodies; the common method profile calls it for numeric signatures too.
+Holding a mirror in an application object's field does not restrict that object.
+
+The sole native classifier recognizes the immutable declared bootstrap
+`Object.getClass()Ljava/lang/Class;` with the required public final native
+instance role. Immutable parsed registry admission already excludes Code on that
+native, so classification does not scan arbitrary extension attributes. The
+existing selectors handle inherited Object, interface fallback, nominal special
+calls and the narrow array-symbolic getClass case. Structural array owners remain
+in private domain records and must agree with their original Class CP outcome.
+Array covariance and actual marker-interface membership are checked per use;
+a cached method never authorizes an incompatible receiver or arbitrary native.
+The interpreter owns native invocation and monitor-key normalization; this crate
+provides no JNI or general native dispatch.
+
+Mirror allocation and type resolution do not initialize Class or the represented
+type. No Class reflection state, primitive/void mirrors, Java loader execution,
+exception materialization or privileged initialization completion is supplied.
+Legacy unbound heaps retain ordinary low-level allocation behavior; a preexisting
+ordinary Class instance prevents a later VM binding rather than being retyped.

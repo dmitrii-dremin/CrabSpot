@@ -9,6 +9,7 @@ mod source;
 use crabspot_classfile::JavaString;
 use crabspot_interpreter::ExecutionError;
 pub use crabspot_interpreter::MonitorLimits;
+pub use crabspot_runtime::ClassMirrorLimits;
 use crabspot_verifier::ClassTypeVerificationUsage;
 pub use error::*;
 pub use options::*;
@@ -102,6 +103,25 @@ pub fn run_directory_application_with_monitor_limits(
     options: ApplicationOptions,
     monitors: MonitorLimits,
 ) -> std::result::Result<ApplicationRun, Box<ApplicationError>> {
+    run_directory_application_with_mirror_limits(
+        directories,
+        entry,
+        observations,
+        options,
+        monitors,
+        ClassMirrorLimits::default(),
+    )
+}
+
+/// Execute the same proved image with bounded canonical Class objects.
+pub fn run_directory_application_with_mirror_limits(
+    directories: ApplicationDirectories<'_>,
+    entry: &str,
+    observations: &[StaticIntObservation<'_>],
+    options: ApplicationOptions,
+    monitors: MonitorLimits,
+    mirrors: ClassMirrorLimits,
+) -> std::result::Result<ApplicationRun, Box<ApplicationError>> {
     let prepared = image::prepare(directories, entry, observations, options)?;
-    entry::run_prepared(prepared, observations, monitors)
+    entry::run_prepared(prepared, observations, monitors, mirrors)
 }

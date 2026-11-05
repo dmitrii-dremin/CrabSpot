@@ -35,7 +35,11 @@ impl Inputs {
             "java/lang/invoke/MethodType",
             "java/lang/invoke/MethodHandle",
         ] {
-            write(&platform, &Class::plain(name));
+            let mut class = Class::plain(name);
+            if name == "java/lang/Class" {
+                class.flags |= 0x10;
+            }
+            write(&platform, &class);
         }
         for name in ["java/lang/Cloneable", "java/io/Serializable"] {
             write(
@@ -846,4 +850,317 @@ fn default_library_and_physical_cli_run_synchronized_main_with_actual_argument_a
     );
     assert!(output.stdout.is_empty());
     assert!(output.stderr.is_empty());
+}
+
+fn install_object_native(inputs: &Inputs, java_replacement: bool) {
+    let mut object = Class::new("java/lang/Object", None, 0x21);
+    object.method("<init>", "()V", 1, &[0xb1], 0, 1);
+    object.method(
+        "getClass",
+        "()Ljava/lang/Class;",
+        if java_replacement { 0x11 } else { 0x111 },
+        if java_replacement { &[1, 0xb0] } else { &[] },
+        1,
+        1,
+    );
+    write(&inputs.platform, &object);
+}
+#[test]
+fn descriptor_free_literals_use_the_universal_class_import_and_exact_mirror_site_caps() {
+    let mut c = Class::plain("app/Main");
+    c.field("value", "I", 9);
+    let value = c.reference(9, "app/Main", "value", "I");
+    let literal = c.class("app/Main");
+    let mut code = vec![0x10, 7];
+    code.extend(instruction(0xb3, value));
+    code.extend(
+        [
+            vec![
+                0x12,
+                literal as u8,
+                0x57,
+                0x12,
+                literal as u8,
+                0x57,
+                0x10,
+                9,
+            ],
+            instruction(0xb3, value),
+            vec![0xb1],
+        ]
+        .concat(),
+    );
+    c.method("main", "([Ljava/lang/String;)V", 9, &code, 1, 1);
+    let inputs = Inputs::new(vec![c]);
+    let data = std::fs::read(inputs.application.join("app/Main.class")).unwrap();
+    let parsed = crabspot_classfile::parse(&data).unwrap();
+    assert!(!parsed.constant_pool.entries().iter().any(
+        |e| matches!(e,crabspot_classfile::Constant::Utf8(v)if v.equals_ascii("java/lang/Class"))
+    ));
+    for limits in [
+        ClassMirrorLimits {
+            max_mirrors: 1,
+            max_class_sites: 1,
+        },
+        ClassMirrorLimits {
+            max_mirrors: 0,
+            max_class_sites: 1,
+        },
+        ClassMirrorLimits {
+            max_mirrors: 1,
+            max_class_sites: 0,
+        },
+        ClassMirrorLimits {
+            max_mirrors: u64::MAX,
+            max_class_sites: u64::MAX,
+        },
+    ] {
+        let r = run_directory_application_with_mirror_limits(
+            inputs.dirs(),
+            "app.Main",
+            &[query("app.Main", "value")],
+            Default::default(),
+            Default::default(),
+            limits,
+        )
+        .unwrap();
+        assert_eq!(r.usage.proved_classes, 8);
+        assert_eq!(r.usage.proved_classes, r.usage.admitted_executable_classes);
+        if limits.max_mirrors == 0 || limits.max_class_sites == 0 {
+            assert_eq!(r.static_ints, [7]);
+            let ApplicationCompletion::ExecutionFailed { phase, error } = r.completion else {
+                panic!("typed quota failure required")
+            };
+            assert_eq!(phase, EntryEvaluation::MainEvaluation);
+            let resource = if limits.max_class_sites == 0 {
+                crabspot_runtime::ClassMirrorResource::ClassSites
+            } else {
+                crabspot_runtime::ClassMirrorResource::Mirrors
+            };
+            assert_eq!(
+                error.kind,
+                E::ClassMirror(Box::new(crabspot_runtime::ClassMirrorError::Limit {
+                    resource,
+                    limit: 0,
+                    required: 1
+                }))
+            );
+            assert_eq!(error.offset, Some(5));
+        } else {
+            assert_eq!(r.static_ints, [9]);
+            assert!(matches!(r.completion, ApplicationCompletion::Returned));
+        }
+    }
+}
+#[test]
+fn mirror_uses_instance_quota_and_invalid_class_binding_fails_before_argument_allocation() {
+    let mut c = Class::plain("app/Main");
+    c.field("value", "I", 9);
+    let literal = c.class("app/Main");
+    c.method(
+        "main",
+        "([Ljava/lang/String;)V",
+        9,
+        &[vec![0x12, literal as u8, 0x57, 0xb1]].concat(),
+        1,
+        1,
+    );
+    let inputs = Inputs::new(vec![c]);
+    let mut options = ApplicationOptions::default();
+    options.instance.max_instances = 0;
+    let r = run_directory_application(inputs.dirs(), "app.Main", &[], options).unwrap();
+    let ApplicationCompletion::ExecutionFailed { error, .. } = r.completion else {
+        panic!("instance quota required")
+    };
+    assert!(
+        matches!(error.kind,E::ClassMirror(ref e)if matches!(**e,crabspot_runtime::ClassMirrorError::Instance(crabspot_runtime::InstanceError::ResourceLimit{resource:crabspot_runtime::InstanceResource::Instances,limit:0,required:1})))
+    );
+    write(&inputs.platform, &Class::plain("java/lang/Class"));
+    let e = inputs.run("app.Main", &[], Default::default()).unwrap_err();
+    assert_eq!(e.stage, ApplicationStage::Setup);
+    assert!(matches!(
+        e.kind,
+        ApplicationErrorKind::Setup {
+            kind: SetupKind::ClassMirror,
+            ..
+        }
+    ));
+    assert_eq!(e.usage.argument_arrays, 0);
+    assert_eq!(e.usage.engine_evaluations, 0);
+}
+#[test]
+fn public_native_result_shares_static_lock_and_physical_cli_needs_no_class_library_initializer() {
+    let mut c = Class::plain("app/Main");
+    c.field("value", "I", 9);
+    let value = c.reference(9, "app/Main", "value", "I");
+    let parent = c.reference(10, "java/lang/Object", "<init>", "()V");
+    c.method(
+        "<init>",
+        "()V",
+        1,
+        &[vec![0x2a], instruction(0xb7, parent), vec![0xb1]].concat(),
+        1,
+        1,
+    );
+    let own_init = c.reference(10, "app/Main", "<init>", "()V");
+    let own_class = c.class("app/Main");
+    let get = c.reference(10, "java/lang/Object", "getClass", "()Ljava/lang/Class;");
+    let m = c.reference(10, "app/Main", "m", "()V");
+    c.method(
+        "m",
+        "()V",
+        0x29,
+        &[vec![0x10, 9], instruction(0xb3, value), vec![0xb1]].concat(),
+        1,
+        0,
+    );
+    let mut body = vec![0x10, 7];
+    body.extend(instruction(0xb3, value));
+    body.extend(instruction(0xbb, own_class));
+    body.push(0x59);
+    body.extend(instruction(0xb7, own_init));
+    body.extend(instruction(0xb6, get));
+    body.extend([0x59, 0x4c, 0xc2]);
+    let invoke = body.len() as u32;
+    body.extend(instruction(0xb8, m));
+    body.extend([0x2b, 0xc3, 0xb1]);
+    c.method("main", "([Ljava/lang/String;)V", 9, &body, 2, 2);
+    let inputs = Inputs::new(vec![c]);
+    install_object_native(&inputs, false);
+    for short in [false, true] {
+        let r = run_directory_application_with_mirror_limits(
+            inputs.dirs(),
+            "app.Main",
+            &[query("app.Main", "value")],
+            Default::default(),
+            MonitorLimits {
+                max_recursion: if short { 1 } else { 2 },
+                max_active_monitors: 1,
+                max_active_claims: 2,
+                max_steps: 4,
+            },
+            ClassMirrorLimits {
+                max_mirrors: 1,
+                max_class_sites: 0,
+            },
+        )
+        .unwrap();
+        assert_eq!(r.static_ints, [if short { 7 } else { 9 }]);
+        if short {
+            let ApplicationCompletion::ExecutionFailed { phase, error } = r.completion else {
+                panic!("shared key quota failure expected")
+            };
+            assert_eq!(phase, EntryEvaluation::MainEvaluation);
+            assert_eq!(error.offset, Some(invoke));
+            assert!(matches!(
+                error.kind,
+                E::Monitor(crabspot_interpreter::MonitorError::Limit {
+                    resource: crabspot_interpreter::MonitorResource::Recursion,
+                    limit: 1,
+                    required: 2
+                })
+            ));
+        } else {
+            assert!(matches!(r.completion, ApplicationCompletion::Returned));
+        }
+    }
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_crabspot"))
+        .args(["run", "--platform"])
+        .arg(&inputs.platform)
+        .arg("--classes")
+        .arg(&inputs.application)
+        .arg("app.Main")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+#[test]
+fn verified_object_typed_array_helper_accepts_markers_and_refuses_nonimplemented_interface() {
+    for owner in ["java/lang/Cloneable", "java/io/Serializable", "app/Face"] {
+        let mut c = Class::plain("app/Main");
+        c.field("value", "I", 9);
+        let value = c.reference(9, "app/Main", "value", "I");
+        let target = c.reference(11, owner, "getClass", "()Ljava/lang/Class;");
+        let helper = c.reference(
+            10,
+            "app/Main",
+            "helper",
+            "(Ljava/lang/Object;)Ljava/lang/Class;",
+        );
+        c.method(
+            "helper",
+            "(Ljava/lang/Object;)Ljava/lang/Class;",
+            9,
+            &[vec![0x2a], instruction(0xb9, target), vec![1, 0, 0xb0]].concat(),
+            1,
+            1,
+        );
+        let class = c.class("java/lang/Class");
+        let mut main = vec![0x10, 7];
+        main.extend(instruction(0xb3, value));
+        main.extend([3, 0xbc, 10]);
+        main.extend(instruction(0xb8, helper));
+        main.extend(instruction(0xc1, class));
+        main.extend(instruction(0xb3, value));
+        main.push(0xb1);
+        c.method("main", "([Ljava/lang/String;)V", 9, &main, 1, 1);
+        let inputs = Inputs::new(vec![
+            c,
+            Class::new("app/Face", Some("java/lang/Object"), 0x601),
+        ]);
+        install_object_native(&inputs, false);
+        let r = inputs
+            .run(
+                "app.Main",
+                &[query("app.Main", "value")],
+                Default::default(),
+            )
+            .unwrap();
+        if owner == "app/Face" {
+            assert_eq!(r.static_ints, [7]);
+            let ApplicationCompletion::ExecutionFailed { phase, error } = r.completion else {
+                panic!("ICCE required")
+            };
+            assert_eq!(phase, EntryEvaluation::MainEvaluation);
+            assert_eq!(
+                error.kind,
+                E::UnsupportedVmException(VmExceptionKind::IncompatibleClassChangeError)
+            );
+            assert_eq!(error.offset, Some(1));
+            assert_eq!(error.method.as_ref().unwrap().name.escaped(), "helper");
+        } else {
+            assert_eq!(r.static_ints, [1]);
+            assert!(matches!(r.completion, ApplicationCompletion::Returned));
+        }
+    }
+}
+#[test]
+fn unused_missing_getclass_is_allowed_but_exact_java_replacement_cannot_run_as_native() {
+    let mut c = Class::plain("app/Main");
+    c.field("value", "I", 9);
+    let target = c.reference(10, "java/lang/Object", "getClass", "()Ljava/lang/Class;");
+    c.method(
+        "main",
+        "([Ljava/lang/String;)V",
+        9,
+        &[vec![0x2a], instruction(0xb6, target), vec![0x57, 0xb1]].concat(),
+        1,
+        1,
+    );
+    let inputs = Inputs::new(vec![c]);
+    install_object_native(&inputs, true);
+    let r = inputs.run("app.Main", &[], Default::default()).unwrap();
+    let ApplicationCompletion::ExecutionFailed { error, .. } = r.completion else {
+        panic!("invalid binding required")
+    };
+    assert!(
+        matches!(error.kind,E::ClassMirror(ref e)if matches!(**e,crabspot_runtime::ClassMirrorError::InvalidBinding(_)))
+    );
+    assert_eq!(error.offset, Some(1));
 }

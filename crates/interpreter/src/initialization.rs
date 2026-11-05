@@ -157,6 +157,7 @@ pub struct InitializationSession<'context, 'registry> {
     claim: InitializationClaim,
     state: SessionState,
     monitors: Option<crate::MonitorLimits>,
+    class_mirrors: bool,
 }
 impl<'context, 'registry> InitializationSession<'context, 'registry> {
     pub fn new(
@@ -200,6 +201,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             exceptions: *exceptions,
             claim,
             monitors: None,
+            class_mirrors: false,
             state: SessionState {
                 records,
                 indices,
@@ -225,6 +227,24 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
     ) -> Result<Self, ExecutionError> {
         let mut session = Self::new(context, statics, exceptions, error_class, limits)?;
         session.monitors = Some(monitors);
+        Ok(session)
+    }
+    /// Enable canonical passive class literals and the exact Object.getClass native.
+    /// Authority is checked before the one-shot initialization claim is consumed.
+    pub fn new_with_class_mirrors(
+        context: &'context mut FieldResolutionContext<'registry>,
+        statics: &StaticStateProfile,
+        exceptions: &ExceptionProfile,
+        error_class: ClassId,
+        limits: InitializationLimits,
+        monitors: crate::MonitorLimits,
+    ) -> Result<Self, ExecutionError> {
+        context
+            .check_class_mirror_profile()
+            .map_err(|error| ExecutionError::new(None, E::ClassMirror(error)))?;
+        let mut session =
+            Self::new_with_monitors(context, statics, exceptions, error_class, limits, monitors)?;
+        session.class_mirrors = true;
         Ok(session)
     }
     pub fn initialize(
@@ -263,6 +283,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             state: &mut *guard.state,
             owner,
             monitors: self.monitors,
+            class_mirrors: self.class_mirrors,
         };
         match crate::execute::execute_initializing(
             execution,
@@ -320,6 +341,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             state: &mut *guard.state,
             owner,
             monitors: self.monitors,
+            class_mirrors: self.class_mirrors,
         };
         match crate::execute::execute_initializing(
             execution,
@@ -368,6 +390,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             state: &mut *guard.state,
             owner,
             monitors: self.monitors,
+            class_mirrors: self.class_mirrors,
         };
         match crate::execute::execute_initializing(
             execution,

@@ -8,7 +8,9 @@ invocation, class loading, class initialization, verification or exception-objec
 allocation. An explicit `InitializationSession`, described below, separately opts
 into a bounded single-owner initialization and construction procedure.
 `InitializationSession::new_with_monitors` additionally enables single-thread
-monitor bytecodes and selected synchronized Code, described in the final section.
+monitor bytecodes and selected synchronized Code.
+`InitializationSession::new_with_class_mirrors` adds passive Class literals and the
+exact selected Object.getClass native, described in the final section.
 
 The selected standalone method must have exactly one Code attribute, a numeric/void
 descriptor, and no native, abstract or synchronized declaration or exception
@@ -1065,3 +1067,71 @@ explicit boundaries, not the monitor-enabled session. Monitor metadata uses a la
 frame-depth map; legacy Frame layout is unchanged and no monitor entries are allocated
 without a claim. No class mirrors, Thread.holdsLock native, VM exception production,
 wait/notify, blocking, multiple Java threads or memory-order guarantee is supplied.
+
+
+## Canonical Class objects
+
+`InitializationSession::new_with_class_mirrors` first performs a read-only,
+zero-work check of the checked domain store and bound heap profile. A failed
+check consumes no permanent initialization claim. It then uses the same monitored
+session, scheduler, Java frames, invocation selection, exception routing and budgets.
+No public method ID or caller-supplied success flag authorizes a general native.
+Older sessions remain explicit: numeric ldc works as before; Class constants and
+native Code remain unsupported even on a heap whose mirrors were explicitly bound.
+Unbound legacy configurations keep their existing error and work order. A newly
+store-enabled context may resolve an array member farther than a legacy unbound
+context before the old native-execution refusal; this does not enable execution.
+
+Enabled `ldc` and `ldc_w` resolve a Class CP slot in the actual executing method's
+initiating loader. Resolution and permanent IllegalAccess live in the domain,
+separate from the heap's canonical object index. Only after resolution succeeds
+does the caller reserve one operand slot, then request the canonical mirror and
+push it. Stack failure can retain the paid resolution, but cannot mint a new
+mirror. A full u16 ldc_w index is preserved. ldc2_w Class, String and other existing
+unsupported reference constants keep their category boundaries. I and V are legal
+nominal class names; scalar primitive/void mirrors and wrapper TYPE fields are not
+implemented. Primitive/reference arrays of ranks 1 through 255 are represented.
+
+The one native binding recognizes the selected immutable bootstrap
+`Object.getClass()Ljava/lang/Class;` declaration after ordinary member resolution,
+loading agreements, typed extraction, null/access and receiver checks. It requires
+public final native instance metadata without Code. A same-signature Java replacement
+or malformed exact role is a typed binding error; overloads and other native methods
+retain their ordinary behavior. Nominal, inherited, interface-fallback and super
+invocations reach that same declaration. The narrow array-owner path preserves its
+structural symbolic type, and actual arrays must satisfy that owner or implemented
+marker interface. Other array methods such as clone remain unsupported.
+
+The native consumes only the original invoke's fuel. It reserves caller result
+space after extraction, requests the mirror of the actual receiver type, and pushes
+that result without inventing Java Code, a synthetic frame, handler rows or a second
+return instruction. A one-frame/three-instruction test proves this boundary.
+Class.class.getClass() returns the same Class mirror. Errors in the running caller
+identify its actual invoke PC; call_site records the transition and can name the
+same method and PC, rather than an activation ancestor. Target Java preparation
+errors retain the selected target and its originating invoke separately.
+
+Mirrors are ordinary transferable references in locals, fields, reference arrays,
+casts, arguments and returns. Their runtime class is the designated bootstrap Class;
+the represented type is separate. The runtime refuses raw new/host allocation of
+that Class identity after binding. Opaque mirrors cannot expose fake zeroed Class
+fields or enter Class-owned instance bodies through selected or direct host entry.
+A host-preselected native root remains closed. Passive literals and this native do
+not initialize Class or the represented type; real static active use retains the
+actual Class initializer and its existing unsupported native boundaries.
+
+Explicit monitor keys and synchronized instance receiver keys normalize a nominal
+mirror to its represented ClassId. This is exactly the key of that class's implicit
+static lock, without eagerly creating a mirror for a static method. Array mirrors
+retain independent canonical heap-reference keys. Existing strict cross-frame
+ownership, completion charging and interruption cleanup remain unchanged.
+
+`ExecutionErrorKind::ClassMirror` retains typed source chains. Only a direct
+ClassMirrorError::IllegalAccess from class-literal resolution becomes the explicit
+unmaterialized IllegalAccessError category; nested Java-shaped host errors remain
+host errors. Per-heap mirror and instance quotas are distinct from domain class-site
+quotas. Warm objects and sites survive context drops; compatible different heaps
+still issue distinct references. Strong roots remain owned by the runtime heap.
+This adds no new opcode values: the monitored profile remains 197 effective opcodes.
+There is no general native binding, reflection, String materialization, primitive
+scalar mirrors, ClassLoader object, VM exception allocator or complete Java startup.

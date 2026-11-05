@@ -18,6 +18,8 @@ mod loading;
 pub use loading::*;
 pub mod instance;
 mod method;
+mod mirror;
+pub use mirror::{ClassMirrorError, ClassMirrorLimits, ClassMirrorResource, ClassSiteOutcome};
 mod method_values;
 mod reference;
 mod reference_array;
@@ -72,3 +74,10 @@ pub use types::{
 };
 
 pub use application_main::{ApplicationMainError, ResolvedApplicationMain};
+
+#[cfg(test)]
+extern crate self as crabspot_runtime;
+
+#[cfg(test)]
+#[path = "../tests/mirror_support/mod.rs"]
+mod mirror_support;

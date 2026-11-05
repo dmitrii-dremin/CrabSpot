@@ -1,4 +1,35 @@
-# Current checkpoint: single-thread monitors
+# Current checkpoint: Java class objects
+
+The technical director approved the class-object increment on 2026-11-05. The verified directory launcher executes class literals and the genuine bootstrap `Object.getClass()`. Java code can compare the resulting references, store them in fields and arrays, pass them through methods and use them as locks. Repeated requests for the same represented type return the same object in one heap. Array rank and component type matter, and defining loaders distinguish ordinary classes with the same name. An explicit lock on a nominal class object reenters the same monitor used by a synchronized static method on its declaring class. [Implementation contract](../architecture/m2-class-mirrors.md), [reference observations](../architecture/m2-class-mirror-reference.md) and [technical review](../architecture/m2-class-mirrors-review.md).
+
+The five-class Java application returned `127/3/1` for the identity checks, initializer counter and synchronized call counter. It used eight mirrors and nine distinct constant-pool class sites. It completed with one active monitor and recursion depth three. Limiting the heap to seven mirrors stopped `main` at offset 115 with fields `15/0/0`. Limiting the domain to eight class sites stopped the synchronized method at offset zero with fields `63/3/0`. The storage application returned `63/0` and the descriptor-free literal application returned 1. HotSpot and OpenJ9 produced the same Java effects on the normal programs.
+
+The launcher now requests seven bootstrap imports. On the inspected Zulu 21.0.7 platform their transitive hierarchy comprises 16 executable definitions. An application still needs an allowed import to name a platform type directly. The fixture that attempts to name `GenericDeclaration`, a superinterface of Class, stops in the dependency stage. Calling `Class.getName()` on a mirror stops at the opaque-object boundary. An active static call on Class enters the supplied initializer and reaches the unbound native `registerNatives` at its first invoke. Both checks preserve the application's first field write. Real reflection, arbitrary native methods, catchable VM-created exceptions and concurrent synchronization remain open.
+
+All 57 commands in the combined local gate passed. The fresh build passed formatting, strict all-target Clippy, 1,446 workspace tests, 1,366 optimized tests and 43 Python regressions. Both reference VMs reproduced all 78 observations on archived and fresh classfiles. The public CLI and Rust API each exercised 40 directory cases. Eight additional public API runs checked exact and one-less limits, zero budgets and maximum ceilings. All 36 frozen product inputs matched their SHA-256 values after the gate.
+
+The six-class application from the earlier launcher checkpoint still returned `1/1/37/1/0`. Preparation proved 22 definitions, including 364 Code bodies and 60 bodyless declarations. Preparation used zero argument arrays and zero engine evaluations. Execution added exactly one of each. Independent whole-platform verification of the Zulu archive covered all 7,519 ordinary definitions, 61,708 Code bodies and 4,685 bodyless declarations.
+
+Run the public scenarios and the reference suite with the following commands. The first command accepts an extracted platform through `--platform` or uses the Java 21 JDK at `JAVA_HOME`.
+
+```text
+python tools/verify_class_mirror_entry.py
+python -m unittest discover -s tools -p test_class_mirror*.py
+python tools/class_mirror_reference.py --check --compare-openj9 PATH_TO_OPENJ9_21_JAVA
+cargo fmt --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+cargo test -p crabspot-verifier -p crabspot-runtime -p crabspot-interpreter -p crabspot-launcher --release --locked
+cargo run -p crabspot-classfile --example fuzz_parser --release --locked -- tests/fixtures --seconds 300 --seed 4851011501752864596 --failures target/mirror-fuzz-failures
+```
+
+The exact-source parser campaign accepted all 694 initial seeds. Across 31,728,634 generated inputs, it accepted 417,394, rejected 31,311,240, repeated 30,985 deterministic checks and retained 1,024 corpus inputs over 300 seconds. It recorded zero failures. The source and seed hashes matched after the campaign.
+
+The previous reference revision `6d51f69` passed hosted checks on Linux and Windows. Each reproduced 78 HotSpot observations on both archived and regenerated inputs on its own Temurin 21 build. [Linux job](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42110399479/job/127536110758) and [Windows job](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42110399479/job/127536111089).
+
+The proposed next increment covers canonical Java String literals, String constant fields, the declared String.intern native, and nonempty application arguments. [String proposal](../architecture/m2-string-constants-next.md).
+
+## Prior checkpoint: single-thread monitors
 
 The director approved single-thread monitor execution on 2026-11-05. The launcher executes synchronized Java methods and the two monitor bytecodes. A seven-class directory fixture enters a synchronized main, calls an inherited static method and two synchronized instance methods, and uses ordinary objects and arrays as locks. Its four retained fields read `1/2/1/9` on CrabSpot, HotSpot and OpenJ9. The program uses exactly 46 monitor operations. With a ceiling of 45 the engine reports the final return at bytecode offset 112 with all four writes visible. The public launcher and both reference JVMs also exercised raw bytecode cases that distinguish valid reentry, crossed releases, missing ownership and attempted release of another invocation's lock. All 52 local acceptance commands passed and all 98 frozen inputs matched after the gate. [Reference observations](../architecture/m2-monitor-reference.md) and [technical review](../architecture/m2-single-thread-monitors-review.md) and [next class-object proposal](../architecture/m2-class-mirrors-next.md).
 

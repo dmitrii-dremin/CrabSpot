@@ -25,6 +25,7 @@ pub enum MethodJavaError {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MethodAccessError {
     MemberResolution(Box<crate::MemberResolutionError>),
+    ClassMirror(Box<crate::ClassMirrorError>),
     Java(MethodJavaError),
     Context(FieldAccessError),
     Type(Box<TypeAccessError>),
@@ -77,6 +78,7 @@ pub enum MethodAccessError {
 impl fmt::Display for MethodAccessError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ClassMirror(error) => error.fmt(f),
             Self::MemberResolution(error) => error.fmt(f),
             Self::Java(error) => write!(f, "method access failed: {error:?}"),
             Self::Context(error) => write!(f, "method context failed: {error}"),
@@ -150,6 +152,7 @@ impl fmt::Display for MethodAccessError {
 impl std::error::Error for MethodAccessError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::ClassMirror(error) => Some(error.as_ref()),
             Self::MemberResolution(error) => Some(error.as_ref()),
             Self::Context(error) => Some(error),
             Self::Type(error) => Some(error.as_ref()),
@@ -198,8 +201,15 @@ fn reserve_map<K: Eq + std::hash::Hash, V>(
 ) -> Result<(), MethodAccessError> {
     map.try_reserve(amount).map_err(|_| allocation())
 }
+fn nominal_owner(owner: crate::ReferenceType) -> Result<ClassId, MethodAccessError> {
+    match owner {
+        crate::ReferenceType::Class(class) => Ok(class),
+        _ => Err(FieldAccessError::UnsupportedArrayOwner.into()),
+    }
+}
 type Package<'a> = (LoaderId, &'a [u16]);
 struct Symbol<'a> {
+    class_index: u16,
     owner: &'a JavaString,
     name: &'a JavaString,
     descriptor: &'a JavaString,
@@ -207,7 +217,7 @@ struct Symbol<'a> {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Resolved {
-    pub(crate) owner: ClassId,
+    pub(crate) owner: crate::ReferenceType,
     pub(crate) method: MethodId,
     pub(crate) protected_receiver: Option<ClassId>,
 }
@@ -294,7 +304,7 @@ impl<'a> FieldResolutionContext<'a> {
             _ => return Err(invalid()),
         };
         let owner = pool.class_name(class_index).map_err(|_| invalid())?;
-        if !shape_only && owner.units().first() == Some(&91) {
+        if !shape_only && owner.units().first() == Some(&91) && !self.class_sites_enabled() {
             return Err(FieldAccessError::UnsupportedArrayOwner.into());
         }
         let Constant::NameAndType {
@@ -312,6 +322,12 @@ impl<'a> FieldResolutionContext<'a> {
         if !constructor && (name.equals_ascii("<init>") || name.equals_ascii("<clinit>")) {
             return Err(MethodAccessError::UnsupportedSpecialMethod);
         }
+        if !shape_only
+            && owner.units().first() == Some(&91)
+            && !(name.equals_ascii("getClass") && descriptor.equals_ascii("()Ljava/lang/Class;"))
+        {
+            return Err(FieldAccessError::UnsupportedArrayOwner.into());
+        }
         let signature =
             self.inspect_signature(descriptor.units())
                 .map_err(|error| match error {
@@ -323,6 +339,7 @@ impl<'a> FieldResolutionContext<'a> {
         }
         Ok((
             Symbol {
+                class_index,
                 owner,
                 name,
                 descriptor,
@@ -352,7 +369,7 @@ impl<'a> FieldResolutionContext<'a> {
             .read_method_symbol(origin, index, false, false, true)?
             .0;
         let resolved = self.resolve_method_common(origin, index, &symbol, false)?;
-        Ok((resolved.owner, resolved.method))
+        Ok((nominal_owner(resolved.owner)?, resolved.method))
     }
     pub fn instance_invocation_shape(
         &mut self,
@@ -603,14 +620,43 @@ impl<'a> FieldResolutionContext<'a> {
     ) -> Result<Resolved, MethodAccessError> {
         if self.is_member_checked() {
             let ticket = match self.member_begin(origin, index)? {
-                Ok(value) => return crate::loading::member::method_hit(value),
+                Ok(value) => {
+                    let resolved = crate::loading::member::method_hit(value)?;
+                    if matches!(resolved.owner, crate::ReferenceType::Array { .. }) {
+                        let universe = self.universe()?;
+                        self.validate_reference_type(resolved.owner, universe)?;
+                    }
+                    return Ok(resolved);
+                }
                 Err(ticket) => ticket,
             };
             let mut owner = None;
             let result = (|| {
-                let class = self.resolve_owner(origin, symbol.owner)?;
-                owner = Some(class);
-                let resolved = self.resolve_method_owner(origin, symbol, interface, class)?;
+                let resolved = if symbol.owner.units().first() == Some(&91) {
+                    let ty = self
+                        .resolve_class_mirror_type(origin, symbol.class_index)
+                        .map_err(|e| {
+                            if matches!(*e, crate::ClassMirrorError::IllegalAccess) {
+                                MethodAccessError::Java(MethodJavaError::IllegalAccess)
+                            } else {
+                                MethodAccessError::ClassMirror(e)
+                            }
+                        })?;
+                    owner = Some(ty);
+                    if interface {
+                        return Err(MethodAccessError::Java(
+                            MethodJavaError::IncompatibleClassChange,
+                        ));
+                    }
+                    let object = self.universe()?.object;
+                    let mut resolved = self.resolve_method_owner(origin, symbol, false, object)?;
+                    resolved.owner = ty;
+                    resolved
+                } else {
+                    let class = self.resolve_owner(origin, symbol.owner)?;
+                    owner = Some(crate::ReferenceType::Class(class));
+                    self.resolve_method_owner(origin, symbol, interface, class)?
+                };
                 if !self.member_emit(
                     origin,
                     resolved.method.owner(),
@@ -728,7 +774,7 @@ impl<'a> FieldResolutionContext<'a> {
             return Err(MethodAccessError::UnsupportedLoadingConstraint { origin, method });
         }
         Ok(Resolved {
-            owner,
+            owner: crate::ReferenceType::Class(owner),
             method,
             protected_receiver,
         })
@@ -975,13 +1021,14 @@ impl<'a> FieldResolutionContext<'a> {
         };
         let symbol = self.method_symbol(origin, index, interface)?;
         let resolved = self.resolve_method(origin, index, &symbol, interface)?;
-        let start = self.special_start(origin, resolved.owner)?;
+        let owner = nominal_owner(resolved.owner)?;
+        let start = self.special_start(origin, owner)?;
         if receiver.is_null() {
             return Err(MethodAccessError::Java(MethodJavaError::NullPointer));
         }
         let actual = self.heap().instance_class(receiver)?;
         self.require_method_receiver(actual, origin)?;
-        self.require_method_receiver(actual, resolved.owner)?;
+        self.require_method_receiver(actual, owner)?;
         let selected = self.special_lookup(start, &symbol)?;
         self.require_method_receiver(actual, selected.owner())?;
         if self.registry().method(selected)?.access_flags & 0x400 != 0 {
@@ -1038,17 +1085,47 @@ impl<'a> FieldResolutionContext<'a> {
         if receiver.is_null() {
             return Err(MethodAccessError::Java(MethodJavaError::NullPointer));
         }
+        if self.class_sites_enabled() && self.get_class_signature(resolved.method)? {
+            let actual = self
+                .reference_type(receiver)?
+                .ok_or(MethodAccessError::Java(MethodJavaError::NullPointer))?;
+            if matches!(actual, crate::ReferenceType::Array { .. })
+                || matches!(resolved.owner, crate::ReferenceType::Array { .. })
+            {
+                if !self.is_assignable(actual, resolved.owner)? {
+                    return Err(if interface {
+                        MethodAccessError::Java(MethodJavaError::IncompatibleClassChange)
+                    } else {
+                        FieldAccessError::InvalidState(
+                            "array getClass receiver differs from symbolic owner",
+                        )
+                        .into()
+                    });
+                }
+                // A nominal interface must really be implemented, even for an
+                // ordinary receiver: runtime assignment is stricter than verification.
+                self.member_selected(
+                    origin,
+                    index,
+                    resolved.method,
+                    resolved.method,
+                    symbol.descriptor.units(),
+                )?;
+                return Ok(resolved.method);
+            }
+        }
+        let owner = nominal_owner(resolved.owner)?;
         let actual = self.heap().instance_class(receiver)?;
         if interface {
             let roots = self.interface_roots(actual)?;
-            if !self.interface_ancestry(roots, resolved.owner)? {
+            if !self.interface_ancestry(roots, owner)? {
                 return Err(MethodAccessError::Java(
                     MethodJavaError::IncompatibleClassChange,
                 ));
             }
-        } else if !self.subclass(actual, resolved.owner)? {
+        } else if !self.subclass(actual, owner)? {
             return Err(FieldAccessError::InvalidReceiver {
-                expected: resolved.owner,
+                expected: owner,
                 actual,
             }
             .into());

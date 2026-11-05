@@ -192,7 +192,11 @@ fn activate_monitors(
             .ok_or_else(|| operand_error(0))?
             .validate_root(handle)
             .map_err(|error| ExecutionError::new(None, E::Heap(error)))?;
-        MonitorKey::Object(handle)
+        object_monitor_key(
+            services.heap().ok_or_else(|| operand_error(0))?,
+            reference,
+            None,
+        )?
     } else {
         let Services::Fields { context, .. } = services else {
             return Err(ExecutionError::new(
@@ -222,6 +226,40 @@ fn activation_error(
     } else {
         error.offset = None;
         contextualize(bodies, error, frame.method, None)
+    }
+}
+
+fn class_mirror_failure(
+    error: Box<crabspot_runtime::ClassMirrorError>,
+    pc: Option<u32>,
+) -> ExecutionError {
+    if matches!(*error, crabspot_runtime::ClassMirrorError::IllegalAccess) {
+        ExecutionError::new(
+            pc,
+            E::UnsupportedVmException(VmExceptionKind::IllegalAccessError),
+        )
+    } else {
+        ExecutionError::new(pc, E::ClassMirror(error))
+    }
+}
+fn object_monitor_key(
+    heap: &ManagedHeap,
+    reference: Reference,
+    pc: Option<u32>,
+) -> Result<MonitorKey, ExecutionError> {
+    let represented = heap
+        .mirror_represented_type(reference)
+        .map_err(|error| ExecutionError::new(pc, E::Heap(error)))?;
+    if let Some(crabspot_runtime::ReferenceType::Class(class)) = represented {
+        Ok(MonitorKey::Class(class))
+    } else {
+        let handle = reference.heap_ref().ok_or_else(|| {
+            ExecutionError::new(
+                pc,
+                E::UnsupportedVmException(VmExceptionKind::NullPointerException),
+            )
+        })?;
+        Ok(MonitorKey::Object(handle))
     }
 }
 
@@ -1176,6 +1214,7 @@ pub(crate) struct SessionExecution<'a, 'registry> {
     pub state: &'a mut SessionState,
     pub owner: u64,
     pub monitors: Option<crate::MonitorLimits>,
+    pub class_mirrors: bool,
 }
 pub(crate) enum InitializationRoot<'a> {
     Application {
@@ -1209,6 +1248,7 @@ pub(crate) fn execute_initializing(
         state,
         owner,
         monitors,
+        class_mirrors,
     } = execution;
     context
         .check_initialization_claim(claim)
@@ -1252,7 +1292,10 @@ pub(crate) fn execute_initializing(
             owner,
             activations: Vec::new(),
         }),
-        monitors,
+        EngineCapabilities {
+            monitors,
+            class_mirrors,
+        },
     )?;
     match outcome {
         EngineOutcome::InitializationCompleted => Ok(InitializationResult::Completed),
@@ -1978,8 +2021,13 @@ fn execute_engine(
         services,
         exceptions,
         None,
-        None,
+        EngineCapabilities::default(),
     )
+}
+#[derive(Clone, Copy, Default)]
+struct EngineCapabilities {
+    monitors: Option<crate::MonitorLimits>,
+    class_mirrors: bool,
 }
 fn run_engine(
     root: EngineRoot<'_>,
@@ -1988,7 +2036,7 @@ fn run_engine(
     mut services: Services<'_, '_>,
     mut exceptions: Option<ExceptionState<'_>>,
     mut initialization: Option<InitExecution<'_>>,
-    monitor_limits: Option<crate::MonitorLimits>,
+    capabilities: EngineCapabilities,
 ) -> Result<EngineOutcome, ExecutionError> {
     let result = (|| {
         let bodies = Bodies {
@@ -2004,7 +2052,7 @@ fn run_engine(
             reserved: 0,
             used_code_bytes: 0,
             remaining: options.instruction_budget,
-            monitors: monitor_limits.map(MonitorLedger::new),
+            monitors: capabilities.monitors.map(MonitorLedger::new),
         };
         let requested = match root {
             EngineRoot::Initialize(class) => Some((class, InitContinuation::RootInitialize)),
@@ -2242,7 +2290,7 @@ fn run_engine(
                 &mut services,
                 exceptions.as_ref().map(|state| state.profile),
                 initialization.as_ref().map(|init| init.claim),
-                java.monitors.is_some(),
+                capabilities,
             )
             .map_err(|error| contextualize(bodies, error, current, origin))?;
             match action {
@@ -2257,11 +2305,13 @@ fn run_engine(
                         .checked_sub(1)
                         .ok_or_else(|| operand_error(pc))?;
                     let ledger = java.monitors.as_mut().ok_or_else(|| operand_error(pc))?;
-                    let handle = reference.heap_ref().ok_or_else(|| operand_error(pc))?;
+                    let heap = services.heap().ok_or_else(|| operand_error(pc))?;
+                    let key = object_monitor_key(heap, reference, Some(pc))
+                        .map_err(|error| contextualize(bodies, error, current, origin))?;
                     let result = if enter {
-                        ledger.enter_explicit(depth, MonitorKey::Object(handle))
+                        ledger.enter_explicit(depth, key)
                     } else {
-                        ledger.exit_explicit(depth, MonitorKey::Object(handle))
+                        ledger.exit_explicit(depth, key)
                     };
                     result.map_err(|error| {
                         contextualize(bodies, monitor_failure(error, Some(pc)), current, origin)
@@ -2814,6 +2864,52 @@ fn run_engine(
                             .map_err(|error| contextualize(bodies, error, current, call_site))?;
                         (target, None, None)
                     };
+                    // Only the explicitly mirror-enabled session may bind this one
+                    // selected native. No Code, synthetic frame or second fuel debit.
+                    if capabilities.class_mirrors {
+                        if let (Services::Fields { context, .. }, MethodKey::Registered(method)) =
+                            (&mut services, target)
+                        {
+                            let diagnose = |error| contextualize(bodies, error, current, call_site);
+                            if context
+                                .is_object_get_class(method)
+                                .map_err(|error| diagnose(class_mirror_failure(error, Some(pc))))?
+                            {
+                                let receiver =
+                                    receiver.ok_or_else(|| diagnose(operand_error(pc)))?;
+                                if !kind.is_instance()
+                                    || arguments.as_ref().is_none_or(|args| !args.is_empty())
+                                {
+                                    return Err(diagnose(operand_error(pc)));
+                                }
+                                let caller = java
+                                    .frames
+                                    .last_mut()
+                                    .ok_or_else(|| diagnose(operand_error(pc)))?;
+                                caller.stack.reserve_one(pc).map_err(diagnose)?;
+                                let ty = context
+                                    .reference_type(receiver)
+                                    .map_err(|error| {
+                                        diagnose(class_mirror_failure(
+                                            Box::new(crabspot_runtime::ClassMirrorError::Type(
+                                                Box::new(error),
+                                            )),
+                                            Some(pc),
+                                        ))
+                                    })?
+                                    .ok_or_else(|| diagnose(operand_error(pc)))?;
+                                let mirror =
+                                    context.class_mirror_for_type(ty).map_err(|error| {
+                                        diagnose(class_mirror_failure(error, Some(pc)))
+                                    })?;
+                                caller
+                                    .stack
+                                    .push(Value::Reference(mirror), pc)
+                                    .map_err(diagnose)?;
+                                continue;
+                            }
+                        }
+                    }
                     let target_class = bodies
                         .class(target)
                         .map_err(|error| contextualize(bodies, error, target, call_site))?;
@@ -3682,7 +3778,7 @@ fn step(
     services: &mut Services<'_, '_>,
     exception_profile: Option<&ExceptionProfile>,
     initialization_claim: Option<&InitializationClaim>,
-    monitors: bool,
+    capabilities: EngineCapabilities,
 ) -> Result<Action, ExecutionError> {
     let pc = frame.pc;
     let locals = &mut frame.locals;
@@ -3693,7 +3789,7 @@ fn step(
         .instruction_at(pc)
         .ok_or_else(|| ExecutionError::new(Some(pc), E::InstructionPointerOutsideCode))?;
     let opcode = instruction.opcode;
-    if matches!(opcode, 0xc2 | 0xc3) && !monitors {
+    if matches!(opcode, 0xc2 | 0xc3) && capabilities.monitors.is_none() {
         return Err(ExecutionError::new(
             Some(pc),
             E::UnsupportedInstruction(opcode),
@@ -4009,7 +4105,26 @@ fn step(
             let Operands::Constant(index) = operands else {
                 return Err(operand_error(pc));
             };
-            stack.push(constant(class, *index, opcode == 0x14, pc)?, pc)?;
+            if capabilities.class_mirrors
+                && opcode != 0x14
+                && matches!(class.constant_pool.get(*index), Ok(Constant::Class { .. }))
+            {
+                let Services::Fields { context, .. } = services else {
+                    return Err(operand_error(pc));
+                };
+                let origin = frame.method.owner().ok_or_else(|| operand_error(pc))?;
+                // Resolution may become terminal; a later stack failure must not mint.
+                let ty = context
+                    .resolve_class_mirror_type(origin, *index)
+                    .map_err(|error| class_mirror_failure(error, Some(pc)))?;
+                stack.reserve_one(pc)?;
+                let mirror = context
+                    .class_mirror_for_type(ty)
+                    .map_err(|error| class_mirror_failure(error, Some(pc)))?;
+                stack.push(Value::Reference(mirror), pc)?;
+            } else {
+                stack.push(constant(class, *index, opcode == 0x14, pc)?, pc)?;
+            }
         }
         0x15..=0x18 => {
             let index = local(operands, pc)?;
@@ -4760,7 +4875,7 @@ mod resource_tests {
                 &mut Services::Heap(&mut heap),
                 None,
                 None,
-                false,
+                EngineCapabilities::default(),
             ) {
                 Err(error) => error,
                 Ok(_) => panic!("foreign reference accepted"),
@@ -5451,7 +5566,10 @@ mod monitor_bridge_tests {
                     &mut Services::Heap(&mut heap),
                     None,
                     None,
-                    true,
+                    EngineCapabilities {
+                        monitors: Some(Default::default()),
+                        class_mirrors: false,
+                    },
                 ) {
                     Err(e) => e,
                     Ok(_) => panic!("invalid monitor operand accepted"),
@@ -5477,6 +5595,46 @@ mod monitor_bridge_tests {
         assert_eq!(
             e.kind,
             E::UnsupportedMethod("synchronized methods require monitor services")
+        );
+    }
+}
+
+#[cfg(test)]
+mod class_mirror_bridge_tests {
+    use super::*;
+    use crabspot_runtime::ClassMirrorError;
+    use std::error::Error;
+    #[test]
+    fn only_direct_class_literal_access_denial_becomes_a_vm_category() {
+        let direct = class_mirror_failure(Box::new(ClassMirrorError::IllegalAccess), Some(9));
+        assert_eq!(
+            direct.kind,
+            E::UnsupportedVmException(VmExceptionKind::IllegalAccessError)
+        );
+        for source in [
+            ClassMirrorError::Type(Box::new(TypeAccessError::Java(
+                TypeJavaError::IllegalAccess,
+            ))),
+            ClassMirrorError::Context(Box::new(FieldAccessError::Java(
+                FieldJavaError::IllegalAccess,
+            ))),
+            ClassMirrorError::InvalidBinding("unsupported core declaration"),
+        ] {
+            let error = class_mirror_failure(Box::new(source.clone()), Some(12));
+            assert_eq!(error.kind, E::ClassMirror(Box::new(source)));
+            assert!(
+                error
+                    .source()
+                    .unwrap()
+                    .downcast_ref::<ClassMirrorError>()
+                    .is_some()
+            );
+            assert_eq!(error.offset, Some(12));
+        }
+        let nested = MethodAccessError::ClassMirror(Box::new(ClassMirrorError::IllegalAccess));
+        assert_eq!(
+            method_failure(nested.clone(), 17).unwrap_err().kind,
+            E::MethodAccess(Box::new(nested))
         );
     }
 }

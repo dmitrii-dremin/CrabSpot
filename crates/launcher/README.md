@@ -43,7 +43,7 @@ platform/application name overlaps, previews and class versions outside 51–65
 are rejected. Package-info remains ordinary metadata.
 
 The child application namespace imports exactly Object, String, Throwable,
-Error, Cloneable and Serializable through checked actual delegation. Each same
+Error, Cloneable, Serializable and Class through checked actual delegation. Each same
 record supplies the verifier binding and immutable paid route index. Other
 platform classes remain facts under their own bootstrap namespace. Application
 Class CP entries are eagerly checked, including dead code. Descriptor-only
@@ -104,3 +104,45 @@ claim. This authorized phase can differ from raw reference-VM malformed-locking
 observations. There are no application-visible monitor inspection natives, class
 mirrors, waits, blocking or concurrent Java threads. Existing lower-level unmonitored
 APIs retain their old instruction/declaration gates.
+
+
+## Passive Class objects and getClass
+
+Ordinary and custom-monitor directory entry points now enable canonical mirrors.
+`run_directory_application_with_mirror_limits` takes the same image options plus
+MonitorLimits and ClassMirrorLimits. Defaults allow 16,384 heap mirrors and 262,144
+domain Class sites; existing options and usage structure layouts are unchanged.
+The CLI syntax and legacy inspect behavior are unchanged.
+
+Class is now the seventh universally requested bootstrap import, even when an
+application compares class literals typed as Object and has no Class spelling in
+its CP. Its actual superclass/interface closure is proved, witnessed and admitted;
+those dependencies do not become additional application-visible imports. This can
+increase image proof, plan, slot and orchestration usage. Supplied synthetic Class
+stubs must deliberately be public final ordinary subclasses of bootstrap Object.
+The Object native declaration is checked lazily, so an unrelated numeric program
+need not contain a getClass declaration in its test-only bootstrap metadata.
+
+Setup enables the domain Class-site store, binds the reference universe, then binds
+mirror issuance on the pristine heap before opening the one checked context. It
+still selects the opaque actual main, allocates static state and one real empty
+String array, and runs one initialization evaluation. Class and represented types
+are not initialized by a passive literal or getClass. Genuine Class static active
+use still runs its actual initializer and can stop at an unsupported registerNatives
+operation; this feature does not mark the Java library initialized.
+
+Only the real selected bootstrap Object.getClass declaration can use the one
+no-Code native path. Unsupported introspection/native overloads and Class instance
+state remain guarded. Mirrors can flow through ordinary application storage and
+reference arrays. A nominal mirror's explicit lock and its represented class's
+static synchronized lock are identical. The public library test sets exact
+recursion limits to verify lock identity. The physical CLI runs the same program
+with default limits, without a fake holdsLock native. Array mirrors remain distinct from nominal locks and other array types.
+
+Typed mirror and ordinary instance quotas retain earlier Java writes. Resolution
+outcomes and issued objects have separate lifetimes; the closed image can reject
+missing definitions before execution rather than fabricate a JVM linkage object.
+The profile supplies no scalar primitive/void mirrors, reflective Class services,
+Java ClassLoader objects, general native access, VM-created Throwable or String
+implementation. Genuine reference programs and their vendor-specific failure stages
+remain separate coordinator evidence.

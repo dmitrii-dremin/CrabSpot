@@ -47,6 +47,7 @@ pub enum ApplicationResource {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SetupKind {
+    ClassMirror,
     Member,
     Heap,
     Instance,

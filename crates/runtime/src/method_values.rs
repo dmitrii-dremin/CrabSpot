@@ -283,6 +283,10 @@ impl<'a> FieldResolutionContext<'a> {
             )
             .into());
         }
+        if let Some(receiver) = receiver {
+            self.heap()
+                .check_class_mirror_method_entry(method, receiver)?;
+        }
         if !signature.nominal || member.access_flags & 8 != 0 {
             return Ok(());
         }
@@ -291,6 +295,19 @@ impl<'a> FieldResolutionContext<'a> {
                 "instance method profile has no receiver",
             ))
         })?;
+        if self.class_sites_enabled() && self.get_class_signature(method)? {
+            if let Some(actual @ crate::ReferenceType::Array { .. }) =
+                self.reference_type(receiver)?
+            {
+                if self.is_assignable(actual, crate::ReferenceType::Class(method.owner()))? {
+                    return Ok(());
+                }
+                return Err(FieldAccessError::InvalidState(
+                    "array does not implement native Object slot",
+                )
+                .into());
+            }
+        }
         let actual = self.heap().instance_class(receiver)?;
         self.require_method_receiver(actual, method.owner())?;
         if self.is_member_checked() {

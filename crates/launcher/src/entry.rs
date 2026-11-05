@@ -25,6 +25,7 @@ pub(crate) fn run_prepared(
     image: PreparedImage,
     observations: &[StaticIntObservation<'_>],
     monitors: crabspot_interpreter::MonitorLimits,
+    mirrors: crabspot_runtime::ClassMirrorLimits,
 ) -> Result<ApplicationRun> {
     let PreparedImage {
         mut domain,
@@ -44,6 +45,18 @@ pub(crate) fn run_prepared(
             usage,
         ));
     }
+    domain
+        .enable_class_mirror_sites(mirrors.max_class_sites)
+        .map_err(|source| {
+            meter.error(
+                S::Setup,
+                K::Setup {
+                    kind: SetupKind::ClassMirror,
+                    source,
+                },
+                usage,
+            )
+        })?;
     heap.bind_reference_types(
         domain.registry(),
         ReferenceTypeUniverse {
@@ -63,6 +76,17 @@ pub(crate) fn run_prepared(
             usage,
         )
     })?;
+    heap.bind_class_mirrors(domain.registry(), roles.core.class, mirrors.max_mirrors)
+        .map_err(|source| {
+            meter.error(
+                S::Setup,
+                K::Setup {
+                    kind: SetupKind::ClassMirror,
+                    source,
+                },
+                usage,
+            )
+        })?;
     let mut context = domain
         .member_context_unnamed_modules(&mut heap, options.field, options.loading_work)
         .map_err(|source| meter.error(S::Setup, K::Member(source), usage))?;
@@ -131,7 +155,7 @@ pub(crate) fn run_prepared(
             )
         })?;
     usage.argument_arrays = 1;
-    let mut session = InitializationSession::new_with_monitors(
+    let mut session = InitializationSession::new_with_class_mirrors(
         &mut context,
         &statics,
         &exceptions,

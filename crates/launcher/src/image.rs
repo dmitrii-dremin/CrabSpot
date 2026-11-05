@@ -11,13 +11,14 @@ use std::{
     collections::{HashMap, HashSet},
     hash::BuildHasher,
 };
-const IMPORTS: [&str; 6] = [
+const IMPORTS: [&str; 7] = [
     "java/lang/Object",
     "java/lang/String",
     "java/lang/Throwable",
     "java/lang/Error",
     "java/lang/Cloneable",
     "java/io/Serializable",
+    "java/lang/Class",
 ];
 pub(crate) struct BootstrapRoles {
     pub(crate) core: VerificationCore,

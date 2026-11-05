@@ -153,3 +153,7 @@ jobs:
         run: python tools/verify_application_entry.py
       - name: Run synchronized applications and check monitor failures on CrabSpot
         run: python tools/verify_monitor_entry.py
+      - name: Run class literals and getClass through CrabSpot
+        run: |
+          python -m unittest discover -s tools -p test_class_mirror_launch.py
+          python tools/verify_class_mirror_entry.py

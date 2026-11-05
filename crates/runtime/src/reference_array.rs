@@ -126,7 +126,7 @@ fn reference_payload(payload: &EntryPayload) -> Result<&ReferenceArrayPayload, H
             expected: HeapEntryKind::ReferenceArray,
             actual: HeapEntryKind::PrimitiveArray,
         }),
-        EntryPayload::Instance(_) => Err(HeapError::WrongEntryKind {
+        EntryPayload::Instance(_) | EntryPayload::Mirror(_) => Err(HeapError::WrongEntryKind {
             expected: HeapEntryKind::ReferenceArray,
             actual: HeapEntryKind::Instance,
         }),

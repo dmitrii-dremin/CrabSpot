@@ -46,6 +46,13 @@ pub enum InstanceClassKind {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum InstanceError {
     Disabled,
+    ReservedClassObject {
+        class: ClassId,
+    },
+    OpaqueClassObject {
+        class: ClassId,
+    },
+    MirrorLayoutSealed,
     Registry(RegistryError),
     Heap(HeapError),
     ForeignRegistry,
@@ -87,6 +94,13 @@ pub enum InstanceError {
 impl fmt::Display for InstanceError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ReservedClassObject { class } => {
+                write!(f, "ordinary allocation of VM Class {class:?} is sealed")
+            }
+            Self::OpaqueClassObject { class } => write!(f, "Class {class:?} has opaque VM state"),
+            Self::MirrorLayoutSealed => {
+                f.write_str("mirror binding seals the admitted layout graph")
+            }
             Self::Disabled => f.write_str("instance storage is disabled"),
             Self::Registry(e) => write!(f, "instance metadata lookup failed: {e}"),
             Self::Heap(e) => write!(f, "instance heap operation failed: {e}"),
@@ -317,12 +331,12 @@ impl Shape {
 }
 #[derive(Debug)]
 pub(crate) struct InstanceState {
-    options: InstanceOptions,
+    pub(crate) options: InstanceOptions,
     registry: Option<u64>,
     shapes: HashMap<ClassId, Shape>,
     edges: usize,
     fields: usize,
-    count: usize,
+    pub(crate) count: usize,
     slots: usize,
 }
 impl InstanceState {
@@ -404,17 +418,22 @@ pub(crate) struct ConstructorWrite {
     kind: FieldKind,
     is_final: bool,
 }
-fn instance(payload: &EntryPayload) -> Result<&InstancePayload, HeapError> {
+fn instance(payload: &EntryPayload) -> Result<&InstancePayload, InstanceError> {
     match payload {
         EntryPayload::Instance(value) => Ok(value),
+        EntryPayload::Mirror(_) => Err(InstanceError::InvalidMetadata(
+            "opaque mirror passed to unguarded instance helper",
+        )),
         EntryPayload::Array(_) => Err(HeapError::WrongEntryKind {
             expected: HeapEntryKind::Instance,
             actual: HeapEntryKind::PrimitiveArray,
-        }),
+        }
+        .into()),
         EntryPayload::ReferenceArray(_) => Err(HeapError::WrongEntryKind {
             expected: HeapEntryKind::Instance,
             actual: HeapEntryKind::ReferenceArray,
-        }),
+        }
+        .into()),
     }
 }
 fn same_layout(left: &ClassLayout, right: &ClassLayout) -> bool {
@@ -579,6 +598,27 @@ fn parse_error(error: ParseError) -> InstanceError {
 }
 
 impl ManagedHeap {
+    pub(crate) fn check_reserved_class(&self, class: ClassId) -> Result<(), InstanceError> {
+        if self.mirrors.as_ref().is_some_and(|m| m.class == class) {
+            return Err(InstanceError::ReservedClassObject { class });
+        }
+        Ok(())
+    }
+    pub(crate) fn reject_opaque(&self, reference: Reference) -> Result<(), InstanceError> {
+        if matches!(self.entry(reference)?.payload, EntryPayload::Mirror(_)) {
+            let class = self
+                .mirrors
+                .as_ref()
+                .ok_or(InstanceError::InvalidMetadata("mirror without binding"))?
+                .class;
+            return Err(InstanceError::OpaqueClassObject { class });
+        }
+        Ok(())
+    }
+    fn ordinary_instance(&self, reference: Reference) -> Result<&InstancePayload, InstanceError> {
+        self.reject_opaque(reference)?;
+        instance(&self.entry(reference)?.payload)
+    }
     pub(crate) fn instance_graph_registry(&self) -> Result<Option<u64>, InstanceError> {
         Ok(self
             .instances
@@ -711,6 +751,9 @@ impl ManagedHeap {
                         return Err(InstanceError::LayoutConflict { class });
                     }
                 } else {
+                    if self.mirrors.is_some() {
+                        return Err(InstanceError::MirrorLayoutSealed);
+                    }
                     increased(
                         state.shapes.len(),
                         candidates
@@ -879,6 +922,7 @@ impl ManagedHeap {
         Ok((shape.superclass, shape.fields.len()))
     }
     pub fn allocate_instance(&mut self, class: ClassId) -> Result<Reference, InstanceError> {
+        self.check_reserved_class(class)?;
         let state = self.instances.as_ref().ok_or(InstanceError::Disabled)?;
         let shape = state.shape(class)?;
         let kind = if shape.flags & 0x200 != 0 {
@@ -978,7 +1022,15 @@ impl ManagedHeap {
     }
     pub fn instance_class(&self, reference: Reference) -> Result<ClassId, InstanceError> {
         self.instances.as_ref().ok_or(InstanceError::Disabled)?;
-        let class = instance(&self.entry(reference)?.payload)?.class;
+        let class = match &self.entry(reference)?.payload {
+            EntryPayload::Mirror(_) => {
+                self.mirrors
+                    .as_ref()
+                    .ok_or(InstanceError::InvalidMetadata("mirror without binding"))?
+                    .class
+            }
+            payload => instance(payload)?.class,
+        };
         self.instances
             .as_ref()
             .ok_or(InstanceError::Disabled)?
@@ -987,7 +1039,7 @@ impl ManagedHeap {
     }
     pub fn get_field(&self, reference: Reference, field: FieldId) -> Result<Value, InstanceError> {
         let state = self.instances.as_ref().ok_or(InstanceError::Disabled)?;
-        let object = instance(&self.entry(reference)?.payload)?;
+        let object = self.ordinary_instance(reference)?;
         let (slot, _) = state.field(object.class, field)?;
         object
             .values
@@ -1006,6 +1058,7 @@ impl ManagedHeap {
         let state = self.instances.as_ref().ok_or(InstanceError::Disabled)?;
         let handle = reference.heap_ref().ok_or(HeapError::NullReference)?;
         let index = self.checked_handle(handle)?;
+        self.reject_opaque(reference)?;
         let object = instance(
             &self
                 .entries
@@ -1048,6 +1101,7 @@ impl ManagedHeap {
         let state = self.instances.as_ref().ok_or(InstanceError::Disabled)?;
         let handle = receiver.heap_ref().ok_or(HeapError::NullReference)?;
         let index = self.checked_handle(handle)?;
+        self.reject_opaque(receiver)?;
         let object = instance(
             &self
                 .entries
@@ -1095,7 +1149,7 @@ impl ManagedHeap {
         field: FieldId,
     ) -> Result<ConstructorWrite, InstanceError> {
         let state = self.instances.as_ref().ok_or(InstanceError::Disabled)?;
-        let object = instance(&self.entry(receiver)?.payload)?;
+        let object = self.ordinary_instance(receiver)?;
         let (slot, own) = state.field(object.class, field)?;
         let member = registry.field(field)?;
         let constructor = registry.method(authority.method())?;
@@ -1153,7 +1207,7 @@ impl ManagedHeap {
         let handle = proof.receiver.heap_ref().ok_or(HeapError::NullReference)?;
         let index = self.checked_handle(handle)?;
         let state = self.instances.as_ref().ok_or(InstanceError::Disabled)?;
-        let object = instance(&self.entry(proof.receiver)?.payload)?;
+        let object = self.ordinary_instance(proof.receiver)?;
         let (slot, own) = state.field(object.class, proof.field)?;
         let member = registry.field(proof.field)?;
         let constructor = registry.method(proof.constructor)?;
@@ -1227,7 +1281,7 @@ impl ManagedHeap {
         reference: Reference,
     ) -> Result<impl Iterator<Item = HeapRef> + '_, HeapError> {
         let (values, references): (&[Value], &[Reference]) = match &self.entry(reference)?.payload {
-            EntryPayload::Array(_) => (&[], &[]),
+            EntryPayload::Array(_) | EntryPayload::Mirror(_) => (&[], &[]),
             EntryPayload::ReferenceArray(array) => (&[], array.values.as_slice()),
             EntryPayload::Instance(object) => (object.values.as_slice(), &[]),
         };

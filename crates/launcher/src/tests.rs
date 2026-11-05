@@ -127,9 +127,9 @@ fn sealed_subset_proves_every_application_and_excludes_fact_only_layouts() {
         &definition("app/A", Some("java/lang/Object"), 0x21, true, false),
     );
     let p = prepared(&t, Default::default());
-    assert_eq!(p.usage.proved_classes, 7);
-    assert_eq!(p.usage.preparation_witnesses, 7);
-    assert_eq!(p.heap.retained_layout_classes(), 7);
+    assert_eq!(p.usage.proved_classes, 8);
+    assert_eq!(p.usage.preparation_witnesses, 8);
+    assert_eq!(p.heap.retained_layout_classes(), 8);
     assert_eq!(p.domain.registry().definition_count(), 10);
     assert_eq!(p.heap.allocated_arrays(), 0);
     assert_eq!(p.heap.allocated_instances(), 0);
@@ -504,7 +504,12 @@ fn path_quota_is_checked_before_retaining_leaf_or_copying_parent() {
 fn missing_or_closed_platform_cp_and_cycle_fail_before_verification() {
     let t = Tree::new();
     t.core();
-    for (parent, expected) in [("missing/Base", 0), ("java/lang/Class", 1), ("app/A", 2)] {
+    for (parent, expected) in [
+        ("missing/Base", 0),
+        ("java/lang/invoke/MethodType", 1),
+        ("app/A", 2),
+        ("java/lang/Class", 2),
+    ] {
         t.put(
             false,
             "app/A",
@@ -613,7 +618,7 @@ fn max_small_image_policy_and_all_boundaries_use_actual_additions() {
         },
         ..Default::default()
     };
-    assert_eq!(prepared(&t, o).usage.proved_classes, 7);
+    assert_eq!(prepared(&t, o).usage.proved_classes, 8);
 }
 #[test]
 fn huge_semantic_input_is_rejected_before_width_walk_or_io() {

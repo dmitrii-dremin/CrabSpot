@@ -293,7 +293,7 @@ impl Ledger {
 pub struct LoadingDomain {
     registry: DefinitionRegistry,
     ledger: Ledger,
-    members: Option<member::Store>,
+    pub(crate) members: Option<member::Store>,
 }
 impl fmt::Debug for LoadingDomain {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
