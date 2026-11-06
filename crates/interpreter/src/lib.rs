@@ -5,6 +5,9 @@
 //! Neither profile loads/fully links/verifies classes, allocates exception objects,
 //! or provides Java startup.
 //! Unsupported declarations and executed instructions fail explicitly.
+// Reuse independently emitted public fixtures in private protocol-guard tests.
+#[cfg(test)]
+extern crate self as crabspot_interpreter;
 mod construction;
 mod error;
 mod execute;
@@ -27,7 +30,7 @@ pub use execute::{
 
 pub use initialization::{
     InitializationLimits, InitializationOutcome, InitializationResource, InitializationSession,
-    InitializationStatus,
+    InitializationStatus, StringEqualityUsage,
 };
 
 pub use construction::ConstructionLimits;

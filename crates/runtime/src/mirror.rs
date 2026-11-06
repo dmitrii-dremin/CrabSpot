@@ -236,6 +236,19 @@ impl ManagedHeap {
             _ => None,
         })
     }
+    // Scalar reverse identity check; the caller has already checked namespace
+    // affinity and the original live heap handle. No mint or text traversal.
+    pub(crate) fn canonical_mirror(
+        &self,
+        reference: Reference,
+        represented: ReferenceType,
+    ) -> Result<bool, HeapError> {
+        self.entry(reference)?;
+        Ok(self
+            .mirrors
+            .as_ref()
+            .is_some_and(|m| m.index.get(&represented).copied() == reference.heap_ref()))
+    }
     /// The interpreter calls this for preselected/direct instance roots as well
     /// as ordinary invocation. It does not authorize a native implementation.
     pub fn check_class_mirror_method_entry(
@@ -243,6 +256,21 @@ impl ManagedHeap {
         method: MethodId,
         receiver: Reference,
     ) -> Result<(), InstanceError> {
+        if self
+            .string_equality
+            .as_ref()
+            .is_some_and(|e| e.class_method(method))
+        {
+            let EntryPayload::Mirror(represented) = self.entry(receiver)?.payload else {
+                return Err(
+                    HeapError::InvalidState("assertion method receiver is not a mirror").into(),
+                );
+            };
+            if !self.canonical_mirror(receiver, represented)? {
+                return Err(HeapError::InvalidState("assertion method mirror map differs").into());
+            }
+            return Ok(());
+        }
         if self
             .mirrors
             .as_ref()

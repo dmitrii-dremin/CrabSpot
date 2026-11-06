@@ -29,7 +29,12 @@ def physical_entry(destination, original, main, owner, expected):
     descriptor = "([Ljava/lang/String;)V"
     code = b"\x2a" + op(0xb8, c.ref(10, main.replace(".", "/"), "main", descriptor))
     for field, value in expected:
-        code += b"\x04" + op(0xb2, c.ref(9, owner, field, "I")) + bytes((0x10, value, 0x82))
+        code += b"\x04" + op(0xb2, c.ref(9, owner, field, "I"))
+        if -128 <= value <= 127:
+            code += b"\x10" + value.to_bytes(1, "big", signed=True)
+        else:
+            code += op(0x13, c.constant(b"\x03" + value.to_bytes(4, "big", signed=True)))
+        code += b"\x82"
         # With x = actual ^ expected, 1 / (1 ^ ((x | -x) >>> 31)) succeeds only for x == 0.
         code += bytes.fromhex("59 74 80 10 1f 7c 04 82 6c 57")
     stage(destination, {"physical/Entry.class": c.finish([], [(9, "main", descriptor, code+b"\xb1", 3, 1)])})

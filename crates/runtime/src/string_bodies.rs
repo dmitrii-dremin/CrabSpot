@@ -47,6 +47,9 @@ pub enum StringBodyErrorKind {
     InvalidState(&'static str),
     PolicyConflict,
     InvalidReceiver,
+    UnsupportedAssertionTarget {
+        represented: ReferenceType,
+    },
     BackingLength,
     AllocationFailure,
     Limit {
@@ -161,6 +164,9 @@ pub struct StringBodyDiscovery {
 #[path = "string_body_probe.rs"]
 mod probe;
 pub use probe::probe_compact_string_bodies;
+#[path = "string_equality.rs"]
+mod equality;
+pub use equality::*;
 #[derive(Debug)]
 pub(crate) struct BodyState {
     plan: CompactStringBodyPlan,
@@ -316,6 +322,10 @@ impl ManagedHeap {
             .string_bodies
             .as_ref()
             .is_some_and(|b| b.permits(method))
+            || self
+                .string_equality
+                .as_ref()
+                .is_some_and(|e| e.string_method(method))
         {
             self.body_affinity()?;
             Ok(true)
@@ -323,7 +333,7 @@ impl ManagedHeap {
             Ok(false)
         }
     }
-    fn body_affinity(&self) -> R<()> {
+    pub(crate) fn body_affinity(&self) -> R<()> {
         let b = self.string_bodies.as_ref().ok_or_else(|| {
             error(StringBodyErrorKind::InvalidBinding(
                 "String bodies are not bound",

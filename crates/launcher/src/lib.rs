@@ -12,7 +12,8 @@ mod options;
 mod source;
 use crabspot_classfile::JavaString;
 use crabspot_interpreter::ExecutionError;
-pub use crabspot_interpreter::MonitorLimits;
+pub use crabspot_interpreter::{MonitorLimits, StringEqualityUsage};
+pub use crabspot_runtime::BootstrapAssertionPolicy;
 pub use crabspot_runtime::{
     ClassMirrorLimits, StringBodyDiscoveryLimits, StringBodyDiscoveryUsage, StringBodyLimits,
     StringBodyUsage, StringLimits, StringUsage,
@@ -85,6 +86,8 @@ pub struct ApplicationUsage {
     pub strings: StringUsage,
     pub string_body_discovery: StringBodyDiscoveryUsage,
     pub string_bodies: StringBodyUsage,
+    pub string_equality_discovery: StringBodyDiscoveryUsage,
+    pub string_equality: StringEqualityUsage,
     pub orchestration: OrchestrationUsage,
 }
 #[cfg(test)]
@@ -171,5 +174,20 @@ pub fn run_directory_application_with_string_bodies(
     invocation::validate(&invocation)?;
     let prepared =
         image::prepare_with_string_bodies(directories, entry, observations, options, profile)?;
+    entry::run_prepared(prepared, observations, invocation)
+}
+
+/// Extend a compatible genuine compact image with equality and bootstrap policy.
+pub fn run_directory_application_with_string_equality(
+    directories: ApplicationDirectories<'_>,
+    entry: &str,
+    observations: &[StaticIntObservation<'_>],
+    options: ApplicationOptions,
+    invocation: ApplicationInvocation<'_>,
+    profile: ApplicationStringEqualityProfile,
+) -> std::result::Result<ApplicationRun, Box<ApplicationError>> {
+    invocation::validate(&invocation)?;
+    let prepared =
+        image::prepare_with_string_equality(directories, entry, observations, options, profile)?;
     entry::run_prepared(prepared, observations, invocation)
 }

@@ -999,7 +999,8 @@ The launcher must prove and admit their full executable closure separately.
 
 A pristine String-bound heap may bind that plan once with fixed backing-work
 limits. Binding requires no entries, prior String work or initialization claim;
-matching repeats preserve state. Only the checked length/isEmpty/coder bodies
+matching repeats preserve state. The compact-body binding alone opens only the
+length/isEmpty/coder bodies
 open on issued String receivers. They execute their actual Java Code, as does the
 recognized initializer and comparator constructor. Ordinary allocation, raw field
 access, unrelated String bodies and arbitrary replacement recipes remain sealed.
@@ -1031,3 +1032,49 @@ exact names without resolving unrelated entries. Terminal member replay retains
 its old warm checks and does not repeat nest traversal. Different runtime
 packages still deny private access, and legacy domains preserve their prior
 unsupported-nest boundary.
+
+## Genuine String equality and bootstrap assertions
+
+`probe_compact_string_equality` is a second independently funded, metadata-only
+probe over an existing compact plan. It recognizes the complete String.equals,
+StringLatin1.equals/initializer and Class.desiredAssertionStatus/initializer
+recipes, including the inactive loader branch, monitors and three handler rows.
+Native declarations and all dependent field roles are checked exactly. Branches
+and handlers use logical instruction boundaries, accepting short/wide Class
+literals and unrelated constant-pool numbering. A differing initial equals recipe
+returns no plan; an incompatible dependent role after that match is a typed error.
+No class bytes, method names alone or vendor hashes grant execution authority.
+
+The opaque equality plan adds StringLatin1 as its sole new executable root. A
+caller must still prove, witness and admit every executable class. ClassLoader
+may remain a genuine verification fact; no ClassLoader object, layout or Java
+loader execution is supplied by a null bootstrap loader view.
+
+`bind_compact_string_equality` fixes the bootstrap assertion policy and checked
+Class/String/helper identities on the existing compact heap. First binding
+requires no String usage/backing work, issued mirrors or initialization claim;
+unrelated ordinary arrays do not conflict. Matching repeats preserve state and
+incompatible policy/authority changes fail. This grants only actual String.equals
+and Class.desiredAssertionStatus instance Code entry. Other Class and String
+bodies, raw storage and ordinary construction of their opaque values stay closed.
+
+The exact checked Class.classLoader slot returns null for canonical mirrors of
+ordinary bootstrap classes/interfaces, after normal field resolution, access and
+receiver checks. Application and array mirrors may enter the genuine Java role,
+but that actual field read fails with UnsupportedAssertionTarget. The original
+live handle and canonical represented-type map are checked without minting,
+initializing the represented class or scanning text. Raw reads remain opaque.
+
+The runtime exposes only readonly native-role classification, expected target at
+a matched caller/site, and policy inspection. A bound Class candidate costs one
+existing Field work step, including a non-role method; absent binding/non-Class
+candidates add none. Site/policy checks add no Field work. Recognized candidates and site/target
+checks require the same checked class-site namespace as mirrors; a legacy
+resolver cannot substitute for it. No public API registers
+natives, increments query effects or completes initialization. The interpreter's
+unique heap-claiming session authenticates the pending b8 continuation and owns
+registration/query counters. It executes the real Class initializer before the
+native effect, retaining registration and earlier static writes on later failure.
+This provides a fixed system-assertion policy. General class-loader assertion
+tables, reflection, native library loading, String hashCode and charAt remain
+open. Supplied Java frames and the byte loop compute equality.

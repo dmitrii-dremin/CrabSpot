@@ -37,6 +37,8 @@ pub(crate) fn run_prepared(
         mut heap,
         string_body_plan,
         string_body_limits,
+        string_equality_plan,
+        bootstrap_assertions,
         roles,
         named,
         app_loader,
@@ -109,6 +111,19 @@ pub(crate) fn run_prepared(
     let result = (|| {
         if let Some(plan) = &string_body_plan {
             heap.bind_compact_string_bodies(domain.registry(), plan, string_body_limits)
+                .map_err(|source| {
+                    meter.error(
+                        S::Setup,
+                        K::Setup {
+                            kind: SetupKind::StringBody,
+                            source,
+                        },
+                        usage,
+                    )
+                })?;
+        }
+        if let Some(plan) = &string_equality_plan {
+            heap.bind_compact_string_equality(domain.registry(), plan, bootstrap_assertions)
                 .map_err(|source| {
                     meter.error(
                         S::Setup,
@@ -250,6 +265,8 @@ pub(crate) fn run_prepared(
             options.exceptions,
             options.construction,
         );
+        // Preserve private session history even if later status/observation fails.
+        usage.string_equality = session.string_equality_usage();
         let status = session.status(named).map_err(|source| {
             meter.error(
                 S::Setup,

@@ -30,6 +30,8 @@ pub(crate) struct PreparedImage {
     pub(crate) heap: ManagedHeap,
     pub(crate) string_body_plan: Option<CompactStringBodyPlan>,
     pub(crate) string_body_limits: StringBodyLimits,
+    pub(crate) string_equality_plan: Option<CompactStringEqualityPlan>,
+    pub(crate) bootstrap_assertions: BootstrapAssertionPolicy,
     pub(crate) roles: BootstrapRoles,
     pub(crate) named: ClassId,
     pub(crate) app_loader: LoaderId,
@@ -535,6 +537,25 @@ pub(crate) fn prepare_with_string_bodies(
     options: ApplicationOptions,
     profile: crate::ApplicationStringBodyProfile,
 ) -> Result<PreparedImage> {
+    prepare_with_string_equality(
+        directories,
+        entry,
+        observations,
+        options,
+        crate::ApplicationStringEqualityProfile {
+            bodies: profile,
+            ..Default::default()
+        },
+    )
+}
+pub(crate) fn prepare_with_string_equality(
+    directories: ApplicationDirectories<'_>,
+    entry: &str,
+    observations: &[StaticIntObservation<'_>],
+    options: ApplicationOptions,
+    equality: crate::ApplicationStringEqualityProfile,
+) -> Result<PreparedImage> {
+    let profile = equality.bodies;
     let mut meter = Meter::new(options.image);
     let mut used = ApplicationUsage::default();
     if options.parse.allow_preview {
@@ -813,6 +834,29 @@ pub(crate) fn prepare_with_string_bodies(
             used,
         ));
     }
+    let string_equality_plan = if let Some(body) = &string_body_plan {
+        let discovery = probe_compact_string_equality(domain.registry(), body, equality.discovery)
+            .map_err(|source| {
+                used.string_equality_discovery = source.discovery_usage;
+                meter.error(S::Verification, K::StringBody(source), used)
+            })?;
+        used.string_equality_discovery = discovery.usage;
+        discovery.plan
+    } else {
+        None
+    };
+    if string_equality_plan.is_none()
+        && equality.mode == crate::StringEqualityMode::RequireCompactEquality
+    {
+        return Err(meter.error(
+            S::Verification,
+            K::StringBody(Box::new(StringBodyError {
+                kind: StringBodyErrorKind::UnsupportedShape,
+                discovery_usage: used.string_equality_discovery,
+            })),
+            used,
+        ));
+    }
     if string_body_plan.is_some() {
         domain
             .enable_nest_access()
@@ -835,6 +879,13 @@ pub(crate) fn prepare_with_string_bodies(
                 .map_err(|_| meter.alloc(S::Verification, used))?;
             pending.push(id);
         }
+    }
+    if let Some(plan) = &string_equality_plan {
+        meter.retain(1, S::Verification, used)?;
+        pending
+            .try_reserve(1)
+            .map_err(|_| meter.alloc(S::Verification, used))?;
+        pending.push(plan.private_root());
     }
     while let Some(id) = pending.pop() {
         meter.work(1, S::Verification, used)?;
@@ -960,6 +1011,8 @@ pub(crate) fn prepare_with_string_bodies(
     Ok(PreparedImage {
         string_body_plan,
         string_body_limits: profile.backing,
+        string_equality_plan,
+        bootstrap_assertions: equality.bootstrap_assertions,
         domain,
         routes,
         heap,

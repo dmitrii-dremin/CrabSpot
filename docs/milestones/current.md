@@ -1,4 +1,38 @@
-# Current checkpoint: supplied Java String bodies and nest access
+# Current checkpoint: Java String equality and bootstrap assertions
+
+The technical director approved the compact equality increment on 2026-11-06. All 73 checks passed in the fresh integrated gate, including 1,598 workspace debug tests, 1,518 optimized tests and 68 Python regressions. All 42 frozen product hashes matched afterward. The two genuine preparation/launch tests passed separately, and whole-platform verification covered 7,519 ordinary classes, 61,708 Code bodies and 4,685 bodyless declarations. [Equality contract](../architecture/m2-string-equality.md) and [technical review](../architecture/m2-string-equality-review.md).
+
+The launcher executes the supplied `String.equals(Object)` through ordinary virtual dispatch and runs the real byte-array comparison loop in `StringLatin1.equals`. The helper's real initializer calls `Class.desiredAssertionStatus`, which activates the supplied Class initializer. Its registration call and two array allocations retain their actual order. The interpreter owns a private native continuation and session counters, with normal argument, stack, initialization and caller checks before publishing effects.
+
+Archived and freshly compiled Java applications returned `511/10` on nine controlled UTF-16 arguments. These inputs cover distinct empty Strings, embedded NUL, isolated surrogates, equal Latin and wide content, different lengths and different coders. The physical launcher uses a separate nine-argument ASCII vector and checks `511/10`, then `507/10` after changing one argument. Each corresponding wrong-result control reaches the guest's arithmetic trap. Both fixed assertion policies preserve equality results. Bootstrap queries return `0/2` with assertions disabled and `3/2` when enabled.
+
+A separate local replay passed the complete public suite on the Windows Temurin 21.0.13 platform used by hosted CI. Its supplied String SHA-256 was `831a11d5c76c84b8777a7813440b4570d49934dee05c285c9068a0ec43158412`. This exercised both archived and rebuilt guests, including the recipe mutation controls. Hosted validation of the equality implementation awaits publication.
+
+The public failure tests preserve the actual execution position and earlier effects. With one array allowed, Class initialization registers its natives and fails on its first array allocation at bytecode offset 4. With two allowed, it retains the first static array and fails at offset 11. Neither failure completes an assertion query. Independent engine tests inspect both typed static array handles and initialization state, including a retry on the same failed session. Application and array mirror assertions stop at `Class.desiredAssertionStatus` offset 1 before registration. The represented application class remains uninitialized.
+
+Long equal and last-unit-different Strings stop in the actual helper loop when limited to 250 instructions. A first-unit difference completes within that limit. The harness also checks full Code and handler charging, exact and one-less discovery limits, both assertion policies and mutations in the helper loop, Class monitor branch and exception table. A cleanly unrecognized equality shape preserves the earlier opaque boundary. A malformed claimed recipe fails before execution.
+
+The 300-second parser campaign used 754 seeds and processed 40,379,817 cases. It accepted 414,224, rejected 39,965,593 and performed 39,434 deterministic rechecks, with zero failures. Source and seed hashes matched after the campaign. These results cover parser robustness.
+
+Reproduce the public checks with a Java 21 HotSpot JDK at `JAVA_HOME`. The optional OpenJ9 arguments use the pinned reference runtime and its extracted platform directory.
+
+```text
+python tools/verify_string_equality_entry.py
+python -m unittest discover -s tools -p test_string_equality*.py
+python tools/string_equality_reference.py --check --compare-openj9 PATH_TO_OPENJ9_21_JAVA
+python tools/verify_string_equality_entry.py --compare-openj9 PATH_TO_OPENJ9_21_JAVA --openj9-platform PATH_TO_EXTRACTED_OPENJ9_JAVA_BASE
+cargo fmt --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+cargo test -p crabspot-verifier -p crabspot-runtime -p crabspot-interpreter -p crabspot-launcher --release --locked
+cargo run -p crabspot-classfile --example fuzz_parser --release --locked -- tests/fixtures --seconds 300 --seed 4851011501752864596
+```
+
+General native libraries, application assertion configuration, array assertions, reflection, catchable VM-created exceptions and additional String methods remain open. Full M2 and full JVM conformance remain open.
+
+The next proposed increment targets real Throwable construction, stack capture and catchable VM exceptions, beginning with integer and long division/remainder. It reuses the existing exception dispatcher and preserves the original failing instruction. The dependency investigation includes Java stack-trace access and array cloning. [Exception construction proposal](../architecture/m2-vm-exception-construction-next.md).
+
+## Previous checkpoint: supplied Java String bodies and nest access
 
 The technical director approved this bounded increment on 2026-11-06. The build executes the Zulu 21.0.7 implementations of `String.length`, `String.isEmpty` and `String.coder` on managed byte arrays. A call to `length` can trigger String's real static initializer, which constructs the nested comparator through its private constructor. All 68 checks in the integrated gate passed, including 1,553 debug tests, 1,473 optimized tests, 59 Python regressions and the public launcher on the real Zulu and OpenJ9 images. [Implementation contract](../architecture/m2-string-java-bodies.md) and [technical review](../architecture/m2-string-java-bodies-review.md)
 

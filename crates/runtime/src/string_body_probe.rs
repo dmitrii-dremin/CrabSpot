@@ -7,24 +7,24 @@ const CMP: &str = "java/lang/String$CaseInsensitiveComparator";
 const COMPARATOR: &str = "java/util/Comparator";
 const OSF: &str = "java/io/ObjectStreamField";
 const OBJECT: &str = "java/lang/Object";
-struct Probe {
-    limit: u64,
-    usage: StringBodyDiscoveryUsage,
+pub(super) struct Probe {
+    pub(super) limit: u64,
+    pub(super) usage: StringBodyDiscoveryUsage,
 }
 impl Probe {
-    fn fail(&self, kind: StringBodyErrorKind) -> Box<StringBodyError> {
+    pub(super) fn fail(&self, kind: StringBodyErrorKind) -> Box<StringBodyError> {
         Box::new(StringBodyError {
             kind,
             discovery_usage: self.usage,
         })
     }
-    fn registry<T>(&self, r: Result<T, RegistryError>) -> R<T> {
+    pub(super) fn registry<T>(&self, r: Result<T, RegistryError>) -> R<T> {
         r.map_err(|e| self.fail(StringBodyErrorKind::Registry(Box::new(e))))
     }
-    fn parse<T>(&self, r: Result<T, crabspot_classfile::ParseError>) -> R<T> {
+    pub(super) fn parse<T>(&self, r: Result<T, crabspot_classfile::ParseError>) -> R<T> {
         self.registry(r.map_err(RegistryError::Parse))
     }
-    fn pay(&mut self, n: u64) -> R<()> {
+    pub(super) fn pay(&mut self, n: u64) -> R<()> {
         let resource = StringBodyResource::DiscoveryWork;
         let required = self
             .usage
@@ -41,22 +41,22 @@ impl Probe {
         self.usage.work_units = required;
         Ok(())
     }
-    fn eq(&mut self, a: &JavaString, b: &str) -> R<bool> {
+    pub(super) fn eq(&mut self, a: &JavaString, b: &str) -> R<bool> {
         if a.units().len() != b.len() {
             return Ok(false);
         }
         self.pay(a.units().len() as u64)?;
         Ok(a.equals_ascii(b))
     }
-    fn cp<'a>(&mut self, c: &'a ClassFile, index: u16) -> R<&'a Constant> {
+    pub(super) fn cp<'a>(&mut self, c: &'a ClassFile, index: u16) -> R<&'a Constant> {
         self.pay(1)?;
         self.parse(c.constant_pool.get(index))
     }
-    fn utf<'a>(&mut self, c: &'a ClassFile, index: u16) -> R<&'a JavaString> {
+    pub(super) fn utf<'a>(&mut self, c: &'a ClassFile, index: u16) -> R<&'a JavaString> {
         self.pay(1)?;
         self.parse(c.constant_pool.utf8(index))
     }
-    fn class_name(&mut self, c: &ClassFile, index: u16, name: &str) -> R<bool> {
+    pub(super) fn class_name(&mut self, c: &ClassFile, index: u16, name: &str) -> R<bool> {
         let Constant::Class { name_index } = self.cp(c, index)? else {
             return Err(self.fail(StringBodyErrorKind::InvalidBinding(
                 "recipe class operand has wrong tag",
@@ -65,7 +65,7 @@ impl Probe {
         let text = self.utf(c, *name_index)?;
         self.eq(text, name)
     }
-    fn member(
+    pub(super) fn member(
         &mut self,
         c: &ClassFile,
         index: u16,
@@ -104,7 +104,7 @@ impl Probe {
         let d = self.utf(c, *descriptor_index)?;
         self.eq(d, desc)
     }
-    fn code<'a>(&mut self, m: &'a Member) -> R<Option<&'a Code>> {
+    pub(super) fn code<'a>(&mut self, m: &'a Member) -> R<Option<&'a Code>> {
         for a in &m.attributes {
             self.pay(1)?;
             if let AttributeBody::Code(c) = &a.body {
@@ -113,7 +113,7 @@ impl Probe {
         }
         Ok(None)
     }
-    fn find_methods<const N: usize>(
+    pub(super) fn find_methods<const N: usize>(
         &mut self,
         r: &DefinitionRegistry,
         class: ClassId,
@@ -148,7 +148,7 @@ impl Probe {
         }
         Ok(found)
     }
-    fn find_fields<const N: usize>(
+    pub(super) fn find_fields<const N: usize>(
         &mut self,
         r: &DefinitionRegistry,
         class: ClassId,

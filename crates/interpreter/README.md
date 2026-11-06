@@ -1233,7 +1233,58 @@ Independent tests use the complete normalized instruction recipes, shifted CPs,
 real Code/frame/fuel cutoffs and provenance, both encodings, passive emptiness,
 atomic/read-only backing, streaming 65,535-member/list stress, ordinary and missing
 nest relations, private constructor failure effects and loader distinctions. Other
-String Java methods (including charAt, hashCode and equals), String constructors,
-assertion/bootstrap helper libraries, native exception allocation and general
-platform layouts remain guarded. Genuine vendor images and full user-program
+String Java methods outside the separately bound equality roles (including charAt
+and hashCode), String constructors, arbitrary assertion/bootstrap helper libraries,
+native exception allocation and general platform layouts remain guarded. Genuine vendor images and full user-program
 observations belong to the separate coordinator replay.
+
+
+## Genuine equality and fixed bootstrap assertion policy
+
+A second, independently metered runtime probe may bind the complete compact
+String.equals(Object)Z recipe and its exact StringLatin1 and Class dependencies.
+The actual String.equals and 36-byte helper loop run through ordinary selection,
+Java preparation and frames. There is no host byte-array comparison or equality
+shortcut. Identity, null and non-String fast paths can return before String active
+use; coder mismatch stops before helper initialization. A long equal pair and a
+last-byte mismatch spend real loop fuel. The effective opcode count remains 197.
+
+The actual Class.desiredAssertionStatus method prepares all 54 bytes and its three
+handler rows. Its checked classLoader read returns null only for canonical ordinary
+bootstrap class/interface mirrors. Application and array mirrors fail at the actual
+getfield, PC 1, with a typed unsupported-target cause. Represented classes are not
+initialized by this query. The normal Class initializer runs its 18 bytes, calls
+registerNatives recursively at its real PC 0 and publishes two distinct typed,
+zero-length arrays in declaration order. Their component classes stay passive.
+
+Only a String-enabled initialization session on an explicitly equality-bound heap
+can execute the two fixed native roles. Ordinary registered static resolution and
+actual target classification precede fixed-shape and typed argument checks. Caller
+result space is reserved before initialization. A fixed private pending continuation
+retains the actual target, matched caller/site, argument, stack fingerprint and
+nextPC. The shared scheduler initializes the actual owner, then checks those scalar
+facts and claim/record permission before publishing any native effect. Each invoke
+uses its original single fuel debit; the native contributes no prepared Code,
+Java frame, implicit monitor, pseudo-PC or separate evaluation. Legacy session
+constructors and direct host native roots keep their previous rejection paths.
+
+Registration and successful-query count are private permanent-session state.
+InitializationSession::string_equality_usage() returns a read-only
+StringEqualityUsage { natives_registered, assertion_queries } snapshot. Queries use
+one immutable per-heap BootstrapAssertionPolicy, with Disabled and Enabled controls
+on separate heaps. The checked count increment precedes allocation-free reserved
+Int 0/1 publication. AssertionQueryOverflow preserves the old count; StringBody
+errors retain typed runtime causes and the actual invocation transition. Null
+native input remains the existing UnsupportedVmException NullPointerException
+boundary. Supplying real public IDs/PCs cannot mutate the native table.
+
+A failed Class initializer may retain registration and earlier static writes while
+Class becomes Aborted. Repeated use cannot run another query or retry its
+initializer. Query count is captured before later fallible inspection. Tests pin
+exact handler 2/3, total prepared Code 77, Java frames 3, frame slots 9 and fuel 19 for a
+minimal query root, with failures at real preflight/initializer/return PCs. Private
+corruption cases reject changed targets, caller/role/record/stack/nextPC and
+foreign/null/nonmirror arguments without publishing result, count or continuation.
+This is no general native library registration, ClassLoader implementation,
+application/array assertion policy, String constructors/charAt/hashCode or complete
+Java library startup.

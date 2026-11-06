@@ -373,6 +373,24 @@ impl Stack {
         self.values.push(FrameValue::Uninitialized(v));
         self.slots += 1;
     }
+    pub fn slot_count(&self) -> usize {
+        self.slots
+    }
+    pub fn check_reserved_one(&self, pc: u32) -> Result<(), ExecutionError> {
+        let required = self
+            .slots
+            .checked_add(1)
+            .ok_or_else(|| protocol(pc, "native operand slot overflow"))?;
+        if required > self.capacity || self.values.len() >= self.values.capacity() {
+            return Err(protocol(pc, "native result reservation was lost"));
+        }
+        Ok(())
+    }
+    /// Private commit after reserve_one on the unchanged suspended caller stack.
+    pub fn publish_reserved_int(&mut self, value: i32) {
+        self.values.push(FrameValue::Ordinary(Value::Int(value)));
+        self.slots += 1;
+    }
     pub fn contains_site(&self, method: MethodId, pc: u32) -> bool {
         self.values.iter().any(|v| v.site(method, pc))
     }

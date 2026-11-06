@@ -66,6 +66,12 @@ pub(crate) struct Record {
     pub status: RecordStatus,
     pub plan: InitializationPlan,
 }
+/// Read-only native lifecycle history for this permanent initialization session.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct StringEqualityUsage {
+    pub natives_registered: bool,
+    pub assertion_queries: u64,
+}
 pub(crate) struct SessionState {
     pub records: Vec<Record>,
     pub indices: HashMap<ClassId, usize>,
@@ -76,6 +82,7 @@ pub(crate) struct SessionState {
     pub evaluation_owner: u64,
     pub steps: u64,
     pub construction: ConstructionState,
+    pub equality: StringEqualityUsage,
 }
 pub(crate) fn allocation(resource: &'static str) -> ExecutionError {
     ExecutionError::new(
@@ -214,6 +221,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
                 evaluation_owner: 0,
                 steps: 0,
                 construction: ConstructionState::default(),
+                equality: StringEqualityUsage::default(),
             },
         })
     }
@@ -482,6 +490,9 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             }
         })
     }
+    pub fn string_equality_usage(&self) -> StringEqualityUsage {
+        self.state.equality
+    }
     pub fn last_construction_steps(&self) -> u64 {
         self.state.construction.steps
     }
@@ -504,6 +515,7 @@ mod tests {
             evaluation_owner: 0,
             steps: 0,
             construction: ConstructionState::default(),
+            equality: StringEqualityUsage::default(),
         }
     }
     #[test]

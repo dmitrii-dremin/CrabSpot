@@ -33,6 +33,8 @@ pub struct CallSite {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExecutionErrorKind {
+    StringBody(Box<crabspot_runtime::StringBodyError>),
+    AssertionQueryOverflow,
     ClassMirror(Box<crabspot_runtime::ClassMirrorError>),
     String(Box<crabspot_runtime::StringError>),
     Monitor(crate::MonitorError),
@@ -212,6 +214,12 @@ impl fmt::Display for ExecutionError {
             write!(formatter, "bytecode offset {offset}: ")?;
         }
         match &self.kind {
+            ExecutionErrorKind::StringBody(error) => {
+                write!(formatter, "bootstrap native operation failed: {error}")
+            }
+            ExecutionErrorKind::AssertionQueryOverflow => {
+                formatter.write_str("bootstrap assertion query count overflow")
+            }
             ExecutionErrorKind::String(error) => {
                 write!(formatter, "String service failed: {error}")
             }
@@ -411,6 +419,7 @@ impl fmt::Display for ExecutionError {
 impl std::error::Error for ExecutionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.kind {
+            ExecutionErrorKind::StringBody(error) => Some(error.as_ref()),
             ExecutionErrorKind::String(error) => Some(error.as_ref()),
             ExecutionErrorKind::ClassMirror(error) => Some(error.as_ref()),
             ExecutionErrorKind::Monitor(error) => Some(error),

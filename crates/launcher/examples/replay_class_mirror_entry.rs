@@ -126,6 +126,15 @@ fn main() -> Result<(), Box<dyn Error>> {
                 ExecutionErrorKind::UnsupportedMethod(
                     "native methods require runtime services",
                 ) => "UnboundNative".to_owned(),
+                ExecutionErrorKind::MethodAccess(source)
+                    if matches!(source.as_ref(), MethodAccessError::Context(FieldAccessError::MemberResolution(member))
+                        if matches!(&member.kind, crabspot_runtime::MemberResolutionErrorKind::Field(field)
+                            if matches!(field.as_ref(), FieldAccessError::Instance(InstanceError::LayoutMissing { .. }))))
+                        && run.usage.string_equality.natives_registered
+                        && run.usage.string_equality.assertion_queries == 0 =>
+                {
+                    "LayoutMissing".to_owned()
+                }
                 ExecutionErrorKind::MethodAccess(e)
                     if matches!(
                         e.as_ref(),

@@ -171,6 +171,7 @@ fn state() -> SessionState {
         evaluation_owner: 1,
         steps: 0,
         construction: ConstructionState::default(),
+        equality: Default::default(),
     }
 }
 fn access(

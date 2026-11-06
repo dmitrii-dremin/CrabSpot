@@ -13,11 +13,11 @@ use crabspot_classfile::{
     descriptor::{FieldType, parse_method_descriptor},
 };
 use crabspot_runtime::{
-    ArrayAccessError, ArrayJavaError, ClassId, DefinitionRegistry, ExceptionAccessError,
-    ExceptionProfile, FieldAccessError, FieldJavaError, FieldResolutionContext, HeapError,
-    InstanceInvocationKind, ManagedHeap, MethodAccessError, MethodId, MethodJavaError,
-    MethodReturnKind, MethodValueShape, PrimitiveArrayKind, Reference, ThrownException,
-    TypeAccessError, TypeJavaError, VmExceptionKind,
+    ArrayAccessError, ArrayJavaError, BootstrapAssertionPolicy, ClassAssertionNative, ClassId,
+    DefinitionRegistry, ExceptionAccessError, ExceptionProfile, FieldAccessError, FieldJavaError,
+    FieldResolutionContext, HeapError, InstanceInvocationKind, ManagedHeap, MethodAccessError,
+    MethodId, MethodJavaError, MethodReturnKind, MethodValueShape, PrimitiveArrayKind, Reference,
+    ThrownException, TypeAccessError, TypeJavaError, VmExceptionKind,
 };
 use crabspot_runtime::{
     ConstructionAccessError, ConstructionJavaError, ConstructorFieldReceiverKind,
@@ -589,7 +589,17 @@ fn constructor_reference(class: &ClassFile, index: u16) -> bool {
         .utf8(*name_index)
         .is_ok_and(|name| name.equals_ascii("<init>"))
 }
+#[derive(Clone, Copy)]
+struct PendingNative {
+    role: ClassAssertionNative,
+    target: MethodId,
+    argument: Option<Reference>,
+    next: u32,
+    stack_len: usize,
+    stack_slots: usize,
+}
 enum PendingUse {
+    Native(PendingNative),
     New {
         next: u32,
     },
@@ -1705,6 +1715,126 @@ fn request_initialization(
     })();
     result.map_err(|error| init_diagnose(error, class, origin, bodies, java))
 }
+fn assertion_failure(pc: u32, reason: &'static str) -> ExecutionError {
+    ExecutionError::new(
+        Some(pc),
+        E::StringBody(Box::new(crabspot_runtime::StringBodyError {
+            kind: crabspot_runtime::StringBodyErrorKind::InvalidState(reason),
+            discovery_usage: Default::default(),
+        })),
+    )
+}
+fn next_assertion_count(current: u64, pc: u32) -> Result<u64, ExecutionError> {
+    current
+        .checked_add(1)
+        .ok_or_else(|| ExecutionError::new(Some(pc), E::AssertionQueryOverflow))
+}
+/// Complete only a scheduler-authorized private pending call. No native Code/frame
+/// exists, and all checks/reservations precede the scalar state+stack commit.
+fn resume_assertion_native(
+    pending: PendingNative,
+    caller: &mut Frame,
+    context: &FieldResolutionContext<'_>,
+    init: &mut InitExecution<'_>,
+    pc: u32,
+) -> Result<(), ExecutionError> {
+    let MethodKey::Registered(method) = caller.method else {
+        return Err(assertion_failure(pc, "native caller is not registered"));
+    };
+    let expected = context
+        .check_class_assertion_site(pending.role, method, pc)
+        .map_err(|e| ExecutionError::new(Some(pc), E::StringBody(e)))?;
+    if expected != pending.target
+        || caller.pc != pc
+        || caller.stack.len() != pending.stack_len
+        || caller.stack.slot_count() != pending.stack_slots
+        || init.owner != init.state.evaluation_owner
+        || caller.pending.is_some()
+        || pc.checked_add(3) != Some(pending.next)
+    {
+        return Err(assertion_failure(pc, "native pending target/frame differs"));
+    }
+    context
+        .check_initialization_class(init.claim, pending.target.owner())
+        .map_err(|e| initialization_failure(e, Some(pc)))?;
+    let record_index = init
+        .state
+        .record(pending.target.owner())?
+        .ok_or_else(|| assertion_failure(pc, "native owner record absent"))?;
+    let record = init
+        .state
+        .records
+        .get(record_index)
+        .ok_or_else(|| assertion_failure(pc, "native owner record index absent"))?;
+    match record.status {
+        RecordStatus::Completed => {}
+        RecordStatus::InProgress {
+            owner,
+            phase: Phase::Body,
+        } if owner == init.owner => {}
+        _ => {
+            return Err(assertion_failure(
+                pc,
+                "native owner was not permitted to resume",
+            ));
+        }
+    }
+    match pending.role {
+        ClassAssertionNative::Register => {
+            let active = init
+                .activations
+                .last()
+                .ok_or_else(|| assertion_failure(pc, "native registration activation absent"))?;
+            if pending.argument.is_some()
+                || caller.role != FrameRole::Initializer(pending.target.owner())
+                || active.class != pending.target.owner()
+                || active.phase != Phase::Body
+                || active.record != record_index
+                || !matches!(record.status,RecordStatus::InProgress{owner,phase:Phase::Body} if owner==init.owner)
+            {
+                return Err(assertion_failure(
+                    pc,
+                    "native registration lacks actual initializer authority",
+                ));
+            }
+            init.state.equality.natives_registered = true;
+            caller.pc = pending.next;
+        }
+        ClassAssertionNative::DesiredStatus => {
+            if caller.role != FrameRole::Ordinary {
+                return Err(assertion_failure(
+                    pc,
+                    "native query caller is not an ordinary Java role",
+                ));
+            }
+            if !init.state.equality.natives_registered {
+                return Err(assertion_failure(pc, "Class natives were not registered"));
+            }
+            let argument = pending
+                .argument
+                .ok_or_else(|| assertion_failure(pc, "native assertion argument absent"))?;
+            if argument.is_null() {
+                return Err(ExecutionError::new(
+                    Some(pc),
+                    E::UnsupportedVmException(VmExceptionKind::NullPointerException),
+                ));
+            }
+            let policy = context
+                .bootstrap_assertion_policy(argument)
+                .map_err(|e| ExecutionError::new(Some(pc), E::StringBody(e)))?;
+            caller.stack.check_reserved_one(pc)?;
+            let count = next_assertion_count(init.state.equality.assertion_queries, pc)?;
+            // Fixed scalar commit: capacity was reserved before initialization;
+            // no allocation, checks or method/PC substitution follows publication.
+            init.state.equality.assertion_queries = count;
+            caller
+                .stack
+                .publish_reserved_int(i32::from(policy == BootstrapAssertionPolicy::Enabled));
+            caller.pc = pending.next;
+        }
+    }
+    Ok(())
+}
 fn resume_initialization(
     continuation: InitContinuation,
     bodies: Bodies<'_>,
@@ -1778,6 +1908,13 @@ fn resume_initialization(
             let pending = caller.pending.take().ok_or_else(invalid)?;
             let diagnose = |error| contextualize(bodies, error, method, origin);
             match pending {
+                PendingUse::Native(pending) => {
+                    let Services::Fields { context, .. } = services else {
+                        return Err(invalid());
+                    };
+                    resume_assertion_native(pending, caller, context, init, pc)
+                        .map_err(|e| contextualize(bodies, e, method, Some((method, pc))))?;
+                }
                 PendingUse::New { next } => {
                     if caller.new_access.len() != 1 {
                         return Err(invalid());
@@ -2875,6 +3012,125 @@ fn run_engine(
                             .map_err(|error| contextualize(bodies, error, current, call_site))?;
                         (target, None, None)
                     };
+                    if kind == CallKind::Static && capabilities.strings && initialization.is_some()
+                    {
+                        if let (Services::Fields { context, .. }, MethodKey::Registered(method)) =
+                            (&mut services, target)
+                        {
+                            let diagnose = |e| contextualize(bodies, e, current, call_site);
+                            if let Some(role) =
+                                context.class_assertion_native(method).map_err(|e| {
+                                    diagnose(ExecutionError::new(Some(pc), E::StringBody(e)))
+                                })?
+                            {
+                                let shape = context.method_value_shape(method).map_err(|e| {
+                                    diagnose(ExecutionError::new(
+                                        Some(pc),
+                                        E::MethodAccess(Box::new(e)),
+                                    ))
+                                })?;
+                                let valid = match role {
+                                    ClassAssertionNative::Register => {
+                                        shape.parameters.is_empty()
+                                            && shape.parameter_slots == 0
+                                            && shape.result == MethodReturnKind::Void
+                                    }
+                                    ClassAssertionNative::DesiredStatus => {
+                                        shape.parameters == [ValueKind::Reference]
+                                            && shape.parameter_slots == 1
+                                            && shape.result == MethodReturnKind::Boolean
+                                    }
+                                };
+                                if !valid {
+                                    return Err(diagnose(assertion_failure(
+                                        pc,
+                                        "native role signature differs",
+                                    )));
+                                }
+                                let frame_index = java
+                                    .frames
+                                    .len()
+                                    .checked_sub(1)
+                                    .ok_or_else(|| diagnose(operand_error(pc)))?;
+                                let caller = java
+                                    .frames
+                                    .last_mut()
+                                    .ok_or_else(|| diagnose(operand_error(pc)))?;
+                                let argument = if role == ClassAssertionNative::DesiredStatus {
+                                    Some(caller.stack.reference(pc).map_err(diagnose)?)
+                                } else {
+                                    None
+                                };
+                                let values = argument.map(|v| [Value::Reference(v)]);
+                                let args = values.as_ref().map_or(&[][..], |v| v.as_slice());
+                                context
+                                    .check_method_reference_profile(method, None)
+                                    .and_then(|()| context.check_method_arguments(method, args))
+                                    .map_err(|e| {
+                                        diagnose(ExecutionError::new(
+                                            Some(pc),
+                                            E::MethodAccess(Box::new(e)),
+                                        ))
+                                    })?;
+                                if role == ClassAssertionNative::DesiredStatus {
+                                    caller.stack.reserve_one(pc).map_err(diagnose)?;
+                                }
+                                let MethodKey::Registered(origin_method) = current else {
+                                    return Err(diagnose(operand_error(pc)));
+                                };
+                                let expected = context
+                                    .check_class_assertion_site(role, origin_method, pc)
+                                    .map_err(|e| {
+                                        diagnose(ExecutionError::new(Some(pc), E::StringBody(e)))
+                                    })?;
+                                if expected != method {
+                                    return Err(diagnose(assertion_failure(
+                                        pc,
+                                        "selected native does not match actual call site",
+                                    )));
+                                }
+                                if caller.pending.is_some() {
+                                    return Err(diagnose(assertion_failure(
+                                        pc,
+                                        "native active use already pending",
+                                    )));
+                                }
+                                let next = caller.pc;
+                                caller.pc = pc;
+                                caller.pending = Some(PendingUse::Native(PendingNative {
+                                    role,
+                                    target: method,
+                                    argument,
+                                    next,
+                                    stack_len: caller.stack.len(),
+                                    stack_slots: caller.stack.slot_count(),
+                                }));
+                                let init = initialization
+                                    .as_mut()
+                                    .ok_or_else(|| diagnose(operand_error(pc)))?;
+                                if let Some(outcome) = request_initialization(
+                                    InitRequest {
+                                        class: method.owner(),
+                                        continuation: InitContinuation::Instruction {
+                                            frame: frame_index,
+                                            method: current,
+                                            pc,
+                                        },
+                                        origin: call_site,
+                                    },
+                                    bodies,
+                                    &mut java,
+                                    &mut services,
+                                    exceptions.as_mut(),
+                                    init,
+                                    limits,
+                                )? {
+                                    return Ok(outcome);
+                                }
+                                continue;
+                            }
+                        }
+                    }
                     // Only the explicitly mirror-enabled session may bind this one
                     // selected native. No Code, synthetic frame or second fuel debit.
                     if capabilities.class_mirrors {
@@ -5717,3 +5973,7 @@ mod string_bridge_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "assertion_tests.rs"]
+mod assertion_tests;

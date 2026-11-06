@@ -31,9 +31,11 @@ mod storage;
 mod string_bodies;
 mod strings;
 pub use string_bodies::{
-    CompactStringBodyPlan, StringBodyDiscovery, StringBodyDiscoveryLimits,
+    BootstrapAssertionPolicy, ClassAssertionNative, CompactStringBodyPlan,
+    CompactStringEqualityPlan, StringBodyDiscovery, StringBodyDiscoveryLimits,
     StringBodyDiscoveryUsage, StringBodyError, StringBodyErrorKind, StringBodyLimits,
-    StringBodyResource, StringBodyUsage, probe_compact_string_bodies,
+    StringBodyResource, StringBodyUsage, StringEqualityDiscovery, probe_compact_string_bodies,
+    probe_compact_string_equality,
 };
 pub use strings::{StringError, StringLimits, StringResource, StringUsage};
 mod types;

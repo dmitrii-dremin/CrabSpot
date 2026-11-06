@@ -91,6 +91,8 @@ The program returns silently. Run `python tools/verify_string_entry.py` with a J
 
 Run `python tools/verify_string_body_entry.py` to exercise `String.length()` and `String.isEmpty()` on a Java 21 image with the supported compact layout. The replay compiles and launches Java programs that measure empty, Latin-1 and UTF-16 strings. It also checks an initializer that runs out of array space and private access between nested classes. The tested Zulu 21.0.7 image supplies the Java method bodies. On an image with a different String initializer, the default launcher retains support for literals, arguments and interning. [Java-body contract](docs/architecture/m2-string-java-bodies.md)
 
+The equality increment adds execution of `String.equals(Object)` and the supplied byte-array comparison helper. Run `python tools/verify_string_equality_entry.py` to compare genuine Java application results, bootstrap assertion queries, resource-limit failures and OS argument transport. It uses the same explicit platform input and checks both archived classes and newly compiled classes. [Equality contract](docs/architecture/m2-string-equality.md)
+
 ## Build and inspect
 
 Install Rust stable with rustfmt and Clippy. Tests use checked-in Java 21 fixtures;

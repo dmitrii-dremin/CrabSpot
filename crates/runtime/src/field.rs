@@ -880,6 +880,12 @@ impl<'a> FieldResolutionContext<'a> {
         {
             return Ok(value);
         }
+        if let Some(value) = self
+            .read_class_assertion_field(selected.field, receiver)
+            .map_err(FieldAccessError::StringBody)?
+        {
+            return Ok(value);
+        }
         Ok(self.heap.get_field(receiver, selected.field)?)
     }
     pub fn write_field(

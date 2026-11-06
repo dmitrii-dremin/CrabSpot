@@ -43,7 +43,7 @@ EXECUTION = {
     "new/constructor": "ReservedClassObject run@5 via main@4",
     "new/unfinished-lock": "ReservedClassObject run@5 via main@4",
     "platform/passive-name": "OpaqueClassObject main@7 via main@7",
-    "platform/active-forname": "initializing UnboundNative registerNatives@entry via <clinit>@0",
+    "platform/active-forname": "LayoutMissing forName@0 via forName@0",
 }
 FIELDS = {"mirrors": "127/3/1", "store": "63/0", "simple": "1"}
 MAX = (1 << 64) - 1
@@ -112,7 +112,7 @@ def check_cli(case, result):
     expected = EXECUTION[case]
     category = expected.removeprefix("initializing ").split()[0]
     text = {"ReservedClassObject": "ordinary allocation of VM Class", "UnboundNative": "native methods require runtime services",
-            "OpaqueClassObject": "has opaque VM state"}
+            "OpaqueClassObject": "has opaque VM state", "LayoutMissing": "no instance layout retained"}
     offsets = re.findall(r"bytecode offset (\d+):", diagnostic)
     if (not diagnostic.startswith("crabspot: MainEvaluation:") or text.get(category, category) not in diagnostic
             or offsets != re.findall(r"@(\d+)", expected)[::-1]):

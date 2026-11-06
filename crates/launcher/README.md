@@ -261,7 +261,54 @@ The initial semantic recipe targets the measured compact Zulu21 image. OpenJ9's
 different actual initializer remains an explicit strict unsupported-shape control,
 even where its language-level length results agree. Hosted Temurin images require
 their own recorded shape/result evidence. Noncompact storage, ordinary String
-constructors, charAt/equals/hashCode helper paths, arbitrary platform access and
+constructors, charAt/hashCode and equality paths without the separate binding, arbitrary platform access and
 VM-produced Throwable objects remain outside this binding. The wider words
 application must retain the precise next unsupported site after genuine length;
 this profile does not claim complete Java library startup or compatibility.
+
+
+## Verified compact equality and bootstrap assertions
+
+The ordinary directory wrappers and physical CLI additionally use an Auto equality
+probe after successful compact-body discovery. The public six-argument
+run_directory_application_with_string_equality(directories, entry, observations,
+options, invocation, profile) accepts ApplicationStringEqualityProfile { bodies,
+mode, discovery, bootstrap_assertions }. Bodies retains the original compact
+profile. StringEqualityMode is Auto or RequireCompactEquality; the immutable
+BootstrapAssertionPolicy is Disabled by default or explicitly Enabled. Existing
+ApplicationOptions, ApplicationInvocation and ApplicationStringBodyProfile literals
+remain source compatible. The CLI adds no assertion switch and uses Auto/Disabled.
+
+The second probe has its own inclusive 4,194,304-work default and typed paid-prefix
+errors. Auto clean absence preserves the earlier compact/kernel capability; a
+claimed equality recipe with an invalid helper, Class field, full dead branch,
+handler or native declaration fails before arguments and execution. Strict equality
+requires both probes; unsupported compact layout has zero equality work. Proofs
+remain mandatory after matching. Only StringLatin1 is an extra executable private
+seed; ClassLoader/Map are metadata facts, not app imports or blanket heap layouts.
+All real Java bodies share the same image proof/preparation and single evaluation.
+
+The exact selected String.equals and StringLatin1.equals Java Code perform the
+comparison. Class.desiredAssertionStatus and Class initialization also execute their
+full genuine Code; the two fixed native sites complete in their actual callers
+through the ordinary initialization scheduler. ApplicationUsage reports separate
+string_equality_discovery and string_equality { natives_registered,
+assertion_queries }. The session snapshot is taken immediately after root execution,
+including failures, before status/observation access. Pre-session failure reports
+zero session state. A late Class array failure preserves registration and earlier
+writes without allowing a failed-class query or retry. Policy changes never alter
+the equality result or permit app/array mirror queries.
+
+Independent emitted image tests run ten comparisons through one Object.equals CP
+reference on nine ASCII arguments, assert 511/10, then 507/10 when only the second
+argument changes. The physical CLI guest checks its own mask and an opposite-mask
+control reaches actual division by zero. The public library separately verifies
+distinct empties, embedded NUL, isolated surrogates and both compact coders, avoiding
+OS transport assumptions. Separate Enabled/Disabled images observe both genuine
+bootstrap Class query results. Tests also pin exact probe limits, private proof
+seeds, old wrapper fallback, full-body role mutations and retained execution state.
+Original vendor image/reference replay remains separately recorded by the coordinator.
+No private boot class bytes are shipped and no host equality or synthetic Java
+initializer replaces the library Code. OpenJ9's different recipes remain an
+explicit strict unsupported-shape control; this binding makes no vendor-wide
+compatibility or general assertion/native-loading claim.

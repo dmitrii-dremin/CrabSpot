@@ -176,3 +176,7 @@ jobs:
           python -m unittest discover -s tools -p test_string_body_launch.py
           python tools/string_activation_reference.py --check
           python tools/verify_string_body_entry.py
+      - name: Execute Java String equality and bootstrap assertion queries on CrabSpot
+        run: |
+          python -m unittest discover -s tools -p test_string_equality_launch.py
+          python tools/verify_string_equality_entry.py

@@ -1,0 +1,27 @@
+{
+  "classes": {
+    "probe/Compare.class": "7dc5acc9663e75a05a993fa3be224772f1728f6c9493f89a1f3a8b8040ee2ae4",
+    "query/Dormant.class": "fd03dd6df0fe78d693abaea535d99df7295bf53241cdbe47b495c611cc3739bb",
+    "query/Query.class": "4a85eef03d3f159b5de9fd761e64cf43ef74c05d1ad10a182b5ee269b29ebe85"
+  },
+  "compiled_controls": {
+    "ObserveEquality.class": "c78fb0070e18cf80b9bec92c96a39630ef20308ff6c0b5fc2924a0a07d324e0a"
+  },
+  "compiler": "javac 21.0.7",
+  "controls": {
+    "ObserveEquality.java": "695b81f6373437b6177a920cb92413dc1a18c634495bf5950b60125340dd1ac3"
+  },
+  "flags": [
+    "--release",
+    "21",
+    "-g:none",
+    "-encoding",
+    "UTF-8"
+  ],
+  "primary": "openjdk version \"21.0.7\" 2025-04-15 LTS\nOpenJDK Runtime Environment Zulu21.42+19-CA (build 21.0.7+6-LTS)\nOpenJDK 64-Bit Server VM Zulu21.42+19-CA (build 21.0.7+6-LTS, mixed mode, sharing)",
+  "secondary": "openjdk version \"21.0.13.0.3\" 2026-10-24 LTS\nIBM Semeru Runtime Open Edition 21.0.13.0 (build 21.0.13.0.3+1-LTS)\nEclipse OpenJ9 VM 21.0.13.0 (build 21.0.13.0.3+1-openj9-0.63.0, JRE 21 Windows 11 amd64-64-Bit Compressed References 20261024_885 (JIT enabled, AOT enabled)\nOpenJ9   - dcc7ee16aa\nOMR      - c2a3a9ae0\nJCL      - 62d1b70e191 based on jdk-21.0.13.0.3+1)",
+  "src": {
+    "probe/Compare.java": "87a5eb2bca7548ec664fca4de9500f34bc7dc6aa272b150d9ee70ca8bcb10ada",
+    "query/Query.java": "f042db486f608988cacf192db26f5f4c1d6dcfa99771bba0ad0f6a0566558685"
+  }
+}
