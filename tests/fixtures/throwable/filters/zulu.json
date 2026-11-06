@@ -1,0 +1,42 @@
+[
+  {
+    "case": "unrelated-throwable-constructor",
+    "inner": "TraceFilterObserver$OuterFailure#<init>,TraceFilterObserver#main",
+    "outer": "TraceFilterObserver#main"
+  },
+  {
+    "case": "unrelated-ordinary-constructor",
+    "inner": "TraceFilterObserver$PlainOuter#<init>,TraceFilterObserver#main"
+  },
+  {
+    "calls": "1",
+    "case": "delegate-override",
+    "heldAfter": "false",
+    "heldInside": "true",
+    "trace": "TraceFilterObserver#main"
+  },
+  {
+    "calls": "1",
+    "case": "bypass-override",
+    "trace": ""
+  },
+  {
+    "case": "non-writable",
+    "same": "true",
+    "trace": "",
+    "traceAfter": ""
+  },
+  {
+    "calls": "1",
+    "case": "covariant-override",
+    "lines": "TraceFilterObserver#main#61",
+    "trace": "TraceFilterObserver#main"
+  },
+  {
+    "case": "overload-flow",
+    "helpers": "1",
+    "lines": "TraceFilterObserver#main#63",
+    "overrides": "1",
+    "trace": "TraceFilterObserver#main"
+  }
+]

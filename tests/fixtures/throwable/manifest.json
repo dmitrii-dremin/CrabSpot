@@ -1,0 +1,101 @@
+{
+  "compiler": "javac 21.0.7",
+  "compiler_flags": [
+    "--release",
+    "21",
+    "-g",
+    "-encoding",
+    "UTF-8"
+  ],
+  "compiler_sha256": "494786cb950aca4a0bfb3e69dbc75ce049d6965cdadb6bc486d4c20a07b0eb1a",
+  "diagnostics": "Nonempty trace/top/filter expectations are a declared observed reference envelope, not universal Java conformance.",
+  "fixture_source_sha256": "56898e5e6d252fcf41521aad42a2aaa0163c2f9a03ad500ef25e6e72905ca201",
+  "inputs": {
+    "classes": {
+      "probe/ThrowableGuest$ReplacementCtor.class": "9e39a3e7d20e2fd166ffe9ed79c6059318df18c21d2f815efe9a9231e86ae6a4",
+      "probe/ThrowableGuest$UserFailure.class": "539def7699f2122e3b0c308bdb986b453c4fb45d5692befd71d48b62d948ee17",
+      "probe/ThrowableGuest$VMFailingCtor.class": "5365c337a322f2a98047066635ee8cd0cee84ea493faf0fd72a6fac508e6e065",
+      "probe/ThrowableGuest.class": "d617e4d26387bc3d8a21460565db7e226b0f3b2a40c20a09ab39a8d9c37faefb"
+    },
+    "controls": {
+      "PlatformIdentity.java": "63f919614e54c694d809800615afcc3000beb1642bc8a6214d910e54692e0514",
+      "TraceFilterObserver.java": "47e32d472280f051a1115b16e4757c3e047635a6a7acef1df1610dd76a59ef4d",
+      "probe/ObserveThrowable.java": "e6d4ebe35eecd3034349874daca90296fc1db3c3980460969104437c2763152d"
+    },
+    "src": {
+      "probe/ThrowableGuest.java": "64cfd5209431303b5d7979d090eb8c1fa739e2b652a0967fcf83f770c8e57aaa"
+    }
+  },
+  "outputs": {
+    "filters/openj9.json": "a344203f61c95a9512c9f5409be8bd0c934beb6300b32f3990ad4b23259aae64",
+    "filters/zulu.json": "37db4171c5749d9ec58221ef5ec7584f955e84765df6015234c5d53132298cb9",
+    "observations/openj9.json": "754a5e29d3dbccc42c30db2b0e4c3385c8a1b2ccce8b530601bde2e33f4771e9",
+    "observations/zulu.json": "888c4478b192da4a74cfe66cf4fa612d856dcc892e9a124953d0e85543b89825",
+    "portable.json": "0c6a95d0146715100832df384414109733b0751108d50c2c60dc106b1437237d"
+  },
+  "reviewed_source_update": "Director portable comparison correction: compare raw diagnostics only in strict mode, preserve every historical pinned row",
+  "runtime": {
+    "openj9": {
+      "executable_sha256": "26043f7516f5fbd12c98534d7c18983e6a11f3db085ab388a54a2b1f97c6efbc",
+      "files": {
+        "bin/java.exe": "26043f7516f5fbd12c98534d7c18983e6a11f3db085ab388a54a2b1f97c6efbc",
+        "lib/modules": "af8df71935787fa7d492500bc384300405e0c72b03cd4cd5a85ffa6b748e919d",
+        "release": "1eb8692baceb969ae26f9cde53afb1a6d82b7585ab0921fc33b653b7cf951ef3"
+      },
+      "properties": {
+        "file.encoding": "UTF-8",
+        "java.vendor": "IBM Corporation",
+        "java.version": "21.0.13.0.3",
+        "native.encoding": "Cp1251",
+        "user.country": "RU",
+        "user.language": "ru"
+      },
+      "resources": {
+        "java/lang/ArithmeticException": "7363bdab0716ff04ea9c09d7028fd830ebbce3821c22c4f4dfe3d67b11491488",
+        "java/lang/Exception": "21d04204ca7f1e7bddab97d45d8296dee76e39cbc81cd21ffa80ee71e6fffe75",
+        "java/lang/RuntimeException": "fce97249caf52f42f0fb0b4c3387ed65cba5d70cdf28a97d6854a7a04f320e51",
+        "java/lang/StackTraceElement": "5043e5cfff9564e0b98f9f6891b447f5ba876e2c60bab70fa21f2fb0da154869",
+        "java/lang/Throwable": "ccf885b75316ac083d2b8ffeb1eb7de522faf6927f74079209b265c9a77b9848",
+        "java/util/Collections": "d3c5995e9b279bebacbe3824cf90da5cd44cd897276f869448a4265d5bcf6e0a",
+        "java/util/Collections$EmptyList": "2369ba005df473da188094a2d011df527e070ad683060fb80828d54ea8fdbb5f",
+        "java/util/Collections$EmptyMap": "8d4458230fd98ffb0e641d43b6611c4ccb23d935c0e8909837724cf4633fbafd",
+        "java/util/Collections$EmptySet": "e1737d2eaafc0a37301e8fa656d1682d16656b3656709c9eeb8b26fe499e17c8"
+      },
+      "strict_diagnostics": true,
+      "version": "openjdk version \"21.0.13.0.3\" 2026-10-24 LTS\nIBM Semeru Runtime Open Edition 21.0.13.0 (build 21.0.13.0.3+1-LTS)\nEclipse OpenJ9 VM 21.0.13.0 (build 21.0.13.0.3+1-openj9-0.63.0, JRE 21 Windows 11 amd64-64-Bit Compressed References 20261024_885 (JIT enabled, AOT enabled)\nOpenJ9   - dcc7ee16aa\nOMR      - c2a3a9ae0\nJCL      - 62d1b70e191 based on jdk-21.0.13.0.3+1)"
+    },
+    "zulu": {
+      "executable_sha256": "798ffec156ceb8cb1535bf68747d0ee3dfc1fc17dcd0b322f8027018404155c1",
+      "files": {
+        "bin/java.exe": "798ffec156ceb8cb1535bf68747d0ee3dfc1fc17dcd0b322f8027018404155c1",
+        "lib/modules": "8b9c0c9113b0d9892852de90af69258b9a836907481b149dd6fbf540cee13942",
+        "release": "9b716868a8e6efa2c3782781cdbca109d8e11fcd5c997a9383e8ff5163a11ea8"
+      },
+      "properties": {
+        "file.encoding": "UTF-8",
+        "java.vendor": "Azul Systems, Inc.",
+        "java.version": "21.0.7",
+        "native.encoding": "Cp1251",
+        "user.country": "RU",
+        "user.language": "ru"
+      },
+      "resources": {
+        "java/lang/ArithmeticException": "73612a7fa40ac9c1f13b899a8b708c26445a6496fd2d793c40391a09b1899710",
+        "java/lang/Exception": "402055b2940a9bd899905efbce93d086eeead51d6c16276735add88dad651348",
+        "java/lang/RuntimeException": "04170ba5f8b615d2550bfb22ddd4cf2a3090660333ffcc557c6a2e5015d939a2",
+        "java/lang/StackTraceElement": "815d372dbb58a7fe77c7cdf49060bceb471cd92ecfbd77da233d8775684509d6",
+        "java/lang/Throwable": "0f7e3970a4957698dd14c774ee8200407669a91346747c98cfa6c41150e76e51",
+        "java/util/Collections": "5c75d4e022fa21c95ae63a1bde0f44e837b5f555c6a35f3e9389d7aff1ce579f",
+        "java/util/Collections$EmptyList": "8523c61e293f447611bc8f053e64cb27422f9bc42f81234ccc95df394b06aa75",
+        "java/util/Collections$EmptyMap": "1927161b7ae5643323a054148d41d3f8be0751046144f028cbac6c2f159282f3",
+        "java/util/Collections$EmptySet": "b09df432c411a8e2e0d74a20f84f16fdf108f836bb33e922c2a56c4dea1804de"
+      },
+      "strict_diagnostics": true,
+      "version": "openjdk version \"21.0.7\" 2025-04-15 LTS\nOpenJDK Runtime Environment Zulu21.42+19-CA (build 21.0.7+6-LTS)\nOpenJDK 64-Bit Server VM Zulu21.42+19-CA (build 21.0.7+6-LTS, mixed mode, sharing)"
+    }
+  },
+  "schema": 2,
+  "scope": "Original Java21 reference fixtures, not CrabSpot execution",
+  "supersedes_manifest_sha256": "9389e3a82acd0f2a7271365e54b87c87717806fa74d8bb54a63ea53965028b09",
+  "tool_sha256": "fe821fcc245fc205a5cafc31e78ff66699b417670b095f106d3cbebe483e6647"
+}

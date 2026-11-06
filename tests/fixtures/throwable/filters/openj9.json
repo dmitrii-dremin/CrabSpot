@@ -1,0 +1,42 @@
+[
+  {
+    "case": "unrelated-throwable-constructor",
+    "inner": "TraceFilterObserver$OuterFailure#<init>,TraceFilterObserver#main",
+    "outer": "TraceFilterObserver#main"
+  },
+  {
+    "case": "unrelated-ordinary-constructor",
+    "inner": "TraceFilterObserver$PlainOuter#<init>,TraceFilterObserver#main"
+  },
+  {
+    "calls": "1",
+    "case": "delegate-override",
+    "heldAfter": "false",
+    "heldInside": "true",
+    "trace": "TraceFilterObserver$DelegatingOverride#fillInStackTrace,java.lang.Throwable#<init>,java.lang.Exception#<init>,java.lang.RuntimeException#<init>,TraceFilterObserver$DelegatingOverride#<init>,TraceFilterObserver#main"
+  },
+  {
+    "calls": "1",
+    "case": "bypass-override",
+    "trace": ""
+  },
+  {
+    "case": "non-writable",
+    "same": "true",
+    "trace": "",
+    "traceAfter": ""
+  },
+  {
+    "calls": "1",
+    "case": "covariant-override",
+    "lines": "TraceFilterObserver$CovariantOverride#fillInStackTrace#26,TraceFilterObserver$CovariantOverride#fillInStackTrace#23,java.lang.Throwable#<init>#-1,java.lang.Exception#<init>#-1,java.lang.RuntimeException#<init>#-1,TraceFilterObserver$CovariantOverride#<init>#23,TraceFilterObserver#main#61",
+    "trace": "TraceFilterObserver$CovariantOverride#fillInStackTrace,TraceFilterObserver$CovariantOverride#fillInStackTrace,java.lang.Throwable#<init>,java.lang.Exception#<init>,java.lang.RuntimeException#<init>,TraceFilterObserver$CovariantOverride#<init>,TraceFilterObserver#main"
+  },
+  {
+    "case": "overload-flow",
+    "helpers": "1",
+    "lines": "TraceFilterObserver$OverloadFlow#fillInStackTrace#32,TraceFilterObserver$OverloadFlow#fillInStackTrace#31,java.lang.Throwable#<init>#-1,java.lang.Exception#<init>#-1,java.lang.RuntimeException#<init>#-1,TraceFilterObserver$OverloadFlow#<init>#29,TraceFilterObserver#main#63",
+    "overrides": "1",
+    "trace": "TraceFilterObserver$OverloadFlow#fillInStackTrace,TraceFilterObserver$OverloadFlow#fillInStackTrace,java.lang.Throwable#<init>,java.lang.Exception#<init>,java.lang.RuntimeException#<init>,TraceFilterObserver$OverloadFlow#<init>,TraceFilterObserver#main"
+  }
+]
