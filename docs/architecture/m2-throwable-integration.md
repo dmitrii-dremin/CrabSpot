@@ -3,7 +3,8 @@
 This increment implements the [frozen construction contract](m2-vm-exception-construction.md).
 The technical director approved the exact final sources and combined local
 verification on 2026-11-06. [Aggregate technical review](m2-vm-exception-construction-review.md).
-Hosted implementation CI remains pending. This report does not close M2.
+The first hosted implementation run exposed the packaging defect recorded below.
+This report does not close M2.
 
 Source dispositions are available for the [runtime](m2-throwable-runtime-review.md),
 [interpreter and launcher](m2-throwable-execution-review.md), and
@@ -157,7 +158,7 @@ The final CI amendment splits three paired-command steps into six single-command
 steps without changing their commands or order. This preserves each native command's
 failure status on Windows. It changes only CI scheduling after the local gate;
 the other 1,388 frozen inputs remain unchanged. The director reviewed that amendment
-separately. Hosted Linux/Windows execution of this implementation remains pending.
+separately. The first hosted Linux/Windows outcome is recorded below.
 
 | Evidence | SHA-256 |
 | --- | --- |
@@ -179,3 +180,47 @@ cargo test -p crabspot-launcher --example replay_string_entry --locked
 The aggregate technical review authorizes publication of these exact inputs. This evidence
 establishes the frozen Throwable increment, not full exception coverage, M2
 completion, general Java compatibility or performance superiority.
+
+## Hosted checkout packaging defect
+
+Both jobs for published `eca0cc85dbddbb494d5673709fd68b5672fedf1e` failed at
+the public Throwable reference tooling step. The exact-byte capture rejected
+`projection.json` before the new public reference/product replay. The local
+working file had 23 CRLF line endings when its hash was recorded; the repository's
+existing `.gitattributes` stores and checks out LF text. The recorded hash therefore
+described different bytes from the published artifact. Both JSON documents have
+identical contents. [Linux failure](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42164245723/job/127716863265)
+and [Windows failure](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42164245723/job/127716863643).
+
+A local Git archive of the published commit reproduced the same failure. The
+repair records the already-committed LF projection hash, then updates the enclosing
+manifest and harness hash. It does not change any Java source, classfile, reference
+result, runtime code or verification rule. Two added regressions check canonical
+LF checkout and rejection of byte changes that leave JSON semantics unchanged.
+Exact-byte verification remains enforced.
+
+The targeted repair gate runs the reference and product harness tests on both the
+working tree and canonical export, dual-VM and alternate-compiler references, and
+both complete supplied-platform product sweeps using the unchanged verified Rust
+binaries. All six unit/reference commands and both full product sweeps passed.
+The unit groups ran 18 reference and 19 product tests on each tree (74 test
+executions, including the two new regressions). Each product platform passed
+48 API cases, 14 physical CLI cases and five profile controls. Zulu also checked
+two incompatible OpenJ9-library cases. Both final reports retained the exact
+previously verified Rust binary hashes and passed their same-buffer rechecks.
+
+The first repair runner imposed a 600-second limit on the complete Zulu sweep and
+timed out without a product assertion result. That interrupted run remains
+preserved. After host process inspection confirmed no remaining matching child,
+a separate two-command continuation completed the unfinished sweeps with a longer
+limit and a distinct output directory. The six successful checks were inherited
+with matching log and input hashes; no interrupted command is counted as passing.
+
+All 1,389 current inputs and the canonical export matched after completion.
+Continuation evidence SHA-256 is
+`CF33E4DB1C406D0F21C576EE0C8EA35E0536C1451D09A3852CACC1F993E90F60`.
+The director approved publication of the exact repair after independently checking
+the full evidence chain, source inventories and unchanged Rust binaries.
+[Canonical fixture amendment review](m2-throwable-canonical-fixture-review.md).
+Replacement hosted CI remains pending. Original local and hosted failures remain
+recorded; no hosted success is claimed for this revision.

@@ -44,6 +44,30 @@ class ThrowableEntryReferenceTests(unittest.TestCase):
         self.assertEqual(set(tools), {'throwable_entry_reference.py', 'fixture_source.py'})
         ref.validate_rows(json.loads(blobs['reference.json'])['runs'])
 
+    def test_canonical_lf_checkout_preserves_exact_provenance(self):
+        # .gitattributes exports text as LF, even when an author's working copy
+        # contains CRLF. Reproduce that boundary before checking recorded hashes.
+        for name in ref.INPUTS | ref.METADATA:
+            if not name.endswith('.class'):
+                path = self.pack / name
+                path.write_bytes(path.read_bytes().replace(b'\r\n', b'\n'))
+        blobs, manifest, _ = self.capture()
+        self.assertEqual(ref.digest(blobs['projection.json']),
+                         manifest['files']['projection.json'])
+
+    def test_projection_bytes_remain_exact_after_checkout(self):
+        path = self.pack / 'projection.json'
+        original = path.read_bytes()
+        self.assertNotIn(b'\r', original)
+        for changed in (original.replace(b'\n', b'\r\n'), original + b' '):
+            with self.subTest(changed=ref.digest(changed)):
+                self.assertEqual(json.loads(changed), json.loads(original))
+                path.write_bytes(changed)
+                with self.assertRaisesRegex(ValueError,
+                                            'captured fixture bytes differ: projection.json'):
+                    self.capture()
+                path.write_bytes(original)
+
     def test_extra_class_source_or_observer_output_fails_before_tools(self):
         for name in ('classes/Injected.class', 'src/Injected.java', 'controls/ObserveThrowableMain.class'):
             with self.subTest(name=name):

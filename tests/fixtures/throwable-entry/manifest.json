@@ -16,7 +16,7 @@
     "classes/probe/ThrowableEntryGuest$VMFailingCtor.class": "e2af907e4a267017e06503957c40af81d3107253e8a71c59dbb7c7226948833e",
     "classes/probe/ThrowableEntryGuest.class": "25e985c1192e9d30e9acf1a7926a2af2df779682db917979d4d5f52811f3c0fe",
     "controls/ObserveThrowableMain.java": "8fc39622a5ec7621bb28a195109177a5a22d8582557b31bdc4487e38f81beea5",
-    "projection.json": "7ff066a1b2c15b1bcb86b8dc66a6765d9e19dfc17e2b38d8a83b7c18471ec234"
+    "projection.json": "7e77e5739f81b041c1827ef0cb6746776db717e9fc7058d3616bdddf9d653886"
   },
   "compiler": [
     "javac 21.0.7",

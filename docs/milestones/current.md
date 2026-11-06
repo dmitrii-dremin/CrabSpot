@@ -26,7 +26,12 @@ processed 46,210,451 inputs over 300 seconds with zero failures.
 
 All 1,389 final publication inputs were rehashed. A separately reviewed CI-only
 amendment splits paired commands into individual steps; the other 1,388 inputs are
-unchanged. Hosted CI for the implementation is pending. The final manifest is
+unchanged. Both initial hosted jobs failed on a projection JSON hash that described
+local CRLF bytes rather than the committed LF artifact. The narrow packaging repair
+passed all eight targeted checks, including canonical-export product replay on
+both supplied platforms, and received final technical approval. Replacement hosted
+CI remains pending; see the integration report. The approved
+pre-publication manifest is
 `E82E03A7CAEE58273DDED99790C06277D777E06F78F5FB9248B97CF2A9607D2B`.
 
 Reproduce the public checks with a Java 21 HotSpot JDK at `JAVA_HOME`:
