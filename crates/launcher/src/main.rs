@@ -103,6 +103,25 @@ fn application_run(
         ApplicationCompletion::ExecutionFailed { phase, error } => {
             Err(CliError::Failure(format!("{phase:?}: {error}")))
         }
+        ApplicationCompletion::Uncaught {
+            phase,
+            class_name,
+            location,
+        } => {
+            let at = location.map_or_else(String::new, |head| {
+                format!(
+                    " at {}.{}{}@{}",
+                    head.class_name.escaped(),
+                    head.method_name.escaped(),
+                    head.descriptor.escaped(),
+                    head.offset
+                )
+            });
+            Err(CliError::Failure(format!(
+                "{phase:?}: uncaught {}{at}",
+                class_name.escaped()
+            )))
+        }
         ApplicationCompletion::SuppliedUncaught { phase, class_name } => Err(CliError::Failure(
             format!("{phase:?}: uncaught {}", class_name.escaped()),
         )),

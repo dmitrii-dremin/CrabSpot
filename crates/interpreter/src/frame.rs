@@ -391,6 +391,11 @@ impl Stack {
         self.values.push(FrameValue::Ordinary(Value::Int(value)));
         self.slots += 1;
     }
+    pub fn publish_reserved_reference(&mut self, value: Reference) {
+        self.values
+            .push(FrameValue::Ordinary(Value::Reference(value)));
+        self.slots += 1;
+    }
     pub fn contains_site(&self, method: MethodId, pc: u32) -> bool {
         self.values.iter().any(|v| v.site(method, pc))
     }

@@ -13,6 +13,12 @@ completion of that goal.
 
 ## Implemented services and boundaries
 
+Rows describe specific services and execution profiles, including earlier explicit
+APIs that retain their original restrictions. Later session and launcher profiles
+compose additional capabilities. Read the current checkpoint and each linked
+contract for the applicable public entry point; these rows are not a countable
+specification-conformance score.
+
 | Area / JVMS SE 21 clauses | Status | Evidence and boundary |
 | --- | --- | --- |
 | Reader, header and versions (4.1) | Implemented and tested | Checked reads, exact consumption, majors 45-65, historical/preview policy and configured byte limits |
@@ -35,7 +41,8 @@ completion of that goal.
 | Java `String.length`, `String.isEmpty` and private nest access | Implemented, tested and approved for the matched compact image | The directory launcher executes the supplied Zulu Java methods and initializer. Reference runs on both VMs covered 96 length/nest observations plus 12 activation and comparator observations. OpenJ9's different initializer selects the existing opaque String implementation in Auto mode and fails discovery in strict mode. [Reference programs](../architecture/m2-string-java-body-reference.md) and [implementation scope](../architecture/m2-string-java-bodies.md) |
 | Bytecode decoder | Implemented and tested | All defined JVM instruction formats, version/operand constraints and static branch destinations; 10 focused tests and malformed-input corpus |
 | Distinct String equality and bootstrap assertions | Implemented, tested and approved within the matched compact image | The public launcher executes supplied String.equals, StringLatin1.equals, Class.desiredAssertionStatus and their real initializers. Archived and rebuilt guests returned 511/10 on controlled UTF-16 arguments. Both assertion policies and retained effects of failed Class initialization are tested. All 73 integration checks passed. Application and array mirror queries stop with an explicit unsupported-target error. OpenJ9's different recipe remains an unsupported-shape control. [Technical review](../architecture/m2-string-equality-review.md) and [reference behavior](../architecture/m2-string-equality-reference.md) |
-| Throwable construction, capture and VM-produced ArithmeticException | Reference behavior tested; runtime implementation planned | The two pinned VMs reproduced 216 observations across archived/rebuilt and normal/interpreted runs. A separate Temurin compiler/runtime reproduced 108 observations. The controls cover all four integer zero-divisor operations, fresh objects, identity-preserving rethrow, cause/message state, retained constructor effects and trace filtering. [Reference results](../architecture/m2-throwable-reference.md) |
+| Throwable construction, capture and VM-produced ArithmeticException | Implemented, tested and approved for the matched single-thread image | Real Java constructors, bounded native capture and catchable failures from all four integer/long zero-divisor operations. The accepted gate includes 65 inherited successful checks and 20 successful continuation checks: 1,679 debug tests, 1,599 optimized tests, 121 Python regressions and public API/CLI replay on two supplied HotSpot libraries. The discovered Unicode replay-input defect was repaired without changing its oracle. Other VM producers and Java-visible stack-element population remain unsupported. Hosted implementation CI is pending. [Integration evidence and limits](../architecture/m2-throwable-integration.md) and [technical review](../architecture/m2-vm-exception-construction-review.md) |
+| Hosted Throwable reference suite | Passed on Linux and Windows for `5a2924d` | Both Temurin runners reproduced the 20 Throwable and seven filtering cases over archived/rebuilt and normal/interpreted inputs, totaling 108 observations each. Both ran 18 provenance tests with one pinned-Zulu-compiler test skipped; that test passed locally with the exact compiler. Existing Rust suites recorded 4,722 executions on Linux and 4,716 on Windows. This is reference validation, not CrabSpot Throwable execution acceptance. [Linux](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42148910551/job/127667052031) and [Windows](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42148910551/job/127667052363) |
 | Hosted String equality implementation | Passed on Linux and Windows for `5e1f673` | Both runners executed the archived/rebuilt equality and assertion guests through the public launcher. Linux recorded 4,722 Rust test executions and Windows 4,716. Both supplied String SHA-256 `831a11d5c76c84b8777a7813440b4570d49934dee05c285c9068a0ec43158412`. [Linux](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42145848368/job/127657006595) and [Windows](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42145848368/job/127657006291) |
 | Hosted compact String implementation | Passed on Linux and Windows for `6fd81aa` | Both Temurin images supplied String SHA-256 `831a11d5c76c84b8777a7813440b4570d49934dee05c285c9068a0ec43158412`. The launchers executed the supplied Java bodies on both archived and rebuilt applications, including all nine nest cases. [Linux](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42134504808/job/127619102112) and [Windows](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42134504808/job/127619101474) |
 | Hosted equality reference suite | Passed on Linux and Windows for `2a28eb5` | Each hosted Temurin build reproduced 22 public-only observations on archived and rebuilt Java classes. [Linux](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42135268707/job/127621685945) and [Windows](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42135268707/job/127621685486) |
@@ -71,8 +78,13 @@ completion of that goal.
 | General class-path/JAR loading, GC, threads, JNI and JIT | Unimplemented | Kotlin and Spring Boot application execution and performance relative to HotSpot remain untested. |
 | Synchronization in one logical thread (2.11.10; 6.5 monitorenter, monitorexit, calls, returns and athrow) | Implemented, tested and approved for a single logical thread | The physical CLI and public API ran 13 original application cases. Synchronized entry, non-LIFO release across objects, reentry, unfinished-object identity, precise failure PCs and retained effects are covered. The profile enforces both optional structured-locking rules. Threads, blocking, wait/notify and the Java Memory Model remain open. [Behavior and JVM comparisons](../architecture/m2-monitor-reference.md). |
 
-No executed test currently remains failing. This statement is limited to the
-recorded tests; it is not proof that no defect exists.
+The accepted checkpoint has no recorded outstanding local test failures. The
+Throwable integration gate found a corrupted Unicode argument in a replay example;
+the reviewed repair passed its explicit regression and the complete archived/rebuilt
+String replay. All continuation checks completed successfully. The original failure
+and exact inherited-versus-rerun evidence remain in the
+[integration report](../architecture/m2-throwable-integration.md). Hosted CI for the
+accepted implementation remains pending; general Throwable/JVM support remains partial.
 
 ## Modern method verification evidence
 

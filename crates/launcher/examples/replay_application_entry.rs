@@ -61,6 +61,22 @@ fn run() -> Result<(), Box<dyn Error>> {
     }
     let outcome = match run.completion {
         ApplicationCompletion::Returned => "returned".to_owned(),
+        ApplicationCompletion::Uncaught {
+            phase,
+            class_name,
+            location,
+        } => {
+            let head = location.map_or_else(String::new, |h| {
+                format!(
+                    " at {}.{}{}@{}",
+                    h.class_name.escaped(),
+                    h.method_name.escaped(),
+                    h.descriptor.escaped(),
+                    h.offset
+                )
+            });
+            format!("{phase:?} uncaught {}{head}", class_name.escaped())
+        }
         ApplicationCompletion::SuppliedUncaught { phase, class_name } => {
             format!("{phase:?} uncaught {}", class_name.escaped())
         }

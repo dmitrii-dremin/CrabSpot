@@ -264,10 +264,16 @@ impl FieldResolutionContext<'_> {
                 ConstructionJavaError::Instantiation,
             ));
         }
-        let mut current = Some(access.class);
+        self.allocate_construction_class(access.class)
+    }
+    pub(crate) fn allocate_construction_class(
+        &mut self,
+        target: ClassId,
+    ) -> Result<Reference, ConstructionAccessError> {
+        let mut current = Some(target);
         for _ in 0..self.heap().retained_layout_classes() {
             let Some(class) = current else {
-                return Ok(self.heap_mut().allocate_instance(access.class)?);
+                return Ok(self.heap_mut().allocate_instance(target)?);
             };
             self.step()?;
             let (parent, fields) = self.heap().instance_allocation_shape(class)?;
@@ -277,11 +283,48 @@ impl FieldResolutionContext<'_> {
             current = parent;
         }
         if current.is_none() {
-            return Ok(self.heap_mut().allocate_instance(access.class)?);
+            return Ok(self.heap_mut().allocate_instance(target)?);
         }
         Err(ConstructionAccessError::InvalidMetadata(
             "cyclic allocation shape chain",
         ))
+    }
+    pub(crate) fn vm_constructor_authority(
+        &self,
+        claim: &InitializationClaim,
+        method: MethodId,
+        receiver: Reference,
+    ) -> Result<ResolvedConstructor, ConstructionAccessError> {
+        self.check_initialization_class(claim, method.owner())?;
+        let member = self.registry().method(method)?;
+        let class = self.registry().class(method.owner())?;
+        if member.access_flags & 7 != 1
+            || member.access_flags & (8 | 0x100 | 0x400) != 0
+            || !class
+                .constant_pool
+                .utf8(member.name_index)
+                .map_err(RegistryError::Parse)?
+                .equals_ascii("<init>")
+            || !class
+                .constant_pool
+                .utf8(member.descriptor_index)
+                .map_err(RegistryError::Parse)?
+                .equals_ascii("(Ljava/lang/String;)V")
+        {
+            return Err(ConstructionAccessError::TokenMismatch);
+        }
+        let actual = self.heap().instance_class(receiver)?;
+        if actual != method.owner() {
+            return Err(ConstructionAccessError::TokenMismatch);
+        }
+        self.heap().reject_opaque(receiver)?;
+        Ok(ResolvedConstructor {
+            fingerprint: claim.fingerprint(),
+            method,
+            member: MemberKey::of(member),
+            receiver,
+            actual,
+        })
     }
     pub fn constructor_invocation_shape(
         &mut self,

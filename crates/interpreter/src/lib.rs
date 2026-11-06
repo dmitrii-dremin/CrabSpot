@@ -2,8 +2,9 @@
 //!
 //! Existing body entry points do not initialize classes. An explicit initialization
 //! session schedules the supported single-owner procedure using the same engine.
-//! Neither profile loads/fully links/verifies classes, allocates exception objects,
-//! or provides Java startup.
+//! Legacy body profiles do not allocate exception objects. The opt-in Throwable
+//! session executes real constructors and bounded VM arithmetic production.
+//! Loading, full verification and Java startup belong to their separate layers.
 //! Unsupported declarations and executed instructions fail explicitly.
 // Reuse independently emitted public fixtures in private protocol-guard tests.
 #[cfg(test)]
@@ -14,7 +15,12 @@ mod execute;
 mod frame;
 mod initialization;
 mod monitor;
+mod throwable;
 pub use monitor::{MonitorError, MonitorLimits, MonitorResource};
+pub use throwable::{
+    NestedVmMaterialization, VmExceptionContext, VmExceptionCounter, VmExceptionLimits,
+    VmExceptionUsage, VmFaultOrigin, VmMaterializationPhase,
+};
 #[cfg(test)]
 mod tests;
 

@@ -92,3 +92,11 @@ extern crate self as crabspot_runtime;
 #[cfg(test)]
 #[path = "../tests/mirror_support/mod.rs"]
 mod mirror_support;
+
+mod throwable;
+pub use throwable::{
+    ThrowableAccessError, ThrowableCaptureAuthority, ThrowableDiscovery, ThrowableDiscoveryLimits,
+    ThrowableDiscoveryUsage, ThrowableErrorKind, ThrowablePlan, ThrowablePublicRoles,
+    ThrowableResource, TraceFrame, TraceLimits, TraceMethodKind, TraceSnapshot,
+    TraceSnapshotBuilder, TraceUsage, VmExceptionSpec, probe_throwable_support,
+};

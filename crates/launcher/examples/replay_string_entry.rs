@@ -64,7 +64,7 @@ fn argument_units(case: &str) -> Result<Vec<Vec<u16>>, Box<dyn Error>> {
             "--",
             "--platform",
             "left right",
-            "€🚀",
+            "\u{20ac}\u{1f680}",
         ],
         "zero" => &[""],
         "latin" => return Ok(vec![vec![0, 1, 255]]),
@@ -184,6 +184,25 @@ fn main() -> Result<(), Box<dyn Error>> {
                     };
                     println!("{phase:?} {site} {}", cause(error.as_ref())?);
                 }
+                ApplicationCompletion::Uncaught {
+                    phase,
+                    class_name,
+                    location,
+                } => {
+                    let text = {
+                        let head = location.map_or_else(String::new, |h| {
+                            format!(
+                                " at {}.{}{}@{}",
+                                h.class_name.escaped(),
+                                h.method_name.escaped(),
+                                h.descriptor.escaped(),
+                                h.offset
+                            )
+                        });
+                        format!("{phase:?} uncaught {}{head}", class_name.escaped())
+                    };
+                    println!("{text}");
+                }
                 ApplicationCompletion::SuppliedUncaught { class_name, .. } => {
                     return Err(format!("unexpected throwable {}", class_name.escaped()).into());
                 }
@@ -200,4 +219,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod transport_encoding_tests {
+    use super::argument_units;
+    #[test]
+    fn transport_argument_has_the_original_euro_and_rocket_utf16_units() {
+        let eight = argument_units("transport8").unwrap();
+        assert_eq!(eight.len(), 8);
+        assert_eq!(eight[7], [0x20ac, 0xd83d, 0xde80]);
+        assert_eq!(eight.iter().map(Vec::len).sum::<usize>(), 37);
+        let nine = argument_units("transport9").unwrap();
+        assert_eq!(&nine[..8], eight.as_slice());
+        assert_eq!(nine[8], [0, 0xdfff]);
+        assert_eq!(nine.iter().map(Vec::len).sum::<usize>(), 39);
+    }
 }

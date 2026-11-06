@@ -168,7 +168,7 @@ impl ManagedHeap {
         });
         Ok(())
     }
-    fn equality_affinity(&self, registry: &DefinitionRegistry) -> R<&EqualityState> {
+    pub(crate) fn equality_affinity(&self, registry: &DefinitionRegistry) -> R<&EqualityState> {
         self.body_affinity()?;
         let e = self
             .string_equality
@@ -762,4 +762,4 @@ pub fn probe_compact_string_equality(
 
 #[cfg(test)]
 #[path = "string_equality_tests.rs"]
-mod tests;
+pub(crate) mod tests;

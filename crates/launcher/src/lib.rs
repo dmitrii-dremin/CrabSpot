@@ -3,8 +3,15 @@
 mod entry;
 mod invocation;
 mod string_bodies;
+mod throwable_export;
+mod throwables;
+pub use crabspot_interpreter::{VmExceptionLimits, VmExceptionUsage};
+pub use crabspot_runtime::{
+    ThrowableDiscoveryLimits, ThrowableDiscoveryUsage, TraceLimits, TraceUsage,
+};
 pub use invocation::*;
 pub use string_bodies::*;
+pub use throwables::*;
 mod error;
 mod image;
 mod meter;
@@ -39,6 +46,11 @@ pub enum EntryEvaluation {
 #[derive(Debug)]
 pub enum ApplicationCompletion {
     Returned,
+    Uncaught {
+        phase: EntryEvaluation,
+        class_name: JavaString,
+        location: Option<ApplicationExceptionLocation>,
+    },
     SuppliedUncaught {
         phase: EntryEvaluation,
         class_name: JavaString,
@@ -47,6 +59,13 @@ pub enum ApplicationCompletion {
         phase: EntryEvaluation,
         error: Box<ExecutionError>,
     },
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ApplicationExceptionLocation {
+    pub class_name: JavaString,
+    pub method_name: JavaString,
+    pub descriptor: JavaString,
+    pub offset: u32,
 }
 #[derive(Debug)]
 pub struct ApplicationRun {
@@ -88,6 +107,9 @@ pub struct ApplicationUsage {
     pub string_bodies: StringBodyUsage,
     pub string_equality_discovery: StringBodyDiscoveryUsage,
     pub string_equality: StringEqualityUsage,
+    pub throwable_discovery: ThrowableDiscoveryUsage,
+    pub traces: TraceUsage,
+    pub vm_exceptions: VmExceptionUsage,
     pub orchestration: OrchestrationUsage,
 }
 #[cfg(test)]
@@ -189,5 +211,20 @@ pub fn run_directory_application_with_string_equality(
     invocation::validate(&invocation)?;
     let prepared =
         image::prepare_with_string_equality(directories, entry, observations, options, profile)?;
+    entry::run_prepared(prepared, observations, invocation)
+}
+
+/// Compose checked Throwable capture and VM arithmetic materialization with one image.
+pub fn run_directory_application_with_throwables(
+    directories: ApplicationDirectories<'_>,
+    entry: &str,
+    observations: &[StaticIntObservation<'_>],
+    options: ApplicationOptions,
+    invocation: ApplicationInvocation<'_>,
+    profile: ApplicationThrowableProfile,
+) -> std::result::Result<ApplicationRun, Box<ApplicationError>> {
+    invocation::validate(&invocation)?;
+    let prepared =
+        image::prepare_with_throwables(directories, entry, observations, options, profile)?;
     entry::run_prepared(prepared, observations, invocation)
 }

@@ -39,6 +39,8 @@ pub(crate) fn run_prepared(
         string_body_limits,
         string_equality_plan,
         bootstrap_assertions,
+        throwable_plan,
+        throwable_profile,
         roles,
         named,
         app_loader,
@@ -134,6 +136,10 @@ pub(crate) fn run_prepared(
                         usage,
                     )
                 })?;
+        }
+        if let Some(plan) = &throwable_plan {
+            heap.bind_throwable_support(domain.registry(), plan, throwable_profile.traces)
+                .map_err(|source| meter.error(S::Layout, K::Throwable(source), usage))?;
         }
         let mut context = domain
             .member_context_unnamed_modules(&mut heap, options.field, options.loading_work)
@@ -238,19 +244,35 @@ pub(crate) fn run_prepared(
                     )
                 })?;
         }
-        let mut session = InitializationSession::new_with_strings(
-            &mut context,
-            &statics,
-            &exceptions,
-            roles.error,
-            options.initialization,
-            monitors,
-        )
+        let mut session = if throwable_plan.is_some() {
+            InitializationSession::new_with_throwables(
+                &mut context,
+                &statics,
+                &exceptions,
+                roles.error,
+                options.initialization,
+                monitors,
+                throwable_profile.vm_exceptions,
+            )
+        } else {
+            InitializationSession::new_with_strings(
+                &mut context,
+                &statics,
+                &exceptions,
+                roles.error,
+                options.initialization,
+                monitors,
+            )
+        }
         .map_err(|source| {
             meter.error(
                 S::Setup,
                 K::Setup {
-                    kind: SetupKind::Initialization,
+                    kind: if throwable_plan.is_some() {
+                        SetupKind::Throwable
+                    } else {
+                        SetupKind::Initialization
+                    },
                     source: Box::new(source),
                 },
                 usage,
@@ -267,6 +289,7 @@ pub(crate) fn run_prepared(
         );
         // Preserve private session history even if later status/observation fails.
         usage.string_equality = session.string_equality_usage();
+        usage.vm_exceptions = session.vm_exception_usage();
         let status = session.status(named).map_err(|source| {
             meter.error(
                 S::Setup,
@@ -318,33 +341,43 @@ pub(crate) fn run_prepared(
                         ));
                     }
                 };
-                let class =
-                    session
+                if throwable_plan.is_some() {
+                    crate::throwable_export::uncaught(
+                        &mut session,
+                        reference,
+                        phase,
+                        &mut meter,
+                        usage,
+                    )?
+                } else {
+                    let class =
+                        session
+                            .context()
+                            .heap()
+                            .instance_class(reference)
+                            .map_err(|source| {
+                                meter.error(
+                                    S::Setup,
+                                    K::Setup {
+                                        kind: SetupKind::Instance,
+                                        source: Box::new(source),
+                                    },
+                                    usage,
+                                )
+                            })?;
+                    let metadata = session
                         .context()
-                        .heap()
-                        .instance_class(reference)
-                        .map_err(|source| {
-                            meter.error(
-                                S::Setup,
-                                K::Setup {
-                                    kind: SetupKind::Instance,
-                                    source: Box::new(source),
-                                },
-                                usage,
-                            )
-                        })?;
-                let metadata = session
-                    .context()
-                    .registry()
-                    .class(class)
-                    .map_err(|source| meter.error(S::Setup, K::Registry(source), usage))?;
-                // An owned bounded diagnostic name follows the contract's normal diagnostic
-                // allocation convention; no heap reference escapes the one-shot image.
-                let class_name = metadata
-                    .name()
-                    .map_err(|source| meter.error(S::Setup, K::Parse(source), usage))?
-                    .clone();
-                ApplicationCompletion::SuppliedUncaught { phase, class_name }
+                        .registry()
+                        .class(class)
+                        .map_err(|source| meter.error(S::Setup, K::Registry(source), usage))?;
+                    // An owned bounded diagnostic name follows the contract's normal diagnostic
+                    // allocation convention; no heap reference escapes the one-shot image.
+                    let class_name = metadata
+                        .name()
+                        .map_err(|source| meter.error(S::Setup, K::Parse(source), usage))?
+                        .clone();
+                    ApplicationCompletion::SuppliedUncaught { phase, class_name }
+                }
             }
         };
         for (slot, field) in static_ints.iter_mut().zip(fields) {
@@ -377,15 +410,18 @@ pub(crate) fn run_prepared(
             usage: meter.snapshot(usage),
         })
     })();
+    let trace_usage = heap.throwable_trace_usage();
     let string_usage = heap.string_usage();
     let string_body_usage = heap.string_body_usage();
     match result {
         Ok(mut run) => {
+            run.usage.traces = trace_usage;
             run.usage.strings = string_usage;
             run.usage.string_bodies = string_body_usage;
             Ok(run)
         }
         Err(mut error) => {
+            error.usage.traces = trace_usage;
             error.usage.strings = string_usage;
             error.usage.string_bodies = string_body_usage;
             Err(error)

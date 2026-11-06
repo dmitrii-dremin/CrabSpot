@@ -1,0 +1,23 @@
+{
+  "historical_source": "tests/fixtures/throwable/src/probe/ThrowableGuest.java",
+  "historical_sha256": "64cfd5209431303b5d7979d090eb8c1fa739e2b652a0967fcf83f770c8e57aaa",
+  "projected_source": "src/probe/ThrowableEntryGuest.java",
+  "projected_sha256": "13f5bc1e8a529da8254d9713e98b19b74638ba736b1b99a5fb6942045dc7bf19",
+  "transforms": [
+    {
+      "from": "ThrowableGuest",
+      "to": "ThrowableEntryGuest",
+      "count": 1
+    },
+    {
+      "from": "Integer.MIN_VALUE",
+      "to": "(-2147483647 - 1)",
+      "count": 2
+    },
+    {
+      "from": "Long.MIN_VALUE",
+      "to": "(-9223372036854775807L - 1L)",
+      "count": 2
+    }
+  ]
+}

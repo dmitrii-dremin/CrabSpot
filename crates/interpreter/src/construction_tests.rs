@@ -168,6 +168,7 @@ fn state() -> SessionState {
         admitted_count: 6,
         dependencies: 0,
         constants: 0,
+        vm_exceptions: Default::default(),
         evaluation_owner: 1,
         steps: 0,
         construction: ConstructionState::default(),
@@ -266,14 +267,14 @@ fn mismatched_and_duplicate_constructor_authority_cannot_promote_aliases_or_writ
         callee.constructor.push(ConstructorActivation {
             access: access(&mut context, &claim, w.origin, receiver),
             this,
-            caller: alias,
+            caller: ConstructorCaller::JavaAlias(alias),
             chain: Chain::Complete,
         });
         if duplicate {
             callee.constructor.push(ConstructorActivation {
                 access: access(&mut context, &claim, w.origin, receiver),
                 this,
-                caller: alias,
+                caller: ConstructorCaller::JavaAlias(alias),
                 chain: Chain::Complete,
             });
         } else {
@@ -287,6 +288,7 @@ fn mismatched_and_duplicate_constructor_authority_cannot_promote_aliases_or_writ
             used_code_bytes: 0,
             remaining: 10,
             monitors: None,
+            vm: None,
         };
         let mut state = state();
         let mut init = InitExecution {
@@ -392,6 +394,7 @@ fn failed_new_publication_keeps_old_site_locals_and_does_not_recharge_alias_work
         used_code_bytes: 0,
         remaining: 1,
         monitors: None,
+        vm: None,
     };
     let mut state = state();
     state

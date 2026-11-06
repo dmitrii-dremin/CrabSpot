@@ -93,6 +93,24 @@ Run `python tools/verify_string_body_entry.py` to exercise `String.length()` and
 
 The equality increment adds execution of `String.equals(Object)` and the supplied byte-array comparison helper. Run `python tools/verify_string_equality_entry.py` to compare genuine Java application results, bootstrap assertion queries, resource-limit failures and OS argument transport. It uses the same explicit platform input and checks both archived classes and newly compiled classes. [Equality contract](docs/architecture/m2-string-equality.md)
 
+### Throwable construction and arithmetic exceptions
+
+The approved Throwable increment executes real Java Throwable constructors,
+catchable integer/long division and remainder failures, and bounded stack capture.
+With a Java 21 HotSpot JDK at `JAVA_HOME`, run the public API and CLI checks:
+
+```text
+python tools/verify_throwable_entry.py
+python -m unittest discover -s tools -p test_throwable_launch.py
+```
+
+The replay checks both archived and freshly compiled Java applications, retained
+message/cause state, rethrow identity, refill, uncaught diagnostics and exact
+resource boundaries. It also runs independent reference observations; CrabSpot
+executes the product cases itself. Java-visible stack-trace population and other
+VM exception producers remain unsupported. Combined acceptance status and
+reproduction evidence appear in the [integration report](docs/architecture/m2-throwable-integration.md).
+
 ## Build and inspect
 
 Install Rust stable with rustfmt and Clippy. Tests use checked-in Java 21 fixtures;
@@ -267,8 +285,9 @@ It preserves the thrown handle and searches callers at the invocation PC. Handle
 metadata and dispatch work have explicit limits. All twelve unmaterialized
 VM-produced categories fail explicitly in this profile, including null athrow;
 no exception object is fabricated and no catch is silently bypassed. Earlier APIs
-keep their symbolic outcomes and handler/athrow exclusions. Throwable construction,
-initialized library state and general Java exception production remain unimplemented.
+keep their symbolic outcomes and handler/athrow exclusions. The newer Throwable
+session profile adds real construction, required library initialization and
+arithmetic exception production; general Java exception production remains open.
 InitializationSession additionally executes new and actual constructor Code,
 including an explicitly supplied bootstrap Object constructor. Private frame
 values track unfinished aliases, lawful this/super chains, constructor-scoped

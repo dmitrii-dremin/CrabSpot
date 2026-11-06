@@ -1,0 +1,366 @@
+{
+  "schema": 1,
+  "evidence_sha256": "e93e46e8c3a14957853e8b44ad1e3a2983da6a6ce29522e06bff0c9c2a897721",
+  "runs": [
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [],
+      "case": "main",
+      "stdout": "65535/8/4/1",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [],
+      "case": "wrong",
+      "stdout": "probe.ThrowableEntryGuest$UserFailure/app.ThrowableMain.monitorRefill/65535/0/true",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [],
+      "case": "uncaught",
+      "stdout": "java.lang.ArithmeticException/probe.ThrowableEntryGuest.idiv/7/0",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [],
+      "case": "refilled",
+      "stdout": "probe.ThrowableEntryGuest$UserFailure/probe.ThrowableEntryGuest.refill",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [],
+      "case": "trace",
+      "stdout": "7/true",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "main",
+      "stdout": "65535/8/4/1",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong",
+      "stdout": "probe.ThrowableEntryGuest$UserFailure/app.ThrowableMain.monitorRefill/65535/0/true",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "uncaught",
+      "stdout": "java.lang.ArithmeticException/probe.ThrowableEntryGuest.idiv/7/0",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "refilled",
+      "stdout": "probe.ThrowableEntryGuest$UserFailure/probe.ThrowableEntryGuest.refill",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "trace",
+      "stdout": "7/true",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "main",
+      "stdout": "65535/8/4/1",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "wrong",
+      "stdout": "probe.ThrowableEntryGuest$UserFailure/app.ThrowableMain.monitorRefill/65535/0/true",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "uncaught",
+      "stdout": "java.lang.ArithmeticException/probe.ThrowableEntryGuest.idiv/7/0",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "refilled",
+      "stdout": "probe.ThrowableEntryGuest$UserFailure/probe.ThrowableEntryGuest.refill",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "trace",
+      "stdout": "7/true",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "main",
+      "stdout": "65535/8/4/1",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong",
+      "stdout": "probe.ThrowableEntryGuest$UserFailure/app.ThrowableMain.monitorRefill/65535/0/true",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "uncaught",
+      "stdout": "java.lang.ArithmeticException/probe.ThrowableEntryGuest.idiv/7/0",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "refilled",
+      "stdout": "probe.ThrowableEntryGuest$UserFailure/probe.ThrowableEntryGuest.refill",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "trace",
+      "stdout": "7/true",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [],
+      "case": "main",
+      "stdout": "65535/8/4/1",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [],
+      "case": "wrong",
+      "stdout": "probe.ThrowableEntryGuest$UserFailure/app.ThrowableMain.monitorRefill/65535/0/true",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [],
+      "case": "uncaught",
+      "stdout": "java.lang.ArithmeticException/probe.ThrowableEntryGuest.idiv/7/0",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [],
+      "case": "refilled",
+      "stdout": "probe.ThrowableEntryGuest$UserFailure/probe.ThrowableEntryGuest.refill",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [],
+      "case": "trace",
+      "stdout": "7/true",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "main",
+      "stdout": "65535/8/4/1",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong",
+      "stdout": "probe.ThrowableEntryGuest$UserFailure/app.ThrowableMain.monitorRefill/65535/0/true",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "uncaught",
+      "stdout": "java.lang.ArithmeticException/probe.ThrowableEntryGuest.idiv/7/0",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "refilled",
+      "stdout": "probe.ThrowableEntryGuest$UserFailure/probe.ThrowableEntryGuest.refill",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "trace",
+      "stdout": "7/true",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "main",
+      "stdout": "65535/8/4/1",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "wrong",
+      "stdout": "probe.ThrowableEntryGuest$UserFailure/app.ThrowableMain.monitorRefill/65535/0/true",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "uncaught",
+      "stdout": "java.lang.ArithmeticException/probe.ThrowableEntryGuest.idiv/7/0",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "refilled",
+      "stdout": "probe.ThrowableEntryGuest$UserFailure/probe.ThrowableEntryGuest.refill",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "trace",
+      "stdout": "7/true",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "main",
+      "stdout": "65535/8/4/1",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong",
+      "stdout": "probe.ThrowableEntryGuest$UserFailure/app.ThrowableMain.monitorRefill/65535/0/true",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "uncaught",
+      "stdout": "java.lang.ArithmeticException/probe.ThrowableEntryGuest.idiv/7/0",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "refilled",
+      "stdout": "probe.ThrowableEntryGuest$UserFailure/probe.ThrowableEntryGuest.refill",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "trace",
+      "stdout": "7/true",
+      "stderr": ""
+    }
+  ]
+}

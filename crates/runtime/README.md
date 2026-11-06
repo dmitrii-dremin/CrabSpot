@@ -1078,3 +1078,28 @@ native effect, retaining registration and earlier static writes on later failure
 This provides a fixed system-assertion policy. General class-loader assertion
 tables, reflection, native library loading, String hashCode and charAt remain
 open. Supplied Java frames and the byte loop compute equality.
+
+Throwable support binds the bootstrap native and field ABI after immutable registry
+admission, checked layouts and the existing equality profile. Discovery retains
+exact declaration identities and ordinary constructor IDs; supplied Throwable and
+Collections Java bodies remain subject to normal verification and execution.
+The profile protects Throwable's native-owned `backtrace` and `depth` fields from
+raw, checked and constructor field writes.
+
+Trace snapshots reserve their actual frame count once under cumulative snapshot,
+frame and work limits. A successful native capture moves that buffer into an opaque
+managed Object payload and atomically publishes its reciprocal owner and depth.
+The payload counts as one instance with zero Java slots; its typed frame bytes use
+the shared heap payload limit. Refills retain prior tokens and charges. Strong
+child enumeration includes both directions of the owner/token relationship.
+The read-only observer funds actual ancestry and field traversal and distinguishes
+an uncaptured object from a captured empty trace. Ordinary object storage and
+constructor authority remain sealed for opaque trace tokens.
+
+The runtime checks canonical MethodIds, the structural position bound and storage
+authority. The interpreter owns actual prepared instruction positions, historical
+stack selection, frame filtering, lifecycle and original VM snapshot consumption. The first producer bridge supplies the
+real ArithmeticException(String) constructor and `/ by zero` message; allocation
+and authenticated dispatch reuse existing checked services. Additional VM producers,
+Java-visible StackTraceElement population, cloning and general native bindings
+remain open.

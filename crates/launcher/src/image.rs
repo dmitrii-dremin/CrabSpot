@@ -32,6 +32,8 @@ pub(crate) struct PreparedImage {
     pub(crate) string_body_limits: StringBodyLimits,
     pub(crate) string_equality_plan: Option<CompactStringEqualityPlan>,
     pub(crate) bootstrap_assertions: BootstrapAssertionPolicy,
+    pub(crate) throwable_plan: Option<ThrowablePlan>,
+    pub(crate) throwable_profile: crate::ApplicationThrowableProfile,
     pub(crate) roles: BootstrapRoles,
     pub(crate) named: ClassId,
     pub(crate) app_loader: LoaderId,
@@ -555,6 +557,25 @@ pub(crate) fn prepare_with_string_equality(
     options: ApplicationOptions,
     equality: crate::ApplicationStringEqualityProfile,
 ) -> Result<PreparedImage> {
+    prepare_with_throwables(
+        directories,
+        entry,
+        observations,
+        options,
+        crate::ApplicationThrowableProfile {
+            equality,
+            ..Default::default()
+        },
+    )
+}
+pub(crate) fn prepare_with_throwables(
+    directories: ApplicationDirectories<'_>,
+    entry: &str,
+    observations: &[StaticIntObservation<'_>],
+    options: ApplicationOptions,
+    throwable_profile: crate::ApplicationThrowableProfile,
+) -> Result<PreparedImage> {
+    let equality = throwable_profile.equality;
     let profile = equality.bodies;
     let mut meter = Meter::new(options.image);
     let mut used = ApplicationUsage::default();
@@ -658,6 +679,78 @@ pub(crate) fn prepare_with_string_equality(
         method_handle: roles[8],
     };
     let error = roles[4];
+    // Discovery has no heap authority. Its optional exact IDs only extend the
+    // proof seeds; matched Throwable roles add their explicit public imports.
+    let discovery =
+        probe_compact_string_bodies(domain.registry(), boot, core.string, profile.discovery)
+            .map_err(|source| {
+                used.string_body_discovery = source.discovery_usage;
+                meter.error(S::Verification, K::StringBody(source), used)
+            })?;
+    used.string_body_discovery = discovery.usage;
+    let string_body_plan = discovery.plan;
+    if string_body_plan.is_none() && profile.mode == crate::StringBodyMode::RequireCompact {
+        return Err(meter.error(
+            S::Verification,
+            K::StringBody(Box::new(StringBodyError {
+                kind: StringBodyErrorKind::UnsupportedShape,
+                discovery_usage: used.string_body_discovery,
+            })),
+            used,
+        ));
+    }
+    let string_equality_plan = if let Some(body) = &string_body_plan {
+        let discovery = probe_compact_string_equality(domain.registry(), body, equality.discovery)
+            .map_err(|source| {
+                used.string_equality_discovery = source.discovery_usage;
+                meter.error(S::Verification, K::StringBody(source), used)
+            })?;
+        used.string_equality_discovery = discovery.usage;
+        discovery.plan
+    } else {
+        None
+    };
+    if string_equality_plan.is_none()
+        && equality.mode == crate::StringEqualityMode::RequireCompactEquality
+    {
+        return Err(meter.error(
+            S::Verification,
+            K::StringBody(Box::new(StringBodyError {
+                kind: StringBodyErrorKind::UnsupportedShape,
+                discovery_usage: used.string_equality_discovery,
+            })),
+            used,
+        ));
+    }
+    let throwable_plan = if throwable_profile.mode != crate::ThrowableMode::Disabled
+        && string_equality_plan.is_some()
+    {
+        let discovery = probe_throwable_support(
+            domain.registry(),
+            boot,
+            core.throwable,
+            throwable_profile.discovery,
+        )
+        .map_err(|source| {
+            used.throwable_discovery = source.discovery_usage;
+            meter.error(S::Verification, K::Throwable(source), used)
+        })?;
+        used.throwable_discovery = discovery.usage;
+        discovery.plan
+    } else {
+        None
+    };
+    if throwable_plan.is_none() && throwable_profile.mode == crate::ThrowableMode::RequireThrowable
+    {
+        return Err(meter.error(
+            S::Verification,
+            K::Throwable(Box::new(ThrowableAccessError {
+                kind: ThrowableErrorKind::UnsupportedShape,
+                discovery_usage: used.throwable_discovery,
+            })),
+            used,
+        ));
+    }
     let mut bindings = Vec::new();
     let mut imported = Vec::new();
     for import in IMPORTS {
@@ -682,6 +775,39 @@ pub(crate) fn prepare_with_string_equality(
             definition: class,
         });
         imported.push(class);
+    }
+    if let Some(plan) = &throwable_plan {
+        let public = plan.public_roles();
+        for (name, class) in [
+            ("java/lang/Exception", public.exception),
+            ("java/lang/RuntimeException", public.runtime_exception),
+            ("java/lang/ArithmeticException", public.arithmetic_exception),
+            (
+                "java/lang/NullPointerException",
+                public.null_pointer_exception,
+            ),
+            ("java/lang/AssertionError", public.assertion_error),
+            ("java/lang/StackTraceElement", public.stack_trace_element),
+        ] {
+            let name: Vec<u16> = name.encode_utf16().collect();
+            meter.retain(2, S::Imports, used)?;
+            bindings
+                .try_reserve(1)
+                .map_err(|_| meter.alloc(S::Imports, used))?;
+            imported
+                .try_reserve(1)
+                .map_err(|_| meter.alloc(S::Imports, used))?;
+            domain
+                .context(options.loading_work)
+                .record_initiation(app, &name, class)
+                .map_err(|e| meter.error(S::Imports, K::Loading(e), used))?;
+            routes.add(domain.registry(), app, class, &mut meter, used, S::Imports)?;
+            bindings.push(VerificationBinding {
+                initiating_loader: app,
+                definition: class,
+            });
+            imported.push(class);
+        }
     }
     // Eager input policy applies to every application Class CP, including dead code.
     for id in &ids[bootstrap_count..] {
@@ -814,49 +940,6 @@ pub(crate) fn prepare_with_string_equality(
         plan_index.insert(*id, plans.len());
         plans.push(plan);
     }
-    // Discovery has no heap authority. Its optional exact IDs only extend the
-    // proof seeds; the application loader's seven public imports stay unchanged.
-    let discovery =
-        probe_compact_string_bodies(domain.registry(), boot, core.string, profile.discovery)
-            .map_err(|source| {
-                used.string_body_discovery = source.discovery_usage;
-                meter.error(S::Verification, K::StringBody(source), used)
-            })?;
-    used.string_body_discovery = discovery.usage;
-    let string_body_plan = discovery.plan;
-    if string_body_plan.is_none() && profile.mode == crate::StringBodyMode::RequireCompact {
-        return Err(meter.error(
-            S::Verification,
-            K::StringBody(Box::new(StringBodyError {
-                kind: StringBodyErrorKind::UnsupportedShape,
-                discovery_usage: used.string_body_discovery,
-            })),
-            used,
-        ));
-    }
-    let string_equality_plan = if let Some(body) = &string_body_plan {
-        let discovery = probe_compact_string_equality(domain.registry(), body, equality.discovery)
-            .map_err(|source| {
-                used.string_equality_discovery = source.discovery_usage;
-                meter.error(S::Verification, K::StringBody(source), used)
-            })?;
-        used.string_equality_discovery = discovery.usage;
-        discovery.plan
-    } else {
-        None
-    };
-    if string_equality_plan.is_none()
-        && equality.mode == crate::StringEqualityMode::RequireCompactEquality
-    {
-        return Err(meter.error(
-            S::Verification,
-            K::StringBody(Box::new(StringBodyError {
-                kind: StringBodyErrorKind::UnsupportedShape,
-                discovery_usage: used.string_equality_discovery,
-            })),
-            used,
-        ));
-    }
     if string_body_plan.is_some() {
         domain
             .enable_nest_access()
@@ -886,6 +969,15 @@ pub(crate) fn prepare_with_string_equality(
             .try_reserve(1)
             .map_err(|_| meter.alloc(S::Verification, used))?;
         pending.push(plan.private_root());
+    }
+    if let Some(plan) = &throwable_plan {
+        for id in plan.private_roots() {
+            meter.retain(1, S::Verification, used)?;
+            pending
+                .try_reserve(1)
+                .map_err(|_| meter.alloc(S::Verification, used))?;
+            pending.push(*id);
+        }
     }
     while let Some(id) = pending.pop() {
         meter.work(1, S::Verification, used)?;
@@ -1012,6 +1104,8 @@ pub(crate) fn prepare_with_string_equality(
         string_body_plan,
         string_body_limits: profile.backing,
         string_equality_plan,
+        throwable_plan,
+        throwable_profile,
         bootstrap_assertions: equality.bootstrap_assertions,
         domain,
         routes,

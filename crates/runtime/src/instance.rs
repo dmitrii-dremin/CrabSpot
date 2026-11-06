@@ -45,6 +45,9 @@ pub enum InstanceClassKind {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum InstanceError {
+    ReadOnlyThrowableState {
+        field: FieldId,
+    },
     Disabled,
     ReservedClassObject {
         class: ClassId,
@@ -110,6 +113,9 @@ impl fmt::Display for InstanceError {
             Self::OpaqueStringObject { class } => write!(f, "String {class:?} has opaque VM state"),
             Self::MirrorLayoutSealed => {
                 f.write_str("mirror binding seals the admitted layout graph")
+            }
+            Self::ReadOnlyThrowableState { field } => {
+                write!(f, "native-owned Throwable field {field:?} is read-only")
             }
             Self::Disabled => f.write_str("instance storage is disabled"),
             Self::Registry(e) => write!(f, "instance metadata lookup failed: {e}"),
@@ -431,9 +437,9 @@ pub(crate) struct ConstructorWrite {
 fn instance(payload: &EntryPayload) -> Result<&InstancePayload, InstanceError> {
     match payload {
         EntryPayload::Instance(value) => Ok(value),
-        EntryPayload::Mirror(_) | EntryPayload::String(_) => Err(InstanceError::InvalidMetadata(
-            "opaque mirror passed to unguarded instance helper",
-        )),
+        EntryPayload::Mirror(_) | EntryPayload::String(_) | EntryPayload::Backtrace(_) => Err(
+            InstanceError::InvalidMetadata("opaque mirror passed to unguarded instance helper"),
+        ),
         EntryPayload::Array(_) => Err(HeapError::WrongEntryKind {
             expected: HeapEntryKind::Instance,
             actual: HeapEntryKind::PrimitiveArray,
@@ -618,6 +624,11 @@ impl ManagedHeap {
         Ok(())
     }
     pub(crate) fn reject_opaque(&self, reference: Reference) -> Result<(), InstanceError> {
+        if matches!(self.entry(reference)?.payload, EntryPayload::Backtrace(_)) {
+            return Err(InstanceError::InvalidMetadata(
+                "Backtrace has opaque VM state",
+            ));
+        }
         if matches!(self.entry(reference)?.payload, EntryPayload::String(_)) {
             let class = self
                 .strings
@@ -1045,6 +1056,13 @@ impl ManagedHeap {
     pub fn instance_class(&self, reference: Reference) -> Result<ClassId, InstanceError> {
         self.instances.as_ref().ok_or(InstanceError::Disabled)?;
         let class = match &self.entry(reference)?.payload {
+            EntryPayload::Backtrace(_) => {
+                self.throwables
+                    .as_ref()
+                    .ok_or(InstanceError::InvalidMetadata("Backtrace without binding"))?
+                    .plan
+                    .object
+            }
             EntryPayload::String(_) => {
                 self.strings
                     .as_ref()
@@ -1099,6 +1117,7 @@ impl ManagedHeap {
             return Err(InstanceError::FinalField { field });
         }
         let value = own.kind.store(field, value)?;
+        let native_owned = self.throwable_field_is_native(field);
         let EntryPayload::Instance(object) = &mut self
             .entries
             .get_mut(index)
@@ -1109,12 +1128,16 @@ impl ManagedHeap {
                 "validated instance changed kind",
             ));
         };
-        *object
+        let destination = object
             .values
             .get_mut(slot)
             .ok_or(InstanceError::InvalidMetadata(
                 "field slot is outside instance payload",
-            ))? = value;
+            ))?;
+        if native_owned {
+            return Err(InstanceError::ReadOnlyThrowableState { field });
+        }
+        *destination = value;
         Ok(())
     }
     // The field context owns the descriptor/assignment proof. There are no
@@ -1151,6 +1174,7 @@ impl ManagedHeap {
         if !value.is_null() {
             self.entry(value)?;
         }
+        let native_owned = self.throwable_field_is_native(field);
         let EntryPayload::Instance(object) = &mut self
             .entries
             .get_mut(index)
@@ -1161,12 +1185,16 @@ impl ManagedHeap {
                 "validated reference receiver changed kind",
             ));
         };
-        *object
+        let destination = object
             .values
             .get_mut(slot)
             .ok_or(InstanceError::InvalidMetadata(
                 "reference field slot is outside instance payload",
-            ))? = Value::Reference(value);
+            ))?;
+        if native_owned {
+            return Err(InstanceError::ReadOnlyThrowableState { field });
+        }
+        *destination = Value::Reference(value);
         Ok(())
     }
     pub(crate) fn constructor_field_proof(
@@ -1283,6 +1311,7 @@ impl ManagedHeap {
             }
             _ => own.kind.store(proof.field, value)?,
         };
+        let native_owned = self.throwable_field_is_native(proof.field);
         // All checks, including source handle and destination bounds, precede
         // this single write; neither proof creation nor commit invokes callbacks.
         let EntryPayload::Instance(object) = &mut self
@@ -1301,6 +1330,9 @@ impl ManagedHeap {
             .ok_or(InstanceError::InvalidMetadata(
                 "constructor field slot is outside instance payload",
             ))?;
+        if native_owned {
+            return Err(InstanceError::ReadOnlyThrowableState { field: proof.field });
+        }
         *destination = value;
         Ok(())
     }
@@ -1311,6 +1343,7 @@ impl ManagedHeap {
         let (values, references, backing): (&[Value], &[Reference], Option<HeapRef>) =
             match &self.entry(reference)?.payload {
                 EntryPayload::Array(_) | EntryPayload::Mirror(_) => (&[], &[], None),
+                EntryPayload::Backtrace(p) => (&[], &[], Some(p.owner)),
                 EntryPayload::String(p) => (&[], &[], p.backing.map(|(h, _)| h)),
                 EntryPayload::ReferenceArray(a) => (&[], a.values.as_slice(), None),
                 EntryPayload::Instance(o) => (o.values.as_slice(), &[], None),
@@ -1932,5 +1965,229 @@ mod tests {
                 matches!(result, Err(FieldAccessError::Instance(InstanceError::LayoutMissing { class: missing })) if missing == object)
             });
         }
+    }
+}
+// Fixed native field publication; the only writer of the bound pair.
+impl ManagedHeap {
+    pub(crate) fn throwable_binding_slots(
+        &self,
+        fields: [FieldId; 2],
+        ordinals: [usize; 2],
+    ) -> crate::throwable::R<[usize; 2]> {
+        use crate::throwable::{ThrowableErrorKind as E, error};
+        let state = self.instances.as_ref().ok_or(InstanceError::Disabled)?;
+        let shape = state.shape(fields[0].owner())?;
+        let mut slots = [0; 2];
+        for j in 0..2 {
+            let own = shape
+                .fields
+                .get(ordinals[j])
+                .ok_or_else(|| error(E::InvalidBinding("native field ordinal missing")))?;
+            if own.id != fields[j]
+                || own.is_final
+                || own.kind
+                    != if j == 0 {
+                        FieldKind::Reference
+                    } else {
+                        FieldKind::Int
+                    }
+            {
+                return Err(error(E::InvalidBinding("native field layout differs")));
+            }
+            slots[j] = shape
+                .inherited
+                .checked_add(ordinals[j])
+                .filter(|slot| *slot < shape.slots)
+                .ok_or_else(|| error(E::InvalidBinding("native field slot exceeds shape")))?
+        }
+        if slots[0] == slots[1] {
+            return Err(error(E::InvalidBinding("native field slots alias")));
+        }
+        Ok(slots)
+    }
+    pub(crate) fn throwable_pair_slots(
+        &self,
+        receiver: Reference,
+        fields: [FieldId; 2],
+        steps: &mut usize,
+        options: crate::FieldResolutionOptions,
+    ) -> crate::throwable::R<(ClassId, [usize; 2])> {
+        use crate::throwable::{ThrowableErrorKind as E, error};
+        let state = self.instances.as_ref().ok_or(InstanceError::Disabled)?;
+        let EntryPayload::Instance(object) = &self.entry(receiver)?.payload else {
+            return Err(error(E::InvalidReceiver));
+        };
+        let mut current = Some(object.class);
+        for _ in 0..state.shapes.len() {
+            let Some(id) = current else {
+                return Err(error(E::InvalidReceiver));
+            };
+            crate::field::step(steps, options)?;
+            let shape = state.shape(id)?;
+            if id == fields[0].owner() {
+                let mut slots = [None; 2];
+                for (index, field) in shape.fields.iter().enumerate() {
+                    crate::field::step(steps, options)?;
+                    for j in 0..2 {
+                        if field.id == fields[j] {
+                            if field.is_final
+                                || field.kind
+                                    != if j == 0 {
+                                        FieldKind::Reference
+                                    } else {
+                                        FieldKind::Int
+                                    }
+                            {
+                                return Err(error(E::InvalidState("native field layout damaged")));
+                            }
+                            slots[j] = shape
+                                .inherited
+                                .checked_add(index)
+                                .filter(|slot| *slot < shape.slots)
+                        }
+                    }
+                    if slots.iter().all(Option::is_some) {
+                        break;
+                    }
+                }
+                let slots = [
+                    slots[0]
+                        .ok_or_else(|| error(E::InvalidState("native backtrace slot absent")))?,
+                    slots[1].ok_or_else(|| error(E::InvalidState("native depth slot absent")))?,
+                ];
+                if slots[0] == slots[1] {
+                    return Err(error(E::InvalidState("native slots alias")));
+                }
+                return Ok((object.class, slots));
+            }
+            current = shape.superclass;
+        }
+        Err(error(E::InvalidState("native receiver ancestry cyclic")))
+    }
+    pub(crate) fn throwable_pair(
+        &self,
+        receiver: Reference,
+        actual: ClassId,
+        slots: [usize; 2],
+    ) -> crate::throwable::R<(Reference, i32)> {
+        use crate::throwable::{ThrowableErrorKind as E, error};
+        let EntryPayload::Instance(object) = &self.entry(receiver)?.payload else {
+            return Err(error(E::InvalidReceiver));
+        };
+        if object.class != actual || slots[0] == slots[1] {
+            return Err(error(E::InvalidCapture));
+        }
+        let Some(Value::Reference(token)) = object.values.get(slots[0]) else {
+            return Err(error(E::InvalidState(
+                "native backtrace slot kind or bounds differ",
+            )));
+        };
+        let Some(Value::Int(depth)) = object.values.get(slots[1]) else {
+            return Err(error(E::InvalidState(
+                "native depth slot kind or bounds differ",
+            )));
+        };
+        Ok((*token, *depth))
+    }
+    pub(crate) fn publish_backtrace(
+        &mut self,
+        receiver: Reference,
+        actual: ClassId,
+        slots: [usize; 2],
+        payload: crate::throwable::Backtrace,
+    ) -> crate::throwable::R<()> {
+        use crate::throwable::{ThrowableErrorKind as E, ThrowableResource as R, error};
+        let index = self.checked_handle(receiver.heap_ref().ok_or(HeapError::NullReference)?)?;
+        self.throwable_pair(receiver, actual, slots)?;
+        let trace_state = self.throwables.as_ref().ok_or_else(|| error(E::Disabled))?;
+        if slots != trace_state.slots
+            || payload.fingerprint != trace_state.fingerprint
+            || payload.owner != receiver.heap_ref().ok_or(HeapError::NullReference)?
+            || payload.actual != actual
+        {
+            return Err(error(E::InvalidCapture));
+        }
+        let state = self.instances.as_ref().ok_or(InstanceError::Disabled)?;
+        let count = increased(
+            state.count,
+            1,
+            state.options.max_instances,
+            InstanceResource::Instances,
+        )?;
+        let bytes = payload
+            .frames
+            .len()
+            .checked_mul(std::mem::size_of::<crate::TraceFrame>())
+            .ok_or_else(|| {
+                error(E::Overflow {
+                    resource: R::PayloadBytes,
+                })
+            })?;
+        let total = crate::heap::increased(
+            self.bytes,
+            bytes,
+            self.options.max_payload_bytes,
+            crate::HeapResource::PayloadBytes,
+        )?;
+        let depth = i32::try_from(payload.frames.len()).map_err(|_| {
+            error(E::UnrepresentableDepth {
+                required: payload.frames.len() as u64,
+            })
+        })?;
+        let traces = self.throwables.as_mut().ok_or_else(|| error(E::Disabled))?;
+        let backtraces = traces
+            .usage
+            .backtraces
+            .checked_add(1)
+            .filter(|n| *n <= traces.usage.snapshots)
+            .ok_or_else(|| error(E::InvalidState("published captures exceed snapshots")))?;
+        traces.reserving()?;
+        reserve_entries(&mut self.entries, 1)?;
+        self.throwables
+            .as_mut()
+            .ok_or_else(|| error(E::Disabled))?
+            .reserving()?;
+        // Obtain every mutable destination before the first write. Arena capacity is
+        // already reserved; publication performs only scalar stores and one push.
+        let token = Reference::issued(self.identity, self.entries.len(), LIVE_GENERATION);
+        let state = self.instances.as_mut().ok_or(InstanceError::Disabled)?;
+        let traces = self.throwables.as_mut().ok_or_else(|| error(E::Disabled))?;
+        let EntryPayload::Instance(object) = &mut self
+            .entries
+            .get_mut(index)
+            .ok_or(HeapError::MissingEntry { index })?
+            .payload
+        else {
+            return Err(error(E::InvalidReceiver));
+        };
+        let (low, high, reverse) = if slots[0] < slots[1] {
+            (slots[0], slots[1], false)
+        } else {
+            (slots[1], slots[0], true)
+        };
+        let (before, after) = object
+            .values
+            .split_at_mut_checked(high)
+            .ok_or_else(|| error(E::InvalidCapture))?;
+        let a = before
+            .get_mut(low)
+            .ok_or_else(|| error(E::InvalidCapture))?;
+        let b = after.first_mut().ok_or_else(|| error(E::InvalidCapture))?;
+        if reverse {
+            *a = Value::Int(depth);
+            *b = Value::Reference(token)
+        } else {
+            *a = Value::Reference(token);
+            *b = Value::Int(depth)
+        };
+        state.count = count;
+        traces.usage.backtraces = backtraces;
+        self.bytes = total;
+        self.entries.push(Entry {
+            generation: LIVE_GENERATION,
+            string_backing: None,
+            payload: EntryPayload::Backtrace(payload),
+        });
+        Ok(())
     }
 }

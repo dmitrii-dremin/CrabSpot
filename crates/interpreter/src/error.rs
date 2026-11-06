@@ -11,6 +11,7 @@ use std::fmt;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExecutionError {
     pub initialization_class: Option<ClassId>,
+    pub vm_exception: Option<Box<crate::VmExceptionContext>>,
     pub offset: Option<u32>,
     pub kind: ExecutionErrorKind,
     pub method: Option<Box<MethodIdentity>>,
@@ -33,6 +34,18 @@ pub struct CallSite {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExecutionErrorKind {
+    ThrowableAccess(Box<crabspot_runtime::ThrowableAccessError>),
+    VmExceptionLimit {
+        limit: u64,
+        required: u64,
+    },
+    VmExceptionAccountingOverflow {
+        counter: crate::VmExceptionCounter,
+    },
+    VmExceptionProtocol {
+        reason: &'static str,
+    },
+    NestedVmMaterialization(Box<crate::NestedVmMaterialization>),
     StringBody(Box<crabspot_runtime::StringBodyError>),
     AssertionQueryOverflow,
     ClassMirror(Box<crabspot_runtime::ClassMirrorError>),
@@ -176,6 +189,7 @@ impl ExecutionError {
     pub(crate) fn new(offset: Option<u32>, kind: ExecutionErrorKind) -> Self {
         Self {
             initialization_class: None,
+            vm_exception: None,
             offset,
             kind,
             method: None,
@@ -185,6 +199,13 @@ impl ExecutionError {
 }
 impl fmt::Display for ExecutionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(vm) = &self.vm_exception {
+            write!(
+                formatter,
+                "VM {:?} at {:?}@{} during {:?}: ",
+                vm.origin.kind, vm.origin.method, vm.origin.pc, vm.phase
+            )?;
+        }
         if let Some(class) = self.initialization_class {
             write!(formatter, "initializing {class:?}: ")?;
         }
@@ -214,6 +235,25 @@ impl fmt::Display for ExecutionError {
             write!(formatter, "bytecode offset {offset}: ")?;
         }
         match &self.kind {
+            ExecutionErrorKind::ThrowableAccess(error) => {
+                write!(formatter, "Throwable service: {error}")
+            }
+            ExecutionErrorKind::VmExceptionLimit { limit, required } => write!(
+                formatter,
+                "VM materialization limit {limit}, requires {required}"
+            ),
+            ExecutionErrorKind::VmExceptionAccountingOverflow { counter } => write!(
+                formatter,
+                "VM materialization accounting overflow: {counter:?}"
+            ),
+            ExecutionErrorKind::VmExceptionProtocol { reason } => {
+                write!(formatter, "VM materialization protocol: {reason}")
+            }
+            ExecutionErrorKind::NestedVmMaterialization(error) => write!(
+                formatter,
+                "nested VM materialization {:?} while producing {:?}",
+                error.secondary, error.original
+            ),
             ExecutionErrorKind::StringBody(error) => {
                 write!(formatter, "bootstrap native operation failed: {error}")
             }
@@ -419,6 +459,7 @@ impl fmt::Display for ExecutionError {
 impl std::error::Error for ExecutionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.kind {
+            ExecutionErrorKind::ThrowableAccess(error) => Some(error.as_ref()),
             ExecutionErrorKind::StringBody(error) => Some(error.as_ref()),
             ExecutionErrorKind::String(error) => Some(error.as_ref()),
             ExecutionErrorKind::ClassMirror(error) => Some(error.as_ref()),

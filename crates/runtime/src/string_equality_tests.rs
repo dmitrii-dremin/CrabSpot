@@ -43,7 +43,7 @@ fn push(c: &mut Class, n: &str, d: &str, flags: u16, spec: &[O], wide: bool) {
     let code = render(c, spec, wide);
     c.method(n, d, flags, &code, 4, 4);
 }
-fn image(wide: bool, damage: u8) -> (Graph, ClassId, CompactStringBodyPlan) {
+pub(crate) fn image(wide: bool, damage: u8) -> (Graph, ClassId, CompactStringBodyPlan) {
     let mut g = Graph::new();
     let boot = g.boot;
     g.add(

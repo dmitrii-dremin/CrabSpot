@@ -165,7 +165,7 @@ pub struct StringBodyDiscovery {
 mod probe;
 pub use probe::probe_compact_string_bodies;
 #[path = "string_equality.rs"]
-mod equality;
+pub(crate) mod equality;
 pub use equality::*;
 #[derive(Debug)]
 pub(crate) struct BodyState {

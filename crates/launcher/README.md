@@ -40,11 +40,12 @@ Platform bytes are supplied by the caller. The launcher makes no vendor
 provenance claim. Acceptance uses a genuine extracted Java 21 java.base tree.
 An optional root module-info.class must describe java.base and is not an ordinary
 definition. Application module descriptors, application java/ definitions,
-platform/application name overlaps, previews and class versions outside 51–65
+platform/application name overlaps, previews and class versions outside 51-65
 are rejected. Package-info remains ordinary metadata.
 
-The child application namespace imports exactly Object, String, Throwable,
-Error, Cloneable, Serializable and Class through checked actual delegation. Each same
+The baseline child application namespace imports Object, String, Throwable,
+Error, Cloneable, Serializable and Class through checked actual delegation. A
+matched Throwable plan adds the six explicit public imports listed below. Each same
 record supplies the verifier binding and immutable paid route index. Other
 platform classes remain facts under their own bootstrap namespace. Application
 Class CP entries are eagerly checked, including dead code. Descriptor-only
@@ -71,9 +72,9 @@ and the selected declaring body; preflight/fuel/frame/Code limits are not reset
 between them. Existing standalone inspect and lower-level runtime APIs retain
 their own contracts.
 
-Returned, supplied uncaught Throwable and preserved host execution failure remain
-distinct. VM-produced exceptions still report the engine's explicit unsupported
-materialization boundary; the launcher does not fabricate exception objects.
+Returned, uncaught Throwable and preserved host execution failure remain distinct.
+The matched Throwable profile constructs VM arithmetic exceptions through genuine
+Java constructor Code; other producers retain explicit unsupported boundaries.
 Observed static effects survive an engine failure. A failed input/proof/setup
 cannot expose or resume a partial executable image. This profile is not complete
 Java SE compatibility, a module implementation, a general classpath loader or a
@@ -262,7 +263,7 @@ different actual initializer remains an explicit strict unsupported-shape contro
 even where its language-level length results agree. Hosted Temurin images require
 their own recorded shape/result evidence. Noncompact storage, ordinary String
 constructors, charAt/hashCode and equality paths without the separate binding, arbitrary platform access and
-VM-produced Throwable objects remain outside this binding. The wider words
+VM-produced Throwable objects require the separate matched Throwable binding below. The wider words
 application must retain the precise next unsupported site after genuine length;
 this profile does not claim complete Java library startup or compatibility.
 
@@ -312,3 +313,53 @@ No private boot class bytes are shipped and no host equality or synthetic Java
 initializer replaces the library Code. OpenJ9's different recipes remain an
 explicit strict unsupported-shape control; this binding makes no vendor-wide
 compatibility or general assertion/native-loading claim.
+
+## Genuine Throwable execution and bounded uncaught diagnostics
+
+Ordinary directory wrappers and the physical CLI now select Auto Throwable support
+on a matched compact-equality image. The six-argument
+`run_directory_application_with_throwables` accepts a separate
+`ApplicationThrowableProfile { equality, mode, discovery, traces, vm_exceptions }`.
+Existing options/invocation/body/equality input struct literals keep their layouts
+and chosen policies. `ThrowableMode` is Auto, RequireThrowable or Disabled. Auto
+clean absence uses the prior session; RequireThrowable fails typed Verification
+preflight; Disabled performs no Throwable probe/import/bind. An absent equality
+plan gives zero Throwable-discovery work.
+
+Discovery precedes dependency/hierarchy checking so a matched plan can import exact
+bootstrap Exception, RuntimeException, ArithmeticException, NullPointerException,
+AssertionError and StackTraceElement identities. Collections and its EmptySet,
+EmptyList and EmptyMap are private proof/admission seeds, not application imports.
+Every executable body receives the same whole-class proof and preparation witness.
+The heap binds support while empty, before argument Strings or literals; no probe
+initializes a class or allocates a trace. Binding failures are Layout errors.
+
+The single initialization evaluation runs genuine Throwable/Collections Code and
+constructor state. Zero-divisor integer/long division/remainder construct fresh
+ArithmeticExceptions with `/ by zero` through the shared engine and dispatch at
+the original PC. User construction, catch/rethrow, cause/message access, refill and
+synchronized wrappers keep their actual Java behavior. The trace filtering policy
+is explicitly matched-primary, not a universal Java or vendor trace guarantee.
+
+`ApplicationUsage` reports `throwable_discovery`, cumulative heap `traces`, and
+session `vm_exceptions { started, produced }`. Accepted starts and snapshot prefixes
+survive later failures. Session counts are copied immediately after execution;
+heap trace usage is preserved on every post-binding exit. The default per-evaluation
+materialization ceiling is 4096, independently of snapshot/frame/work limits.
+
+On this profile, `ApplicationCompletion::Uncaught` reports the actual exception
+class and optional current capture head (owner/name/descriptor/offset). The CLI
+prints those escaped names; refill naturally changes the displayed origin. No
+heap handle or remaining trace is exported. Class-name export costs n UTF units,
+n+5 work and one scratch record. A nonempty head costs L UTF units, L+10 work and
+four scratch records, under existing orchestration limits, before fallible copies.
+A rejected copy retains paid prefixes and producer/trace counts as a typed Setup
+host error. Legacy/no-plan completion retains `SuppliedUncaught`.
+
+The supported public `getStackTrace` path still fails at genuine native population
+in StackTraceElement.of after earlier allocations; no fake stack elements or
+formatted trace are returned. Other VM producers, native methods, non-Error
+initializer wrapping and wider Java library behavior remain explicit boundaries.
+Independent emitted image tests cover profile choices, exact resource failures,
+retained effects and bounded export; separately recorded original/rebuilt dual-VM
+fixtures and physical CLI runs cover genuine supplied platform bytes.

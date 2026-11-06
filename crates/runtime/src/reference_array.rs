@@ -126,12 +126,13 @@ fn reference_payload(payload: &EntryPayload) -> Result<&ReferenceArrayPayload, H
             expected: HeapEntryKind::ReferenceArray,
             actual: HeapEntryKind::PrimitiveArray,
         }),
-        EntryPayload::Instance(_) | EntryPayload::Mirror(_) | EntryPayload::String(_) => {
-            Err(HeapError::WrongEntryKind {
-                expected: HeapEntryKind::ReferenceArray,
-                actual: HeapEntryKind::Instance,
-            })
-        }
+        EntryPayload::Instance(_)
+        | EntryPayload::Mirror(_)
+        | EntryPayload::String(_)
+        | crate::heap::EntryPayload::Backtrace(_) => Err(HeapError::WrongEntryKind {
+            expected: HeapEntryKind::ReferenceArray,
+            actual: HeapEntryKind::Instance,
+        }),
     }
 }
 impl ManagedHeap {

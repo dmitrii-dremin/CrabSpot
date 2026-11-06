@@ -95,6 +95,10 @@ jobs:
         run: |
           python -m unittest discover -s tools -p test_throwable_reference.py
           python tools/throwable_reference.py --check
+      - name: Check public Throwable reference tooling
+        run: python -m unittest discover -s tools -p test_throwable_entry_reference.py
+      - name: Replay the public Throwable application on JDK 21
+        run: python tools/throwable_entry_reference.py --check
       - name: Build independent JDK metadata inspector
         run: cargo build -p crabspot-launcher --locked
       - name: Capture this JDK's verifier metadata
@@ -173,6 +177,8 @@ jobs:
         run: |
           python -m unittest discover -s tools -p test_class_mirror_launch.py
           python tools/verify_class_mirror_entry.py
+      - name: Check String argument encoding regression
+        run: cargo test -p crabspot-launcher --example replay_string_entry --locked
       - name: Run String literals, intern and application arguments through the public launcher
         run: python tools/verify_string_entry.py
       - name: Check String method execution, initialization and private nest access
@@ -184,3 +190,7 @@ jobs:
         run: |
           python -m unittest discover -s tools -p test_string_equality_launch.py
           python tools/verify_string_equality_entry.py
+      - name: Check Throwable launcher regression tooling
+        run: python -m unittest discover -s tools -p test_throwable_launch.py
+      - name: Execute Throwable construction and catchable arithmetic failures on CrabSpot
+        run: python tools/verify_throwable_entry.py

@@ -83,6 +83,7 @@ pub(crate) struct SessionState {
     pub steps: u64,
     pub construction: ConstructionState,
     pub equality: StringEqualityUsage,
+    pub vm_exceptions: crate::VmExceptionUsage,
 }
 pub(crate) fn allocation(resource: &'static str) -> ExecutionError {
     ExecutionError::new(
@@ -166,6 +167,7 @@ pub struct InitializationSession<'context, 'registry> {
     monitors: Option<crate::MonitorLimits>,
     class_mirrors: bool,
     strings: bool,
+    throwables: Option<crate::VmExceptionLimits>,
 }
 impl<'context, 'registry> InitializationSession<'context, 'registry> {
     pub fn new(
@@ -211,6 +213,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             monitors: None,
             class_mirrors: false,
             strings: false,
+            throwables: None,
             state: SessionState {
                 records,
                 indices,
@@ -222,6 +225,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
                 steps: 0,
                 construction: ConstructionState::default(),
                 equality: StringEqualityUsage::default(),
+                vm_exceptions: crate::VmExceptionUsage::default(),
             },
         })
     }
@@ -279,6 +283,44 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
         session.strings = true;
         Ok(session)
     }
+    /// Opt into genuine Throwable capture and bounded VM arithmetic exceptions.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_throwables(
+        context: &'context mut FieldResolutionContext<'registry>,
+        statics: &StaticStateProfile,
+        exceptions: &ExceptionProfile,
+        error_class: ClassId,
+        limits: InitializationLimits,
+        monitors: crate::MonitorLimits,
+        vm_exceptions: crate::VmExceptionLimits,
+    ) -> Result<Self, ExecutionError> {
+        context
+            .check_class_mirror_profile()
+            .map_err(|e| ExecutionError::new(None, E::ClassMirror(e)))?;
+        context
+            .check_string_profile()
+            .map_err(|e| ExecutionError::new(None, E::String(e)))?;
+        context
+            .check_throwable_profile()
+            .map_err(|e| ExecutionError::new(None, E::ThrowableAccess(e)))?;
+        let mut session =
+            Self::new_with_monitors(context, statics, exceptions, error_class, limits, monitors)?;
+        session.class_mirrors = true;
+        session.strings = true;
+        session.throwables = Some(vm_exceptions);
+        Ok(session)
+    }
+    pub fn vm_exception_usage(&self) -> crate::VmExceptionUsage {
+        self.state.vm_exceptions
+    }
+    pub fn throwable_trace(
+        &mut self,
+        reference: Reference,
+    ) -> Result<Option<&[crabspot_runtime::TraceFrame]>, ExecutionError> {
+        self.context
+            .throwable_trace(reference)
+            .map_err(|e| ExecutionError::new(None, E::ThrowableAccess(e)))
+    }
     pub fn initialize(
         &mut self,
         class: ClassId,
@@ -317,6 +359,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             monitors: self.monitors,
             class_mirrors: self.class_mirrors,
             strings: self.strings,
+            throwables: self.throwables,
         };
         match crate::execute::execute_initializing(
             execution,
@@ -376,6 +419,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             monitors: self.monitors,
             class_mirrors: self.class_mirrors,
             strings: self.strings,
+            throwables: self.throwables,
         };
         match crate::execute::execute_initializing(
             execution,
@@ -426,6 +470,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             monitors: self.monitors,
             class_mirrors: self.class_mirrors,
             strings: self.strings,
+            throwables: self.throwables,
         };
         match crate::execute::execute_initializing(
             execution,
@@ -516,6 +561,7 @@ mod tests {
             steps: 0,
             construction: ConstructionState::default(),
             equality: StringEqualityUsage::default(),
+            vm_exceptions: crate::VmExceptionUsage::default(),
         }
     }
     #[test]

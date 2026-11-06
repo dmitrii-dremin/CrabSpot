@@ -3,7 +3,7 @@
 `execute_static_method_body` evaluates a selected ordinary static method body
 with computational `Int`, `Long`, `Float` and `Double` arguments. It returns a normal
 result or a symbolic uncaught `ArithmeticException`. An explicit heap entry point
-also evaluates primitive arrays with supported symbolic array exceptions. This kernel does not perform Java
+also evaluates primitive arrays with supported symbolic array exceptions. The standalone entry does not perform Java
 invocation, class loading, class initialization, verification or exception-object
 allocation. An explicit `InitializationSession`, described below, separately opts
 into a bounded single-owner initialization and construction procedure.
@@ -167,7 +167,7 @@ methods remain excluded. This entry point also rejects Code handlers.
 
 Only this runtime-aware API enables `getfield` and `putfield`. Earlier APIs reject
 them even with a configured instance heap. Field operations delegate symbolic
-resolution, access and receiver relationships to the contextР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р вЂ Р Р†Р вЂљРЎвЂєР РЋРЎвЂєs explicit unnamed
+resolution, access and receiver relationships to the context's explicit unnamed
 module profile. Exact owner-qualified storage preserves inherited hiding, raw
 floating bits and the approved Z/B/C/S store conversions. Final writes fail;
 reference fields retain null defaults and support the checked stores described
@@ -177,8 +177,8 @@ identity branches and all supported primitive-array operations remain available.
 Explicit field Java failures become symbolic `NoSuchFieldError`,
 `IllegalAccessError`, `IncompatibleClassChangeError` or the existing
 `NullPointerException`. Resolution/access, staticness and write finality precede
-bytecode null dereferences. Other context failuresР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р вЂ Р В РІР‚С™Р РЋРЎС™including unsupported nest or
-loading constraints, invalid receivers, changed layouts and resource exhaustionР В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р вЂ Р В РІР‚С™Р РЋРЎС™
+bytecode null dereferences. Other context failures, including unsupported nest or
+loading constraints, invalid receivers, changed layouts and resource exhaustion,
 remain boxed `ExecutionErrorKind::FieldAccess` errors with method, instruction and
 available caller provenance. These outcomes allocate no Java error objects.
 
@@ -1235,7 +1235,7 @@ atomic/read-only backing, streaming 65,535-member/list stress, ordinary and miss
 nest relations, private constructor failure effects and loader distinctions. Other
 String Java methods outside the separately bound equality roles (including charAt
 and hashCode), String constructors, arbitrary assertion/bootstrap helper libraries,
-native exception allocation and general platform layouts remain guarded. Genuine vendor images and full user-program
+native exception allocation outside the opt-in Throwable profile and general platform layouts remain guarded. Genuine vendor images and full user-program
 observations belong to the separate coordinator replay.
 
 
@@ -1288,3 +1288,61 @@ foreign/null/nonmirror arguments without publishing result, count or continuatio
 This is no general native library registration, ClassLoader implementation,
 application/array assertion policy, String constructors/charAt/hashCode or complete
 Java library startup.
+
+## Genuine Throwable capture and VM arithmetic exceptions
+
+`InitializationSession::new_with_throwables` composes existing checked static,
+exception, monitor, mirror, String and equality services with a bound Throwable
+plan. Existing explicit session constructors retain their earlier unsupported
+VM-production/native behavior. The new constructor checks all prerequisites before
+claiming the heap permanently. No extra opcode is added; coverage remains 197.
+
+Ordinary supplied Throwable/Exception/RuntimeException/ArithmeticException Java
+Code executes in the common engine, including constructors, initialization,
+message/cause/suppression access and synchronized wrappers. The only new native
+is the exact selected `Throwable.fillInStackTrace(int)` declaration. Its ignored
+argument is still a typed Int. It returns the same receiver in its caller, with no
+native Java frame or additional instruction debit. Entry receivers are stored
+immutably so local0 writes cannot change trace filtering.
+
+User capture omits a leading same-receiver `fillInStackTrace` name prefix and then
+a same-receiver constructor prefix. This is an explicit matched-primary profile,
+not a vendor-independent trace guarantee. A different receiver or other frame
+ends filtering permanently. Retained records contain actual MethodIds and original
+invoke PCs, without copied names. Rethrow preserves the token; refill replaces it
+atomically and leaves the old managed token allocated. The session's mutable
+`throwable_trace` inspector returns a borrowed current trace after funded field
+inspection, distinguishing absent capture from an empty capture.
+
+Zero-divisor `idiv`, `irem`, `ldiv` and `lrem` now suspend at the original fault PC.
+The engine admits bounded production, prepares the selected constructor before
+snapshot/init/allocation, captures the original chain, initializes the actual
+ArithmeticException class, issues a fresh `/ by zero` String and instance, and
+executes the real constructor chain. Only a completed authenticated object enters
+the existing ordered handler dispatcher. Nonzero, signed overflow and floating
+zero arithmetic retain their prior behavior. No bytecode or constructor CP site
+is invented for the internal transition.
+
+`VmExceptionLimits.max_materializations` defaults to 4096 per evaluation.
+`vm_exception_usage` retains cumulative accepted starts and completed productions
+across evaluations. All trace limits are separately bounded by the runtime.
+Accepted snapshots, earlier heap/static writes and escaped partial objects survive
+later failures. Supplied exceptions escaping internal constructors/initializers
+use normal handler, monitor and initialization rules before replacing the pending
+fault. Existing non-Error initializer wrapping remains unsupported. A second VM
+producer during construction is a bounded typed `NestedVmMaterialization` failure.
+Other VM producers remain `UnsupportedVmException` in this profile.
+
+Errors retain their original kinds and real method/PC/call site. The additive
+`vm_exception` context identifies the original producer and current phase. Native
+commit failures retain the executing wrapper invoke PC; pure snapshot/message/
+allocation services use the original fault. Constructor decode failures identify
+the selected constructor and carry the fault transition as their call site.
+
+Java `getStackTrace` is explicitly partial: it reaches the actual unsupported
+`StackTraceElement.initStackTraceElements` population native after preserving prior
+arrays/elements and the existing backtrace. No full stack-element formatting,
+module/class-loader native access, cloning, general Throwable formatting, GC or
+complete JVM compatibility is claimed. Independent public and private tests cover
+fault/caller PCs, filtering, replacement, exact quotas and damaged continuations;
+genuine library/public CLI reference evidence is maintained by the coordinator.

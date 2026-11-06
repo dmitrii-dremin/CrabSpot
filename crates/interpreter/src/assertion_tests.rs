@@ -1,6 +1,6 @@
 use super::*;
 #[path = "../tests/support/equality_world.rs"]
-mod world;
+pub(super) mod world;
 fn state(
     plan: crabspot_runtime::InitializationPlan,
     class: ClassId,
@@ -26,6 +26,7 @@ fn state(
         admitted_count: 100,
         dependencies: 0,
         constants: 0,
+        vm_exceptions: Default::default(),
         evaluation_owner: 1,
         steps: 0,
         construction: Default::default(),
@@ -48,6 +49,7 @@ fn frame(method: MethodId, pc: u32, role: FrameRole) -> Frame {
         pc,
         origin: None,
         reserved_slots: 6,
+        entry_receiver: None,
     }
 }
 #[test]

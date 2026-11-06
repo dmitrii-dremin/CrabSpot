@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "files": {
+    "src/app/ThrowableMain.java": "d4dbaac981c626140aa4ccfdd7cb3949876754d5e4983a5d2c1c67bd457e1712",
+    "src/app/ThrowableRefilled.java": "790dee2255e257995a90ed268ee573f80afcf87a8ed0c34a804c597e37527b38",
+    "src/app/ThrowableTraceAccess.java": "462910de0d5d04e53948b650ef0244a60daf4901353683de90c515c01d0d8c34",
+    "src/app/ThrowableUncaught.java": "241660a7b6b41576d6bb188c7573f9ee8d33dd9b721ebcc726776d842ed764ab",
+    "src/probe/ThrowableEntryGuest.java": "13f5bc1e8a529da8254d9713e98b19b74638ba736b1b99a5fb6942045dc7bf19",
+    "classes/app/ThrowableMain$Forms.class": "1d6bb7ebaa9f56cfaf39aeafac9753ee61623e3a5d16ff0831d2f1c7df72e0fa",
+    "classes/app/ThrowableMain.class": "e0c35d07752d4c9c137b1e38709248b8009381a4501f90666b8c3a7104251c06",
+    "classes/app/ThrowableRefilled.class": "bf84303e18562941867941c054238b8acd1c07004eb55fcd116135fb13065c12",
+    "classes/app/ThrowableTraceAccess.class": "8f9bce5d61d86139901a657877688f9f8db90b079d4596a84b4661bf844f1431",
+    "classes/app/ThrowableUncaught.class": "f7b269b072e1947aef88de1324ba249fa531e19f5bc82fa1eb309bf1fa66deb1",
+    "classes/probe/ThrowableEntryGuest$ReplacementCtor.class": "1f6d0c49ce8044a0c5c4f5b19d30a49f65f416331546ee402ab468bf7e7714ff",
+    "classes/probe/ThrowableEntryGuest$UserFailure.class": "fbd3722002e5158d217cc061a47f9a09fccb5163f8c8221abd075cd6517c42ab",
+    "classes/probe/ThrowableEntryGuest$VMFailingCtor.class": "e2af907e4a267017e06503957c40af81d3107253e8a71c59dbb7c7226948833e",
+    "classes/probe/ThrowableEntryGuest.class": "25e985c1192e9d30e9acf1a7926a2af2df779682db917979d4d5f52811f3c0fe",
+    "controls/ObserveThrowableMain.java": "8fc39622a5ec7621bb28a195109177a5a22d8582557b31bdc4487e38f81beea5",
+    "projection.json": "7ff066a1b2c15b1bcb86b8dc66a6765d9e19dfc17e2b38d8a83b7c18471ec234"
+  },
+  "compiler": [
+    "javac 21.0.7",
+    ""
+  ],
+  "compiler_sha256": "494786cb950aca4a0bfb3e69dbc75ce049d6965cdadb6bc486d4c20a07b0eb1a",
+  "flags": [
+    "--release",
+    "21",
+    "-g",
+    "-encoding",
+    "UTF-8"
+  ],
+  "compiled_controls": {
+    "ObserveThrowableMain.class": "f2e4f25bd266c7c440cb86777369dd44f3b063adb627c275d846e97bb6e8d834"
+  },
+  "historical_inputs": {
+    "probe/ThrowableGuest$ReplacementCtor.class": "9e39a3e7d20e2fd166ffe9ed79c6059318df18c21d2f815efe9a9231e86ae6a4",
+    "probe/ThrowableGuest$UserFailure.class": "539def7699f2122e3b0c308bdb986b453c4fb45d5692befd71d48b62d948ee17",
+    "probe/ThrowableGuest$VMFailingCtor.class": "5365c337a322f2a98047066635ee8cd0cee84ea493faf0fd72a6fac508e6e065",
+    "probe/ThrowableGuest.class": "d617e4d26387bc3d8a21460565db7e226b0f3b2a40c20a09ab39a8d9c37faefb"
+  },
+  "initial_evidence_sha256": "3dfa0733f5f31ab5d6ccd12f2f9244799e85bd8f5572b1e7c92bb9fec1947925",
+  "reference_versions": {
+    "zulu": {
+      "version": [
+        "",
+        "openjdk version \"21.0.7\" 2025-04-15 LTS\r\nOpenJDK Runtime Environment Zulu21.42+19-CA (build 21.0.7+6-LTS)\r\nOpenJDK 64-Bit Server VM Zulu21.42+19-CA (build 21.0.7+6-LTS, mixed mode, sharing)"
+      ],
+      "sha256": "798ffec156ceb8cb1535bf68747d0ee3dfc1fc17dcd0b322f8027018404155c1"
+    },
+    "openj9": {
+      "version": [
+        "",
+        "openjdk version \"21.0.13.0.3\" 2026-10-24 LTS\r\nIBM Semeru Runtime Open Edition 21.0.13.0 (build 21.0.13.0.3+1-LTS)\r\nEclipse OpenJ9 VM 21.0.13.0 (build 21.0.13.0.3+1-openj9-0.63.0, JRE 21 Windows 11 amd64-64-Bit Compressed References 20261024_885 (JIT enabled, AOT enabled)\nOpenJ9   - dcc7ee16aa\nOMR      - c2a3a9ae0\nJCL      - 62d1b70e191 based on jdk-21.0.13.0.3+1)"
+      ],
+      "sha256": "26043f7516f5fbd12c98534d7c18983e6a11f3db085ab388a54a2b1f97c6efbc"
+    }
+  }
+}

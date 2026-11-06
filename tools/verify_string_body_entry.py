@@ -123,12 +123,16 @@ def product_suite(bin_dir, platform, javac, work, openj9=None):
                                     ("wide","4/2/0/1",(9,1,4))]:
             check(replay(budget, "budget.Entry", args), "returned", fields, costs)
         physical("activate", budget, "budget.Entry", [("phase",4),("units",0),("empty",1),("stable",1)], [""])
-        check(replay(peer, "peer.Host", "none"), "returned", "7", (0,0,0))
+        peer_usage = check(replay(peer, "peer.Host", "none"), "returned", "7", (0,0,0))
+        if not peer_usage["discovery"]:
+            raise ValueError("compatible image consumed no discovery work before dependency closure")
 
         for label, *_ in CASES:
             row = replay(nests/label, "peer.Host", "none")
             if label in {"absent-host","unlisted","extra-missing"}:
-                check(row, "image Dependencies MissingApplicationDependency", None, (0,0,0), discovery=0, argv=0)
+                check(row, "image Dependencies MissingApplicationDependency", None, (0,0,0),
+                      discovery=peer_usage["discovery"], argv=0, args=0, evaluations=0,
+                      proved=0, witnesses=0, admitted=0)
             elif label == "genuine-names":
                 check(row, "returned", "7", (0,0,0))
             else:
@@ -158,7 +162,9 @@ def product_suite(bin_dir, platform, javac, work, openj9=None):
             path.parent.mkdir(parents=True)
             path.write_bytes(private.finish([(9,"phase","I")], [method]))
             check(replay(group/"private-import", "peer.Host","none"),
-                  "image Dependencies UnsupportedPlatformReference", None, (0,0,0), discovery=0)
+                  "image Dependencies UnsupportedPlatformReference", None, (0,0,0),
+                  discovery=peer_usage["discovery"], argv=0, args=0, evaluations=0,
+                  proved=0, witnesses=0, admitted=0)
 
 
 def boundaries(replay, compact, budget):

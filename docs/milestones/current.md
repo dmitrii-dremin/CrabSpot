@@ -1,4 +1,51 @@
-# Current checkpoint: Java String equality and bootstrap assertions
+# Current checkpoint: real Throwable construction and VM arithmetic exceptions
+
+The technical director approved the bounded Throwable increment on 2026-11-06.
+The interpreter now executes genuine Java constructors and initializers, captures
+bounded managed traces, and constructs catchable ArithmeticException objects for
+integer/long division and remainder by zero. Rethrow preserves identity and refill
+replaces the current capture. [Technical review](../architecture/m2-vm-exception-construction-review.md)
+and [integration evidence](../architecture/m2-throwable-integration.md).
+
+The accepted gate combines 65 successful initial checks with 20 successful targeted
+continuation checks. Evidence includes 1,679 debug tests, 1,599 optimized tests,
+121 Python regressions, formatting, strict all-target Clippy, fixture/reference
+checks and verification of 7,519 ordinary platform classes. Two existing Rust tests
+ignored by ordinary suites passed separately when explicitly selected. The initial
+String replay failed because a Unicode argument had been corrupted during editing;
+the reviewed ASCII-escape repair and new compiled regression restored the original
+oracle. Full debug/optimized results are inherited from unchanged library sources,
+not claimed as freshly rerun after that example-only executable repair.
+
+On each supplied Zulu and Temurin platform, the public CrabSpot replay passed
+48 archived/rebuilt API cases, 14 physical CLI cases and five profile controls.
+The main fields are 65535/8/4/1 with 13 VM-produced exceptions. The Zulu sweep also
+passed two incompatible OpenJ9-library controls; independent reference checks
+recorded 40 Zulu/OpenJ9 and 20 Temurin observations. The exact-source parser campaign
+processed 46,210,451 inputs over 300 seconds with zero failures.
+
+All 1,389 final publication inputs were rehashed. A separately reviewed CI-only
+amendment splits paired commands into individual steps; the other 1,388 inputs are
+unchanged. Hosted CI for the implementation is pending. The final manifest is
+`E82E03A7CAEE58273DDED99790C06277D777E06F78F5FB9248B97CF2A9607D2B`.
+
+Reproduce the public checks with a Java 21 HotSpot JDK at `JAVA_HOME`:
+
+```text
+cargo fmt --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+python -m unittest discover -s tools -p test_throwable_launch.py -v
+python tools/verify_throwable_entry.py
+```
+
+Java stack-element population remains explicitly unsupported at the real native
+call; other VM-produced exceptions, non-Error initializer wrapping, general native
+bindings, threads/JMM, GC and full M2 remain open. The next proposed increment adds
+operand-time array bounds, negative-size, array-store and cast exceptions through
+the same construction mechanism; its contract is not yet frozen or implemented.
+
+## Prior checkpoint: Java String equality and bootstrap assertions
 
 The technical director approved the compact equality increment on 2026-11-06. All 73 checks passed in the fresh integrated gate, including 1,598 workspace debug tests, 1,518 optimized tests and 68 Python regressions. All 42 frozen product hashes matched afterward. The two genuine preparation/launch tests passed separately, and whole-platform verification covered 7,519 ordinary classes, 61,708 Code bodies and 4,685 bodyless declarations. [Equality contract](../architecture/m2-string-equality.md) and [technical review](../architecture/m2-string-equality-review.md).
 
@@ -34,7 +81,13 @@ General native libraries, application assertion configuration, array assertions,
 
 The next proposed increment targets real Throwable construction, stack capture and catchable VM exceptions, beginning with integer and long division/remainder. It reuses the existing exception dispatcher and preserves the original failing instruction. The dependency investigation includes Java stack-trace access and array cloning. [Exception construction proposal](../architecture/m2-vm-exception-construction-next.md).
 
-The exception reference pack is now approved for publication. Zulu and OpenJ9 reproduced 216 observations across the original/rebuilt, normal/interpreted matrix. A separate Temurin 21.0.13 compiler and runtime reproduced 108 observations through the portable path. All eight integration checks passed, including 1,598 workspace tests and 18 provenance regressions. The 758-seed parser smoke completed 10,000 cases with zero failures. Runtime implementation awaits the exact next contract. [Reference results](../architecture/m2-throwable-reference.md) and [technical review](../architecture/m2-throwable-reference-review.md).
+The exception reference pack was published as `5a2924d`. Zulu and OpenJ9 reproduced 216 observations across the original/rebuilt, normal/interpreted matrix. A separate Temurin 21.0.13 compiler and runtime reproduced 108 observations through the portable path. All eight integration checks passed, including 1,598 workspace tests and 18 provenance regressions. The 758-seed parser smoke completed 10,000 cases with zero failures. [Reference results](../architecture/m2-throwable-reference.md) and [technical review](../architecture/m2-throwable-reference-review.md).
+
+Both hosted jobs passed for that exact reference revision. Each reproduced 108 Throwable/filter observations with Temurin 21.0.13 and ran 18 provenance tests, skipping only the repeat-record test requiring the exact pinned Zulu compiler. That test passed in the local 18-test run. Linux recorded 4,722 Rust test executions and verified 7,615 ordinary platform classes; Windows recorded 4,716 and verified 7,589. Both retained the archived/rebuilt String equality and physical launcher checks. The coordinator inspected the full logs and their checked-out commit IDs. [Linux](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42148910551/job/127667052031) and [Windows](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42148910551/job/127667052363).
+
+The technical director froze the Throwable implementation contract after all three required readbacks, and runtime and interpreter/launcher implementation has started in separate worktrees based on `5a2924d`. This increment targets real Throwable constructors and captures, plus catchable ArithmeticExceptions at all four integer division/remainder instructions. Java stack-trace population and other VM exception producers remain outside this increment. Source review and the combined exact-source gate are still pending. [Frozen contract](../architecture/m2-vm-exception-construction.md) and [freeze record](../architecture/m2-vm-exception-construction-freeze.md).
+
+The independent public-entry reference harness is also source-reviewed. Its nine archived guest classes reproduce 40 observations across the two pinned VMs and 20 further observations with Temurin 21.0.13. All 16 provenance/comparator regressions pass, including staged-input mutation during a compiler subprocess. The main expects `65535/8/4/1`; a deliberately wrong expectation must throw the same retained user exception. The historical Throwable fixture remains unchanged; the public entry uses an explicitly recorded source projection to remove unused wrapper-class dependencies. [Public reference evidence](../architecture/m2-throwable-entry-reference.md) and [technical review](../architecture/m2-throwable-entry-reference-review.md).
 
 ## Previous checkpoint: supplied Java String bodies and nest access
 

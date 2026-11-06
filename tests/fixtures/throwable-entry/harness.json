@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "tools": {
+    "throwable_entry_reference.py": "dde0b1660a0443cb6ec760871871933158e62ad0faa2d8fcb1fa5733200f3b94",
+    "fixture_source.py": "56898e5e6d252fcf41521aad42a2aaa0163c2f9a03ad500ef25e6e72905ca201"
+  },
+  "files": {
+    "manifest.json": "e51b4a42a82c9f168e93f8f48e7b973738f9b37751f3e245b1ce093afa8fec97",
+    "reference.json": "59d59c50721373e179f0ee11767f2eeb70d7975ef1e959e8519d979d11e04012"
+  },
+  "historical_manifest_sha256": "24d20a600324dce29dc3ac987f099c1d7eb214cf9f0b8abc096c94f7c641dd53"
+}

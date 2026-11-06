@@ -184,6 +184,25 @@ fn main() -> Result<(), Box<dyn Error>> {
                         .unwrap_or_default();
                     println!("{phase:?} {method_name}@{pc}{via} {why}");
                 }
+                ApplicationCompletion::Uncaught {
+                    phase,
+                    class_name,
+                    location,
+                } => {
+                    let text = {
+                        let head = location.map_or_else(String::new, |h| {
+                            format!(
+                                " at {}.{}{}@{}",
+                                h.class_name.escaped(),
+                                h.method_name.escaped(),
+                                h.descriptor.escaped(),
+                                h.offset
+                            )
+                        });
+                        format!("{phase:?} uncaught {}{head}", class_name.escaped())
+                    };
+                    println!("{text}");
+                }
                 ApplicationCompletion::SuppliedUncaught { class_name, .. } => {
                     return Err(format!("unexpected {}", class_name.escaped()).into());
                 }

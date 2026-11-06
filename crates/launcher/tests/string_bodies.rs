@@ -212,19 +212,13 @@ fn matched_candidate_errors_never_fall_back_and_cp_renumbering_is_accepted() {
         let e = image
             .run(&[], Default::default(), Default::default())
             .unwrap_err();
-        if bad == 4 {
-            // Ordinary hierarchy collection precedes probing and rejects a class
-            // substituted into the comparator's interface edge immediately.
-            assert_eq!(e.stage, ApplicationStage::Hierarchy);
-            assert!(matches!(e.kind, ApplicationErrorKind::Hierarchy(_)));
-            assert_eq!(e.usage.string_body_discovery.work_units, 0);
-        } else {
-            assert_eq!(e.stage, ApplicationStage::Verification);
-            assert!(
-                matches!(e.kind, ApplicationErrorKind::StringBody(_)),
-                "{e:?}"
-            );
-        }
+        // Discovery now precedes dependency/hierarchy collection so matched
+        // Throwable roles can extend the explicit public import set.
+        assert_eq!(e.stage, ApplicationStage::Verification);
+        assert!(
+            matches!(e.kind, ApplicationErrorKind::StringBody(_)),
+            "{e:?}"
+        );
         assert_eq!(e.usage.argument_arrays, 0);
         assert_eq!(e.usage.engine_evaluations, 0);
     }
@@ -304,7 +298,7 @@ fn mandatory_private_helpers_require_proof_without_becoming_application_imports(
             e.kind,
             ApplicationErrorKind::UnsupportedPlatformReference
         ));
-        assert_eq!(e.usage.string_body_discovery.work_units, 0);
+        assert!(e.usage.string_body_discovery.work_units > 19);
     }
 }
 #[test]

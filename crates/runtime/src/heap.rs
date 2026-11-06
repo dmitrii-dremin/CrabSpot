@@ -301,6 +301,7 @@ pub(crate) enum EntryPayload {
     Instance(InstancePayload),
     Mirror(crate::ReferenceType),
     String(crate::strings::StringPayload),
+    Backtrace(crate::throwable::Backtrace),
 }
 impl EntryPayload {
     fn array(&self) -> Result<&Payload, HeapError> {
@@ -310,7 +311,7 @@ impl EntryPayload {
                 expected: HeapEntryKind::PrimitiveArray,
                 actual: HeapEntryKind::ReferenceArray,
             }),
-            Self::Instance(_) | Self::Mirror(_) | Self::String(_) => {
+            Self::Instance(_) | Self::Mirror(_) | Self::String(_) | Self::Backtrace(_) => {
                 Err(HeapError::WrongEntryKind {
                     expected: HeapEntryKind::PrimitiveArray,
                     actual: HeapEntryKind::Instance,
@@ -325,7 +326,7 @@ impl EntryPayload {
                 expected: HeapEntryKind::PrimitiveArray,
                 actual: HeapEntryKind::ReferenceArray,
             }),
-            Self::Instance(_) | Self::Mirror(_) | Self::String(_) => {
+            Self::Instance(_) | Self::Mirror(_) | Self::String(_) | Self::Backtrace(_) => {
                 Err(HeapError::WrongEntryKind {
                     expected: HeapEntryKind::PrimitiveArray,
                     actual: HeapEntryKind::Instance,
@@ -399,6 +400,7 @@ pub struct ManagedHeap {
     pub(crate) static_state: Option<crate::static_state::StaticState>,
     pub(crate) string_equality: Option<crate::string_bodies::EqualityState>,
     pub(crate) string_bodies: Option<crate::string_bodies::BodyState>,
+    pub(crate) throwables: Option<crate::throwable::ThrowableState>,
     pub(crate) strings: Option<crate::strings::Strings>,
     pub(crate) mirrors: Option<crate::mirror::Mirrors>,
     pub(crate) initialization_claim: Option<crate::initialization::InitializationFingerprint>,
@@ -418,6 +420,7 @@ impl ManagedHeap {
             initialization_claim: None,
             mirrors: None,
             strings: None,
+            throwables: None,
             string_bodies: None,
             string_equality: None,
             arrays: 0,
@@ -566,12 +569,13 @@ impl ManagedHeap {
         match &self.entry(reference)?.payload {
             EntryPayload::Array(payload) => payload.length(),
             EntryPayload::ReferenceArray(payload) => payload.length(),
-            EntryPayload::Instance(_) | EntryPayload::Mirror(_) | EntryPayload::String(_) => {
-                Err(HeapError::WrongEntryKind {
-                    expected: HeapEntryKind::Array,
-                    actual: HeapEntryKind::Instance,
-                })
-            }
+            EntryPayload::Instance(_)
+            | EntryPayload::Mirror(_)
+            | EntryPayload::String(_)
+            | EntryPayload::Backtrace(_) => Err(HeapError::WrongEntryKind {
+                expected: HeapEntryKind::Array,
+                actual: HeapEntryKind::Instance,
+            }),
         }
     }
     pub fn load(&self, reference: Reference, index: i32) -> Result<Value, HeapError> {

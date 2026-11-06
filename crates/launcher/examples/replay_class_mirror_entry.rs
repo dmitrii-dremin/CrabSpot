@@ -169,6 +169,22 @@ fn main() -> Result<(), Box<dyn Error>> {
                 method.name.escaped()
             )
         }
+        ApplicationCompletion::Uncaught {
+            phase,
+            class_name,
+            location,
+        } => {
+            let head = location.map_or_else(String::new, |h| {
+                format!(
+                    " at {}.{}{}@{}",
+                    h.class_name.escaped(),
+                    h.method_name.escaped(),
+                    h.descriptor.escaped(),
+                    h.offset
+                )
+            });
+            format!("{phase:?} uncaught {}{head}", class_name.escaped())
+        }
         ApplicationCompletion::SuppliedUncaught { class_name, .. } => {
             return Err(format!("unexpected supplied Throwable {}", class_name.escaped()).into());
         }

@@ -29,6 +29,9 @@ use crabspot_runtime::{
 };
 use crabspot_runtime::{StaticAccessError, StaticJavaError, StaticStateProfile};
 use std::collections::HashMap;
+#[path = "throwable_execution.rs"]
+mod throwable_execution;
+use throwable_execution::*;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExecutionOptions {
@@ -443,10 +446,15 @@ enum Chain {
     Complete,
     Failed,
 }
+#[derive(Clone, Copy)]
+enum ConstructorCaller {
+    JavaAlias(Uninitialized),
+    VmFault(u64),
+}
 struct ConstructorActivation {
     access: ResolvedConstructor,
     this: Uninitialized,
-    caller: Uninitialized,
+    caller: ConstructorCaller,
     chain: Chain,
 }
 fn constructor_activation(
@@ -500,7 +508,15 @@ fn finish_constructor_boundary(
             "constructor returned before its chain completed",
         ));
     }
-    let alias = activation.caller;
+    let alias = match activation.caller {
+        ConstructorCaller::JavaAlias(alias) => alias,
+        ConstructorCaller::VmFault(owner) => {
+            if owner != init.owner {
+                return Err(protocol(pc, "VM constructor evaluation owner differs"));
+            }
+            return finish_vm_boundary(java, owner, promote, pc);
+        }
+    };
     let (method, invoke) = callee
         .origin
         .ok_or_else(|| protocol(pc, "constructor has no invoking frame"))?;
@@ -600,6 +616,7 @@ struct PendingNative {
 }
 enum PendingUse {
     Native(PendingNative),
+    VmFault,
     New {
         next: u32,
     },
@@ -625,6 +642,7 @@ struct Frame {
     pc: u32,
     origin: Option<(MethodKey, u32)>,
     reserved_slots: usize,
+    entry_receiver: Option<Reference>,
 }
 enum Action {
     Monitor {
@@ -860,6 +878,7 @@ fn make_frame(
         pc: 0,
         origin,
         reserved_slots: prepared.slots(),
+        entry_receiver: receiver,
     })
 }
 fn resolve_call(
@@ -1231,6 +1250,7 @@ pub(crate) struct SessionExecution<'a, 'registry> {
     pub monitors: Option<crate::MonitorLimits>,
     pub class_mirrors: bool,
     pub strings: bool,
+    pub throwables: Option<crate::VmExceptionLimits>,
 }
 pub(crate) enum InitializationRoot<'a> {
     Application {
@@ -1266,6 +1286,7 @@ pub(crate) fn execute_initializing(
         monitors,
         class_mirrors,
         strings,
+        throwables,
     } = execution;
     context
         .check_initialization_claim(claim)
@@ -1314,6 +1335,7 @@ pub(crate) fn execute_initializing(
             monitors,
             class_mirrors,
             strings,
+            throwables,
         },
     )?;
     match outcome {
@@ -1908,6 +1930,17 @@ fn resume_initialization(
             let pending = caller.pending.take().ok_or_else(invalid)?;
             let diagnose = |error| contextualize(bodies, error, method, origin);
             match pending {
+                PendingUse::VmFault => {
+                    resume_vm_fault(java, services, init, bodies, limits, frame, method, pc)
+                        .map_err(|mut error| {
+                            if error.method.is_none() {
+                                error.offset.get_or_insert(pc);
+                                contextualize(bodies, error, method, origin)
+                            } else {
+                                error
+                            }
+                        })?;
+                }
                 PendingUse::Native(pending) => {
                     let Services::Fields { context, .. } = services else {
                         return Err(invalid());
@@ -2147,6 +2180,7 @@ struct JavaState {
     used_code_bytes: usize,
     remaining: u64,
     monitors: Option<MonitorLedger>,
+    vm: Option<VmExecution>,
 }
 fn execute_engine(
     class: &ClassFile,
@@ -2176,6 +2210,7 @@ struct EngineCapabilities {
     monitors: Option<crate::MonitorLimits>,
     class_mirrors: bool,
     strings: bool,
+    throwables: Option<crate::VmExceptionLimits>,
 }
 fn run_engine(
     root: EngineRoot<'_>,
@@ -2186,22 +2221,23 @@ fn run_engine(
     mut initialization: Option<InitExecution<'_>>,
     capabilities: EngineCapabilities,
 ) -> Result<EngineOutcome, ExecutionError> {
+    let bodies = Bodies {
+        standalone: match &root {
+            EngineRoot::Body { class, .. } => Some(*class),
+            _ => None,
+        },
+        registry: services.registry(),
+    };
+    let mut java = JavaState {
+        cache: HashMap::new(),
+        frames: Vec::new(),
+        reserved: 0,
+        used_code_bytes: 0,
+        remaining: options.instruction_budget,
+        monitors: capabilities.monitors.map(MonitorLedger::new),
+        vm: capabilities.throwables.map(VmExecution::new),
+    };
     let result = (|| {
-        let bodies = Bodies {
-            standalone: match &root {
-                EngineRoot::Body { class, .. } => Some(*class),
-                _ => None,
-            },
-            registry: services.registry(),
-        };
-        let mut java = JavaState {
-            cache: HashMap::new(),
-            frames: Vec::new(),
-            reserved: 0,
-            used_code_bytes: 0,
-            remaining: options.instruction_budget,
-            monitors: capabilities.monitors.map(MonitorLedger::new),
-        };
         let requested = match root {
             EngineRoot::Initialize(class) => Some((class, InitContinuation::RootInitialize)),
             root => {
@@ -2651,7 +2687,7 @@ fn run_engine(
                     frame.constructor.push(ConstructorActivation {
                         access,
                         this,
-                        caller: alias,
+                        caller: ConstructorCaller::JavaAlias(alias),
                         chain: if base {
                             Chain::Complete
                         } else {
@@ -2780,6 +2816,31 @@ fn run_engine(
                 }
                 Action::Continue => {}
                 Action::ArithmeticException => {
+                    if capabilities.throwables.is_some() {
+                        let init = initialization.as_mut().ok_or_else(|| operand_error(pc))?;
+                        let exceptions = exceptions.as_mut().ok_or_else(|| operand_error(pc))?;
+                        if let Some(outcome) = begin_vm_fault(
+                            &mut java,
+                            &mut services,
+                            init,
+                            exceptions,
+                            bodies,
+                            limits,
+                            current,
+                            pc,
+                        )
+                        .map_err(|mut e| {
+                            if e.method.is_none() {
+                                e.offset.get_or_insert(pc);
+                                contextualize(bodies, e, current, origin)
+                            } else {
+                                e
+                            }
+                        })? {
+                            return Ok(outcome);
+                        }
+                        continue;
+                    }
                     return vm_completion(
                         ExecutionOutcome::ArithmeticException,
                         exceptions.is_some(),
@@ -2843,8 +2904,31 @@ fn run_engine(
                         let init = initialization.as_mut().ok_or_else(|| operand_error(pc))?;
                         finish_monitors(java.monitors.as_mut(), java.frames.len() - 1, pc)
                             .map_err(|e| contextualize(bodies, e, current, origin))?;
-                        finish_constructor_boundary(&mut java, init, true, pc)
+                        let vm_boundary = matches!(
+                            constructor_activation(
+                                java.frames.last().ok_or_else(|| operand_error(pc))?,
+                                pc
+                            )?
+                            .caller,
+                            ConstructorCaller::VmFault(_)
+                        );
+                        let fault_pc = finish_constructor_boundary(&mut java, init, true, pc)
                             .map_err(|e| contextualize(bodies, e, current, origin))?;
+                        if vm_boundary {
+                            let state = exceptions.as_mut().ok_or_else(|| operand_error(pc))?;
+                            let thrown = complete_vm_fault(&mut java, &mut services, init, state)?;
+                            if let Some(outcome) = handle_throw(
+                                &thrown,
+                                fault_pc,
+                                bodies,
+                                &mut java,
+                                &mut services,
+                                state,
+                                initialization.as_mut(),
+                            )? {
+                                return Ok(outcome);
+                            }
+                        }
                         continue;
                     }
                     finish_monitors(java.monitors.as_mut(), java.frames.len() - 1, pc)
@@ -3012,6 +3096,36 @@ fn run_engine(
                             .map_err(|error| contextualize(bodies, error, current, call_site))?;
                         (target, None, None)
                     };
+                    if capabilities.throwables.is_some() && kind.is_instance() {
+                        if let (Services::Fields { context, .. }, MethodKey::Registered(method)) =
+                            (&mut services, target)
+                        {
+                            let diagnose = |e| contextualize(bodies, e, current, call_site);
+                            if context
+                                .is_throwable_fill_in_stack_trace(method)
+                                .map_err(|e| {
+                                    diagnose(ExecutionError::new(Some(pc), E::ThrowableAccess(e)))
+                                })?
+                            {
+                                let init = initialization
+                                    .as_mut()
+                                    .ok_or_else(|| diagnose(operand_error(pc)))?;
+                                let receiver =
+                                    receiver.ok_or_else(|| diagnose(operand_error(pc)))?;
+                                let args = arguments
+                                    .as_ref()
+                                    .ok_or_else(|| diagnose(operand_error(pc)))?;
+                                capture_native(
+                                    &mut java, context, init, method, receiver, args, pc,
+                                )
+                                .map_err(|mut error| {
+                                    error.offset.get_or_insert(pc);
+                                    diagnose(error)
+                                })?;
+                                continue;
+                            }
+                        }
+                    }
                     if kind == CallKind::Static && capabilities.strings && initialization.is_some()
                     {
                         if let (Services::Fields { context, .. }, MethodKey::Registered(method)) =
@@ -3396,7 +3510,8 @@ fn run_engine(
             }
         }
     })();
-    result.map_err(|mut error: ExecutionError| {
+    result.map_err(|error: ExecutionError| {
+        let mut error = annotate_vm_error(&java, bodies, error);
         if let Some(init) = initialization.as_ref() {
             if let Some(active) = init.activations.last() {
                 error.initialization_class.get_or_insert(active.class);
@@ -3558,8 +3673,8 @@ fn handle_initializer_escape(
                     .frames
                     .get_mut(frame)
                     .ok_or_else(|| diagnose(operand_error(pc)))?;
-                if caller.method != method || caller.pc != invoke || caller.pending.take().is_none()
-                {
+                let pending = caller.pending.take();
+                if caller.method != method || caller.pc != invoke || pending.is_none() {
                     return Err(diagnose(ExecutionError::new(
                         None,
                         E::InvalidMethod("abrupt active-use continuation absent"),
@@ -3567,6 +3682,9 @@ fn handle_initializer_escape(
                 }
                 caller.static_access.clear();
                 caller.new_access.clear();
+                if matches!(pending, Some(PendingUse::VmFault)) {
+                    discard_vm_pending(java)?;
+                }
                 return Ok(AbruptResume::Caller(invoke));
             }
         }
@@ -3595,8 +3713,12 @@ fn handle_throw(
             thrown,
             pc,
         )? {
-            DispatchResult::Caught => return Ok(None),
+            DispatchResult::Caught => {
+                clear_vm_dispatch(java);
+                return Ok(None);
+            }
             DispatchResult::Uncaught => {
+                clear_vm_dispatch(java);
                 return Ok(Some(EngineOutcome::Uncaught(thrown.reference())));
             }
             DispatchResult::ConstructorBoundary { pc: boundary } => {
@@ -5571,6 +5693,7 @@ mod resource_tests {
                 pc: 90,
                 origin,
                 reserved_slots: 2,
+                entry_receiver: None,
             }
         }
         for origin in [None, Some((MethodKey::Standalone(8), 17))] {
@@ -5882,6 +6005,7 @@ mod monitor_bridge_tests {
                         monitors: Some(Default::default()),
                         class_mirrors: false,
                         strings: false,
+                        throwables: None,
                     },
                 ) {
                     Err(e) => e,

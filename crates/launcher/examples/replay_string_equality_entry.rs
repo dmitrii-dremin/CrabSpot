@@ -3,7 +3,7 @@ use crabspot_interpreter::ExecutionErrorKind;
 use crabspot_launcher::{
     ApplicationCompletion, ApplicationDirectories, ApplicationErrorKind, ApplicationInvocation,
     ApplicationOptions, ApplicationStringEqualityProfile, ApplicationUsage,
-    BootstrapAssertionPolicy, StaticIntObservation, StringEqualityMode,
+    BootstrapAssertionPolicy, EntryEvaluation, StaticIntObservation, StringEqualityMode,
     run_directory_application_with_string_equality,
 };
 use crabspot_runtime::{
@@ -48,6 +48,22 @@ fn cause(mut error: &(dyn Error + 'static)) -> Result<String, Box<dyn Error>> {
         error = error
             .source()
             .ok_or_else(|| format!("unexpected cause {error}"))?;
+    }
+}
+
+fn unsupported_class_target(
+    mut error: &(dyn Error + 'static),
+) -> Option<crabspot_runtime::ClassId> {
+    loop {
+        if let Some(body) = error.downcast_ref::<StringBodyError>() {
+            if let StringBodyErrorKind::UnsupportedAssertionTarget {
+                represented: ReferenceType::Class(id),
+            } = body.kind
+            {
+                return Some(id);
+            }
+        }
+        error = error.source()?;
     }
 }
 
@@ -200,11 +216,43 @@ fn main() -> Result<(), Box<dyn Error>> {
                         }
                     }
                     if let Some(owner) = error.initialization_class {
-                        if Some(owner) != site.owner || site.name.escaped() != "<clinit>" {
+                        let own_initializer =
+                            Some(owner) == site.owner && site.name.escaped() == "<clinit>";
+                        // A matched Throwable image imports AssertionError, so Policy now
+                        // reaches its genuine application-mirror query during initialization.
+                        let application_query = phase == EntryEvaluation::NamedInitialization
+                            && site.name.escaped() == "desiredAssertionStatus"
+                            && site.descriptor.escaped() == "()Z"
+                            && error.offset == Some(1)
+                            && site.owner.is_some_and(|actual| actual != owner)
+                            && error.call_site.as_ref().is_some_and(|caller| {
+                                caller.method.owner == Some(owner)
+                                    && caller.method.name.escaped() == "<clinit>"
+                                    && caller.method.descriptor.escaped() == "()V"
+                                    && caller.offset == 2
+                            })
+                            && unsupported_class_target(error.as_ref()) == Some(owner);
+                        if !own_initializer && !application_query {
                             return Err("failure attributed to a different initializer".into());
                         }
                     }
                     println!("{phase:?} {}@{pc}{via} {why}", site.name.escaped());
+                }
+                ApplicationCompletion::Uncaught {
+                    phase,
+                    class_name,
+                    location,
+                } => {
+                    let head = location.map_or_else(String::new, |h| {
+                        format!(
+                            " at {}.{}{}@{}",
+                            h.class_name.escaped(),
+                            h.method_name.escaped(),
+                            h.descriptor.escaped(),
+                            h.offset
+                        )
+                    });
+                    println!("{phase:?} uncaught {}{head}", class_name.escaped());
                 }
                 _ => return Err("unexpected guest exception".into()),
             }

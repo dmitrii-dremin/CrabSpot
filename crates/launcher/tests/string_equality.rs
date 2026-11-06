@@ -442,7 +442,8 @@ fn added_helper_is_private_proof_seed_and_new_metadata_facts_are_not_app_imports
             e.kind,
             ApplicationErrorKind::UnsupportedPlatformReference
         ));
-        assert_eq!(e.usage.string_equality_discovery.work_units, 0);
+        // Discovery now precedes dependency checking to establish matched public roles.
+        assert!(e.usage.string_equality_discovery.work_units > 0);
     }
     let image = Image::new(program(), recipes::platform(false));
     let a = vectors();

@@ -154,8 +154,9 @@ def suite(binary, cli, platform, group, inputs, apps, secondary):
     print(f"{group.name}: actual equality and assertion bodies, nine real Java arguments and physical CLI passed", flush=True)
     if group.name != "original":
         return
-    check(group/"Policy","app.Policy","none",[],"image Dependencies UnsupportedPlatformReference cp=26",None,
-          argv=0, evaluations=0)
+    check(group/"Policy","app.Policy","none",[],
+          "NamedInitialization desiredAssertionStatus@1 via <clinit>@2 UnsupportedAssertionTarget class",
+          [0,0])
     for shape, kind in (("one","class"),("two","array")):
         check(apps,"query.Query",shape,[],"MainEvaluation desiredAssertionStatus@1 via main@31 UnsupportedAssertionTarget "+kind,
               [1,0,0])
