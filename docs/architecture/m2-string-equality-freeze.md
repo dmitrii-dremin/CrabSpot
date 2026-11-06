@@ -1,0 +1,5 @@
+# Genuine String equality contract freeze
+
+Approved for bounded implementation against the contract SHA-256 `B0859F44465883C6BEFCB461829C6F0128496E6DD6B0F527C2781964CFBDBD3A` in `m2-string-equality.md`. The runtime owner, execution owner, coordinator and technical director read back these exact semantics. The preceding genuine String body publication is `6fd81aa`, followed by the independent equality reference checkpoint `2a28eb5`. Use the latter published checkpoint as the implementation base.
+
+The runtime owner controls immutable role discovery, heap policy and readonly target validation. The execution owner controls registration and query effects inside the permanently claimed initialization session, the checked b8 continuation, the launcher profile and independent behavior tests. The coordinator owns genuine reference/physical evidence, integration and source verification. The next acceptance decision requires the frozen component reviews, a fresh combined gate, and documented support boundaries.

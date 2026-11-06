@@ -12,6 +12,10 @@ The next proposal follows `Object.equals` dispatch to the real String override a
 
 The equality reference suite captures results from 42 pinned JVM runs and exercises 22 public-only observations on the primary VM. The application made ten calls through one virtual call site and returned `511/10` on both reference VMs. The published CrabSpot build stops at that call in `equal@10`. [Equality fixtures and reproduction](../architecture/m2-string-equality-reference.md)
 
+Both hosted workflows have passed. For the String implementation, Linux recorded 4,587 Rust test executions and verified 7,615 ordinary platform classes. Windows recorded 4,581 and verified 7,589. Both executed the original and rebuilt Java-body applications against their supplied Temurin String. The separate equality reference publication then reproduced its 22 portable observations on each platform. [String implementation CI](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42134504808) and [equality reference CI](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42135268707)
+
+The director and both implementation owners agreed on the exact equality contract and implementation has started. It covers the supplied equality bodies, real Class initialization, two narrowly bound native methods and the bootstrap assertion decision. [Contract](../architecture/m2-string-equality.md), [freeze record](../architecture/m2-string-equality-freeze.md) and [native-call clarification](../architecture/m2-string-equality-native-site-clarification.md)
+
 ## Previous checkpoint: String literals, interning and arguments
 
 The technical director approved this increment on 2026-11-05. [Technical review](../architecture/m2-string-constants-review.md).
