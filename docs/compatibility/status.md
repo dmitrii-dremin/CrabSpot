@@ -90,7 +90,10 @@ passed all eight targeted checks and received technical approval. Replacement ho
 CI passed on Linux and Windows for `c07b5f0` in
 [run 42168555533](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42168555533),
 including the complete public Throwable replay. General Throwable/JVM support
-remains partial. The bounded operand increment is approved locally; its hosted verification remains pending.
+remains partial. The bounded operand increment is published as `ab86685` and
+approved locally. Both hosted jobs passed: Linux recorded 5,204 Rust test executions
+and 7,615 platform-class proofs; Windows recorded 5,198 and 7,589. Each passed all
+136 public operand commands. [Hosted evidence and limits](../architecture/m2-operand-integration.md#hosted-verification-of-the-published-implementation).
 
 ## Modern method verification evidence
 

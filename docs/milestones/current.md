@@ -10,9 +10,17 @@ gate also passed: 1,758 debug tests, 1,678 optimized tests, 168 Python regressio
 whole-platform verification and a five-minute parser campaign with zero failures.
 Both worker API/CLI matrices and the coordinator's separate final combined-build
 matrices passed (136 commands per supplied library in each gate). Canonical LF
-export checks passed. Publication is authorized; hosted verification remains pending.
+export checks passed. The implementation is published as `ab86685`; its complete
+Linux and Windows hosted jobs passed.
 [Aggregate review](../architecture/m2-operand-vm-exceptions-review.md).
 [Current integration](../architecture/m2-operand-integration.md).
+
+The complete hosted logs record 5,204 Rust test executions on Linux and 5,198 on
+Windows, plus verification of 7,615 and 7,589 ordinary platform classes. Each
+runner passed 25 operand-reference and 20 product-tool tests and all 136 public
+operand commands. Each primary-only Temurin reference reproduced 44 observations
+and 12 codec controls. Exact hosted scope, skips and counts are in the integration
+report; these are repeated executions, not a specification-coverage score.
 
 General NPE production, initialization-failure wrapping and retry errors, Java
 stack-element population, threads/JMM, GC and full M2 remain open. The next

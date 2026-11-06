@@ -154,7 +154,7 @@ example test, which ordinary workspace tests do not execute. The test itself
 passed in the core gate. All other 1,430 inputs stayed unchanged. Final input
 manifest SHA-256 is
 `D41CE9C3902649F739958DC85D50D5ABD448451EF303DBC1EBB824CBD0A40A88`.
-Hosted verification of this operand increment remains pending.
+Hosted verification is recorded below for the published implementation.
 
 The final old-entry binaries differed from their earlier raw hashes. Investigation
 preserved that mismatch and found exactly 24 changed bytes in each of eight
@@ -186,7 +186,59 @@ Portability evidence SHA-256 is
 `C1C372F1D9BB36FFA11F734D5A3ACEE023FBBC9090BC7CB2B8A49A9B670B0848`.
 
 All required local checks are complete. The [aggregate technical review](m2-operand-vm-exceptions-review.md)
-accepts this exact bounded increment and authorizes publication. No hosted operand
-result or full M2 acceptance is claimed. General NPE production, initialization
+accepts this exact bounded increment and authorizes publication. Full M2 acceptance
+is not claimed. General NPE production, initialization
 failure wrapping and retry errors, Java stack-element population, threads/JMM,
 GC, dynamic linkage and broad library/native integration remain open.
+
+## Hosted verification of the published implementation
+
+Both Linux and Windows jobs passed for commit
+`ab8668551897709a868023ffb882092a09d6cc8b` in
+[run 42178154870](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42178154870).
+The coordinator inspected both complete logs:
+[Linux](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42178154870/job/127761315165)
+and [Windows](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42178154870/job/127761315221),
+including the checked-out commit and all five new operand steps on each runner.
+
+Both used Rust/Cargo 1.99.1 and Temurin 21.0.13. The Rust results were:
+
+| Executions | Linux | Windows |
+| --- | ---: | ---: |
+| Checked-in workspace suite | 1,760 | 1,758 |
+| Regenerated-fixture workspace suite | 1,760 | 1,758 |
+| Optimized interpreter/runtime/verifier/launcher suites | 1,680 | 1,678 |
+| Explicitly selected example tests | 4 | 4 |
+| Total | 5,204 | 5,198 |
+
+These totals include repeated debug/optimized executions. The two existing ignored launcher
+tests remain ignored in the ordinary hosted suites; their separate successful
+local executions are recorded above, not counted as hosted executions.
+
+On each runner, operand reference tooling passed 25 tests and the explicitly selected
+primary-only reference run reproduced 44 observations and 12 codec controls.
+The actual primary runtime was Temurin despite the historical `zulu` report key;
+this was not a two-VM hosted comparison. Twenty product-tool tests and the Rust
+diagnostic-formatting example test passed. The full public product harness passed
+136 archived/rebuilt API and physical CLI commands. Its ordinary guest produced
+248 exceptions, 240 diagnostic messages containing 7,700 UTF-16 units, and 496
+trace snapshots. Compiler portability mode was correctly reported; the hosted
+compiler is not the pinned original Zulu compiler.
+
+The unchanged earlier public replays also passed on both runners. Whole-platform
+verification proved 7,615 ordinary java.base classes, 62,599 Code bodies and 4,666
+bodyless declarations on Linux; Windows proved 7,589 classes, 62,186 Code bodies
+and 4,694 bodyless declarations. Both parser smoke runs processed 10,000 cases
+from 776 seeds: 107 accepted,
+9,893 rejected, ten deterministic rechecks and zero failures. These are hosted
+results for this commit, separate from the longer local campaign above.
+
+The complete decoded Linux log has SHA-256
+`AD0D2AF2A145ADC6D3A758B0647DD2DF134BA2FEF5EC8651230AF1F707D0E870`.
+The Windows log has SHA-256
+`AACEF38BE6E8F8ADBD292B793C8D81DADDA51806A48ECB0D089B7A95573C9D25`.
+Neither job reported error markers; their Action-version deprecation warnings do
+not change the successful results. The existing pinned-compiler provenance test
+was skipped on each hosted Temurin runner and passed locally with its required
+Zulu compiler. This evidence does not establish full JVM
+compatibility or performance superiority.
