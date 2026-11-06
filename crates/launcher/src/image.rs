@@ -28,6 +28,8 @@ pub(crate) struct PreparedImage {
     pub(crate) domain: LoadingDomain,
     pub(crate) routes: Routes,
     pub(crate) heap: ManagedHeap,
+    pub(crate) string_body_plan: Option<CompactStringBodyPlan>,
+    pub(crate) string_body_limits: StringBodyLimits,
     pub(crate) roles: BootstrapRoles,
     pub(crate) named: ClassId,
     pub(crate) app_loader: LoaderId,
@@ -518,6 +520,21 @@ pub(crate) fn prepare(
     observations: &[StaticIntObservation<'_>],
     options: ApplicationOptions,
 ) -> Result<PreparedImage> {
+    prepare_with_string_bodies(
+        directories,
+        entry,
+        observations,
+        options,
+        Default::default(),
+    )
+}
+pub(crate) fn prepare_with_string_bodies(
+    directories: ApplicationDirectories<'_>,
+    entry: &str,
+    observations: &[StaticIntObservation<'_>],
+    options: ApplicationOptions,
+    profile: crate::ApplicationStringBodyProfile,
+) -> Result<PreparedImage> {
     let mut meter = Meter::new(options.image);
     let mut used = ApplicationUsage::default();
     if options.parse.allow_preview {
@@ -776,6 +793,31 @@ pub(crate) fn prepare(
         plan_index.insert(*id, plans.len());
         plans.push(plan);
     }
+    // Discovery has no heap authority. Its optional exact IDs only extend the
+    // proof seeds; the application loader's seven public imports stay unchanged.
+    let discovery =
+        probe_compact_string_bodies(domain.registry(), boot, core.string, profile.discovery)
+            .map_err(|source| {
+                used.string_body_discovery = source.discovery_usage;
+                meter.error(S::Verification, K::StringBody(source), used)
+            })?;
+    used.string_body_discovery = discovery.usage;
+    let string_body_plan = discovery.plan;
+    if string_body_plan.is_none() && profile.mode == crate::StringBodyMode::RequireCompact {
+        return Err(meter.error(
+            S::Verification,
+            K::StringBody(Box::new(StringBodyError {
+                kind: StringBodyErrorKind::UnsupportedShape,
+                discovery_usage: used.string_body_discovery,
+            })),
+            used,
+        ));
+    }
+    if string_body_plan.is_some() {
+        domain
+            .enable_nest_access()
+            .map_err(|source| meter.error(S::Verification, K::Member(source), used))?;
+    }
     let mut executable = HashSet::new();
     let mut pending = Vec::new();
     for id in ids[bootstrap_count..].iter().chain(&imported) {
@@ -784,6 +826,15 @@ pub(crate) fn prepare(
             .try_reserve(1)
             .map_err(|_| meter.alloc(S::Verification, used))?;
         pending.push(*id);
+    }
+    if let Some(plan) = &string_body_plan {
+        for id in plan.private_roots() {
+            meter.retain(1, S::Verification, used)?;
+            pending
+                .try_reserve(1)
+                .map_err(|_| meter.alloc(S::Verification, used))?;
+            pending.push(id);
+        }
     }
     while let Some(id) = pending.pop() {
         meter.work(1, S::Verification, used)?;
@@ -907,6 +958,8 @@ pub(crate) fn prepare(
         ));
     }
     Ok(PreparedImage {
+        string_body_plan,
+        string_body_limits: profile.backing,
         domain,
         routes,
         heap,

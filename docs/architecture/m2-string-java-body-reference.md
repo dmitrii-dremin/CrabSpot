@@ -12,3 +12,9 @@ Run the following with a Java 21 HotSpot JDK at `JAVA_HOME` and the pinned OpenJ
 python -m unittest discover -s tools -p test_string_body_reference.py
 python tools/string_body_reference.py --check --compare-openj9 PATH_TO_OPENJ9_21_JAVA
 ```
+
+## Initializer and comparator observations
+
+The activation program first calls `isEmpty` on an argument, records its result, calls `length`, then reads `String.CASE_INSENSITIVE_ORDER` twice. Its static fields expose the last phase reached, the UTF-16 length, whether the argument was empty, and whether both static reads returned the same non-null comparator. Both reference VMs returned `4/0/1/1` for the empty argument, `4/3/0/1` for three Latin-1 units and `4/2/0/1` for a surrogate pair. The independent observer saw `java.lang.String$CaseInsensitiveComparator` in all twelve runs across archived and rebuilt inputs. [Activation fixture manifest](../../tests/fixtures/string-body-activation/manifest.json)
+
+Reproduce these observations on both VMs with `python tools/string_activation_reference.py --check --compare-openj9 PATH_TO_OPENJ9_21_JAVA`. The CrabSpot replay uses the same application with execution limits to stop inside `isEmpty`, `length`, `coder`, or the actual initializer. This exposes the earlier field writes and the number of backing arrays allocated at each stop.

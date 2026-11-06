@@ -1,0 +1,8 @@
+{
+  "original/empty": "4/0/1/1/java.lang.String$CaseInsensitiveComparator",
+  "original/latin": "4/3/0/1/java.lang.String$CaseInsensitiveComparator",
+  "original/pair": "4/2/0/1/java.lang.String$CaseInsensitiveComparator",
+  "rebuilt/empty": "4/0/1/1/java.lang.String$CaseInsensitiveComparator",
+  "rebuilt/latin": "4/3/0/1/java.lang.String$CaseInsensitiveComparator",
+  "rebuilt/pair": "4/2/0/1/java.lang.String$CaseInsensitiveComparator"
+}

@@ -175,6 +175,7 @@ impl Record {
     }
 }
 pub(crate) struct Store {
+    pub(crate) nest_access: bool,
     pub(crate) class_sites: Option<crate::mirror::ClassSites>,
     limits: MemberResolutionLimits,
     usage: MemberResolutionUsage,
@@ -197,6 +198,7 @@ impl Store {
             limits,
             usage: Default::default(),
             class_sites: None,
+            nest_access: false,
             prepared: HashSet::new(),
             sites: HashMap::new(),
         }
@@ -238,6 +240,24 @@ fn tag(registry: &DefinitionRegistry, origin: ClassId, index: u16) -> std::resul
     }
 }
 impl LoadingDomain {
+    pub fn enable_nest_access(&mut self) -> MR<()> {
+        let store = self
+            .members
+            .as_mut()
+            .ok_or_else(|| Site::default().error(M::Disabled))?;
+        store.validate().map_err(|e| Site::default().error(e))?;
+        if store.nest_access {
+            return Ok(());
+        }
+        if store.usage.sites != 0 {
+            return Err(Site::default().error(M::InvalidState(
+                "nest policy must precede terminal member sites",
+            )));
+        }
+        store.nest_access = true;
+        Ok(())
+    }
+
     pub fn enable_member_resolution(&mut self, limits: MemberResolutionLimits) -> MR<()> {
         if let Some(store) = &self.members {
             if store.limits != limits {

@@ -1,0 +1,34 @@
+{
+  "compiled": {
+    "budget/Entry.class": "d46bbde76fe2573d27fd8cc2334ddb90ce89c0eb6aa56f6cf91d6dd0074a40f3"
+  },
+  "compiler": "javac 21.0.7",
+  "controls": {
+    "Observe.class": "9aeb0c33e6b65328a396a9c9549adaa969a21602fe63f93cdfea7fb0e4481ed2"
+  },
+  "flags": [
+    "--release",
+    "21",
+    "-g:none",
+    "-encoding",
+    "UTF-8"
+  ],
+  "original": {
+    "budget/Entry.class": "d46bbde76fe2573d27fd8cc2334ddb90ce89c0eb6aa56f6cf91d6dd0074a40f3"
+  },
+  "primary": "openjdk version \"21.0.7\" 2025-04-15 LTS\nOpenJDK Runtime Environment Zulu21.42+19-CA (build 21.0.7+6-LTS)\nOpenJDK 64-Bit Server VM Zulu21.42+19-CA (build 21.0.7+6-LTS, mixed mode, sharing)",
+  "secondary": "openjdk version \"21.0.13.0.3\" 2026-10-24 LTS\nIBM Semeru Runtime Open Edition 21.0.13.0 (build 21.0.13.0.3+1-LTS)\nEclipse OpenJ9 VM 21.0.13.0 (build 21.0.13.0.3+1-openj9-0.63.0, JRE 21 Windows 11 amd64-64-Bit Compressed References 20261024_885 (JIT enabled, AOT enabled)\nOpenJ9   - dcc7ee16aa\nOMR      - c2a3a9ae0\nJCL      - 62d1b70e191 based on jdk-21.0.13.0.3+1)",
+  "secondary_archive_sha256": "b296dc9f53cc933ebbf75d64b6bb5a17f30cd365f8ce8ab93df5a71a925a9c37",
+  "sources": {
+    "Observe.java": "4109c06c6ba167f7fac522fb68695776fc87351065be07d9cd7d26425330aab0",
+    "budget/Entry.java": "288db76d56c499e4aa9b3fc32427ce7306b269127f17c67ca04f0c9ef192f08e"
+  },
+  "tools": {
+    "application_entry_reference.py": "77a3dfbb47bf77a841f7e4e7c67949da15cd78c46fdc93355ee620e8f15876a2",
+    "fixture_source.py": "56898e5e6d252fcf41521aad42a2aaa0163c2f9a03ad500ef25e6e72905ca201",
+    "loading_constraint_reference.py": "32c9909fdffc66c358dedc15b03f996729b7eb2e74ab40e82eb3ea0509a06910",
+    "string_activation_reference.py": "691c51e92dd305331cc0a7d8af668d7e2ab3d41c1a4691d358c5f1cc134e4c08",
+    "string_body_reference.py": "5679adcf8e4a9b61277342f72bb5aaa411d6db17bcbbf91bb83d37c6d4585fe4",
+    "type_state_reference.py": "7ae96317309b7a27064d068502879e92feed2416613d0eb79e07b3edd9480eaf"
+  }
+}

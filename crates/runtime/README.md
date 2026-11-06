@@ -976,13 +976,58 @@ The canonical native classifier accepts only the immutable actual bootstrap
 String.intern declaration with its public native instance role. The shared
 method-profile guard checks that role before ordinary opaque-body rejection;
 Java replacements and incompatible flags fail rather than executing substituted
-Code. Other String-owned Java bodies and field operations on issued kernel values
-remain explicit opaque-state boundaries. Ordinary allocation and constructor
+Code. Without a compact-body binding, other String-owned Java bodies and field
+operations on issued kernel values remain explicit opaque-state boundaries. Ordinary allocation and constructor
 authority for the bound String identity are sealed. Unbound legacy heaps retain
 prior memory behavior, and old interpreter profiles gain no native capability.
 
-This is not Java String backing storage, reflection, concatenation, JNI or general
-String library execution. It performs no active initialization of String and
+The kernel profile alone supplies no Java String backing storage, reflection,
+concatenation, JNI or general String library execution. It performs no active initialization of String and
 provides no privileged completion state. The interpreter/launcher owns opt-in
 instruction/native integration and application argument transport; the runtime
 accepts borrowed UTF-16 directly and does not open files or inspect OS arguments.
+
+## Checked compact String bodies and nests
+
+`probe_compact_string_bodies` inspects immutable parsed metadata with a separate
+funded discovery budget. It recognizes a normalized bytecode/CP recipe, not a
+vendor hash or a host assertion. Cleanly absent/different initialization recipes
+return no plan; incompatible metadata after recipe selection is a typed failure.
+The opaque registry-bound plan identifies the exact String fields and methods
+and its comparator, Comparator interface and ObjectStreamField dependencies.
+The launcher must prove and admit their full executable closure separately.
+
+A pristine String-bound heap may bind that plan once with fixed backing-work
+limits. Binding requires no entries, prior String work or initialization claim;
+matching repeats preserve state. Only the checked length/isEmpty/coder bodies
+open on issued String receivers. They execute their actual Java Code, as does the
+recognized initializer and comparator constructor. Ordinary allocation, raw field
+access, unrelated String bodies and arbitrary replacement recipes remain sealed.
+No runtime lifecycle completion setter or general String library is supplied.
+
+A checked read of the exact value/coder fields lazily publishes one real managed
+byte array per String, including empty values. Latin-1 uses coder zero; other
+UTF-16 units use coder one and low byte first, preserving lone surrogates. A cold
+read costs one backing work unit, all input units for width discovery, and the
+encoded byte count; a warm read costs one. Width and encoding debits are atomic;
+accepted work survives later quota/allocation failure. Normal heap array, length,
+element and payload quotas apply before encoding. Payload/arena capacity and all
+counters are validated before the String link and array publish together.
+
+The immutable intern payload remains authoritative. Sealed reverse ownership,
+coder and length checks prevent cross-String backing substitution without warm
+text scans. `string_backing` is a zero-work, read-only observer; child iteration
+reports the sole array edge only after publication. All public primitive stores
+reject protected backing arrays after normal kind, bounds and value-kind checks.
+Other byte arrays remain writable; materialization changes no String pool quota.
+
+`LoadingDomain::enable_nest_access` is an independent checked-domain policy and
+must first be enabled before any terminal member outcome. Private same-package
+access streams the two NestHost/NestMembers relationships without a nest cache.
+Host Class CP resolution uses the existing class-site service without minting a
+mirror. Missing facts and nested host failures remain retryable host errors;
+only a direct host-class access denial falls back to self. Host membership compares
+exact names without resolving unrelated entries. Terminal member replay retains
+its old warm checks and does not repeat nest traversal. Different runtime
+packages still deny private access, and legacy domains preserve their prior
+unsupported-nest boundary.

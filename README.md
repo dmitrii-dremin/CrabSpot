@@ -89,6 +89,8 @@ cargo run --release -p crabspot-launcher --bin crabspot -- run --platform target
 
 The program returns silently. Run `python tools/verify_string_entry.py` with a Java 21 JDK at `JAVA_HOME` to inspect the test results for literal identity, static constants, argument contents and resource limits. [String reference behavior](docs/architecture/m2-string-reference.md).
 
+Run `python tools/verify_string_body_entry.py` to exercise `String.length()` and `String.isEmpty()` on a Java 21 image with the supported compact layout. The replay compiles and launches Java programs that measure empty, Latin-1 and UTF-16 strings. It also checks an initializer that runs out of array space and private access between nested classes. The tested Zulu 21.0.7 image supplies the Java method bodies. On an image with a different String initializer, the default launcher retains support for literals, arguments and interning. [Java-body contract](docs/architecture/m2-string-java-bodies.md)
+
 ## Build and inspect
 
 Install Rust stable with rustfmt and Clippy. Tests use checked-in Java 21 fixtures;

@@ -1,4 +1,16 @@
-# Current checkpoint: String literals, interning and arguments
+# Current checkpoint: supplied Java String bodies and nest access
+
+The technical director approved this bounded increment on 2026-11-06. The build executes the Zulu 21.0.7 implementations of `String.length`, `String.isEmpty` and `String.coder` on managed byte arrays. A call to `length` can trigger String's real static initializer, which constructs the nested comparator through its private constructor. All 68 checks in the integrated gate passed, including 1,553 debug tests, 1,473 optimized tests, 59 Python regressions and the public launcher on the real Zulu and OpenJ9 images. [Implementation contract](../architecture/m2-string-java-bodies.md) and [technical review](../architecture/m2-string-java-bodies-review.md)
+
+The archived compact application returned `63/0/3/4/1/2/0` without arguments and `127/0/3/4/1/2/3` with two arguments. In the separate activation application, limiting the heap to two arrays allowed the argument array and the empty String backing. The initializer stopped at bytecode offset 5 when it tried to allocate the serial-field array. The earlier writes remained visible as `2/0/1/0`. The same program completed with six frames, 132 prepared code bytes and 64 instructions. Removing one frame or one code byte prevented entry into Object's constructor, and removing one instruction stopped the final return after all four field writes.
+
+The exact-source parser fuzz run used 748 classfile seeds. In 300 seconds it accepted 439,263 inputs, rejected 43,328,053 and completed 42,742 deterministic rechecks with zero failures. Run `cargo run -p crabspot-classfile --example fuzz_parser --release --locked -- tests/fixtures --seconds 300 --seed 4851011501752864596` to repeat the campaign. Both hosted runners passed the separately published Java-body reference suite on the archived and rebuilt inputs. [Windows run](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42125971115/job/127590145772) and [Linux run](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42125971115/job/127590146256)
+
+Reproduce the launcher cases with `python tools/verify_string_body_entry.py --openj9-platform PATH_TO_EXTRACTED_OPENJ9_JAVA_BASE` using a Java 21 HotSpot JDK at `JAVA_HOME`. Both suites also exercise the physical OS launcher. The independent reference commands and fixture digests are in the [Java-body reference report](../architecture/m2-string-java-body-reference.md).
+
+The next proposal follows `Object.equals` dispatch to the real String override and the byte-array comparison helper. That helper's initializer requires the bootstrap Class assertion query. [Equality proposal](../architecture/m2-string-equality-next.md)
+
+## Previous checkpoint: String literals, interning and arguments
 
 The technical director approved this increment on 2026-11-05. [Technical review](../architecture/m2-string-constants-review.md).
 

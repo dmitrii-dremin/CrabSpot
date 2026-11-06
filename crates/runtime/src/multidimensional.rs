@@ -291,6 +291,7 @@ impl Staged {
             for _ in 0..level.nodes {
                 entries.push(Entry {
                     generation: LIVE_GENERATION,
+                    string_backing: None,
                     payload: make(level.array_type, length)?,
                 });
             }
@@ -337,6 +338,9 @@ impl Staged {
                     .entries
                     .get(staged)
                     .ok_or_else(|| invalid("staged node is missing"))?;
+                if entry.string_backing.is_some() {
+                    return Err(invalid("staged array cannot be protected String storage").into());
+                }
                 if entry.generation != LIVE_GENERATION {
                     return Err(invalid("staged generation is invalid").into());
                 }
@@ -515,6 +519,7 @@ mod tests {
                 }
                 1 => staged.entries.push(Entry {
                     generation: LIVE_GENERATION,
+                    string_backing: None,
                     payload: payload(target(1), 3).unwrap(),
                 }),
                 2 => staged.entries[0].generation = LIVE_GENERATION + 1,

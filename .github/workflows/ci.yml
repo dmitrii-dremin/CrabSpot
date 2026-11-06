@@ -167,3 +167,8 @@ jobs:
           python tools/verify_class_mirror_entry.py
       - name: Run String literals, intern and application arguments through the public launcher
         run: python tools/verify_string_entry.py
+      - name: Check String method execution, initialization and private nest access
+        run: |
+          python -m unittest discover -s tools -p test_string_body_launch.py
+          python tools/string_activation_reference.py --check
+          python tools/verify_string_body_entry.py

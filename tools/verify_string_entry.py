@@ -43,7 +43,7 @@ def later_inputs(work, javac):
     return stage_selected(work/"cases", apps, raw)
 
 
-def run_suite(bin_dir, platform, cases, work, original):
+def run_suite(bin_dir, platform, cases, work, original, opaque=False):
     suffix = ".exe" if os.name == "nt" else ""
     public = bin_dir/"examples"/("replay_string_entry"+suffix)
     cli = bin_dir/("crabspot"+suffix)
@@ -121,7 +121,10 @@ def run_suite(bin_dir, platform, cases, work, original):
     else:
         launch("os", ["--", "valid", b"\xff"], failure="Encoding { index: 1 }")
     if original:
-        api("words", "empty", "MainEvaluation main@68 OpaqueStringObject", "3/0/0", (1,0,1,2,12,2,3,53))
+        # The supplied compact bodies complete length at 68 and reach charAt at 78.
+        # A role-only String profile stops at the first String method invocation.
+        pc = 68 if opaque else 78
+        api("words", "empty", f"MainEvaluation main@{pc} OpaqueStringObject", "3/0/0", (1,0,1,2,12,2,3,53))
         for cap, index, kind, limit, required in [
                 ("args=3","None","Arguments",3,4), ("total=17","Some(3)","ArgumentUnits",17,18),
                 ("each=9","Some(3)","UnitsPerArgument",9,10)]:
@@ -143,6 +146,7 @@ def run_suite(bin_dir, platform, cases, work, original):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--platform", type=Path)
+    parser.add_argument("--opaque", action="store_true", help="expect a platform without the compact String Java-body profile")
     parser.add_argument("--jdk", type=Path, default=os.environ.get("JAVA_HOME"))
     args = parser.parse_args()
     subprocess.run(["cargo","build","--release","--locked","-p","crabspot-launcher","--bin","crabspot",
@@ -162,8 +166,8 @@ def main():
                 raise ValueError("incorrect extracted platform class count")
             print(f"java.base.jmod {sha}, {count} ordinary classes", flush=True)
         javac = args.jdk/"bin"/("javac.exe" if os.name == "nt" else "javac") if args.jdk else reference_tool("javac")
-        run_suite(binaries, platform, applications(work/"original/apps"), work/"original", True)
-        run_suite(binaries, platform, later_inputs(work/"rebuilt", javac), work/"rebuilt", False)
+        run_suite(binaries, platform, applications(work/"original/apps"), work/"original", True, args.opaque)
+        run_suite(binaries, platform, later_inputs(work/"rebuilt", javac), work/"rebuilt", False, args.opaque)
 
 
 if __name__ == "__main__":

@@ -35,6 +35,8 @@ pub(crate) fn run_prepared(
     let PreparedImage {
         mut domain,
         mut heap,
+        string_body_plan,
+        string_body_limits,
         roles,
         named,
         app_loader,
@@ -105,6 +107,19 @@ pub(crate) fn run_prepared(
         })?;
     // Capture every post-binding exit, including setup failures before an evaluation.
     let result = (|| {
+        if let Some(plan) = &string_body_plan {
+            heap.bind_compact_string_bodies(domain.registry(), plan, string_body_limits)
+                .map_err(|source| {
+                    meter.error(
+                        S::Setup,
+                        K::Setup {
+                            kind: SetupKind::StringBody,
+                            source,
+                        },
+                        usage,
+                    )
+                })?;
+        }
         let mut context = domain
             .member_context_unnamed_modules(&mut heap, options.field, options.loading_work)
             .map_err(|source| meter.error(S::Setup, K::Member(source), usage))?;
@@ -346,13 +361,16 @@ pub(crate) fn run_prepared(
         })
     })();
     let string_usage = heap.string_usage();
+    let string_body_usage = heap.string_body_usage();
     match result {
         Ok(mut run) => {
             run.usage.strings = string_usage;
+            run.usage.string_bodies = string_body_usage;
             Ok(run)
         }
         Err(mut error) => {
             error.usage.strings = string_usage;
+            error.usage.string_bodies = string_body_usage;
             Err(error)
         }
     }

@@ -47,6 +47,8 @@ pub struct ReferenceFieldMismatch {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FieldAccessError {
     MemberResolution(Box<crate::MemberResolutionError>),
+    ClassMirror(Box<crate::ClassMirrorError>),
+    StringBody(Box<crate::StringBodyError>),
     Java(FieldJavaError),
     Registry(RegistryError),
     Instance(InstanceError),
@@ -98,6 +100,8 @@ impl fmt::Display for FieldAccessError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MemberResolution(error) => error.fmt(f),
+            Self::ClassMirror(error) => error.fmt(f),
+            Self::StringBody(error) => error.fmt(f),
             Self::Java(error) => write!(f, "field access failed: {error:?}"),
             Self::Registry(error) => write!(f, "field registry operation failed: {error}"),
             Self::Instance(error) => write!(f, "field instance operation failed: {error}"),
@@ -169,6 +173,8 @@ impl std::error::Error for FieldAccessError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::MemberResolution(error) => Some(error.as_ref()),
+            Self::ClassMirror(error) => Some(error.as_ref()),
+            Self::StringBody(error) => Some(error.as_ref()),
             Self::Registry(error) => Some(error),
             Self::Instance(error) => Some(error),
             Self::ReferenceType(error) => Some(error.as_ref()),
@@ -752,13 +758,25 @@ impl<'a> FieldResolutionContext<'a> {
             if origin != declaring {
                 // Nest membership requires the same runtime package. Checked
                 // mode can prove this denial without claiming nest support.
-                if self.is_member_checked() && !self.same_package(origin, declaring)? {
+                if self.is_member_checked()
+                    && !(if self.nest_access_enabled() {
+                        self.nest_same_package(origin, declaring)?
+                    } else {
+                        self.same_package(origin, declaring)?
+                    })
+                {
                     return Err(FieldAccessError::Java(FieldJavaError::IllegalAccess));
                 }
-                return Err(FieldAccessError::UnsupportedNestAccess {
-                    origin,
-                    owner: declaring,
-                });
+                if self.nest_access_enabled() {
+                    if !self.same_nest(origin, declaring)? {
+                        return Err(FieldAccessError::Java(FieldJavaError::IllegalAccess));
+                    }
+                } else {
+                    return Err(FieldAccessError::UnsupportedNestAccess {
+                        origin,
+                        owner: declaring,
+                    });
+                }
             }
         } else if flags & 4 != 0 {
             if !self.same_package(origin, declaring)? {
@@ -856,6 +874,12 @@ impl<'a> FieldResolutionContext<'a> {
             ));
         }
         self.field_receiver(&selected, receiver)?;
+        if let Some(value) = self
+            .read_string_body_field(selected.field, receiver)
+            .map_err(FieldAccessError::StringBody)?
+        {
+            return Ok(value);
+        }
         Ok(self.heap.get_field(receiver, selected.field)?)
     }
     pub fn write_field(

@@ -196,6 +196,72 @@ Real static active use keeps the actual initializer and its unsupported bootstra
 boundaries. Genuine Java String instance bodies, arbitrary natives, constructors,
 assertion/Throwable boot dependencies and concatenation remain outside this kernel.
 The public library supplies actual String references, not fabricated results for
-length, hashing or other library methods. Synthetic platform role stubs must make
+length, hashing or other library methods. Supported compact images can now run
+the genuine length/emptiness Code under the optional binding described below. Synthetic platform role stubs must make
 String a public final ordinary direct Object subclass; original genuine application
 and platform bytes remain unchanged.
+
+
+## Verified compact String Java Code
+
+Ordinary directory wrappers and the unchanged CLI now probe the canonical bootstrap
+String for the supported compact initializer recipe. A clean recipe mismatch keeps
+the existing String kernel and its original proof set; a policy/metadata/allocation
+failure or an incompatible role after recipe recognition is an explicit typed error.
+The probe never converts an error into an opaque-mode success.
+
+`run_directory_application_with_string_bodies(directories, entry, observations,
+options, invocation, profile)` adds a separate Copy `ApplicationStringBodyProfile`.
+It contains `mode` (Auto or RequireCompact), `discovery` and `backing`. Existing
+ApplicationOptions, ApplicationInvocation and argument limits keep their fields.
+Auto/default limits are used by all earlier entry points; RequireCompact is a
+library preflight policy and adds no CLI switch. Discovery has a separate inclusive
+4,194,304-work default. Backing defaults to 33,554,432 work. Zero and MAX limits
+are meaningful and never request policy-sized allocations.
+
+Discovery runs once after named dependency checks/hierarchy collection, before
+executable-root selection. It uses the actual designated bootstrap LoaderId and
+normalized checked CP operands, accepting shifted indices rather than an asserted
+binary hash. Matching supplies exactly three private seeds: the case-insensitive
+comparator implementation, java.util.Comparator and java.io.ObjectStreamField.
+Their real hierarchy closure must pass the same whole-class proof ceilings,
+preparation witnesses and layout admission as application/public-import classes.
+An invalid unused body or one-short proof budget in a mandatory helper cannot be
+skipped. These bootstrap execution seeds create no application-loader import or
+initiation capability: the seven public platform imports and eager application
+Class-CP restriction remain unchanged.
+
+After the existing reference/mirror/String binding, the adapter binds the opaque
+compact plan on the pristine heap before context/argument setup. It enables bounded
+checked nests before member preparation, so the genuine private comparator
+constructor executes through the ordinary construction protocol. There is still
+one named-main evaluation and one shared fuel/frame/Code/initialization domain.
+Neither a host substitute nor an extra evaluation initializes the library.
+
+The matched genuine Java length/isEmpty/coder methods execute their actual
+instructions. isEmpty materializes the backing passively; length enters coder,
+whose actual COMPACT_STRINGS getstatic runs the real String initializer and its
+default-interface/constructor dependencies. Backing allocation before a later
+failure remains observable; no root preflight failure creates one. String storage
+uses actual stable, read-only managed byte arrays, with the compact Latin-1 or
+low-byte-first UTF-16 policy, preserving NUL and isolated halves. Empty Strings
+still need one zero-length backing array when read. Existing heap array/length/
+element/payload limits remain independent from String and discovery policies.
+
+`ApplicationUsage.string_body_discovery` reports paid probe work on every later
+exit, including strict refusal and proof failures. `string_bodies` reports paid
+backing work, published `backings` and `backing_bytes` after setup/execution errors
+or normal completion; neither counter is folded into StringUsage. A zero-method,
+flag-valid String role costs exactly19 discovery work; limit18 rejects the final
+16-unit name comparison with accepted prefix3 and required19. Backing work is
+1+n+B for a cold read, 1 for a warm read, and an empty cold read costs1 plus one
+real array. Early array-limit failure precedes encoding work and publishes nothing.
+
+The initial semantic recipe targets the measured compact Zulu21 image. OpenJ9's
+different actual initializer remains an explicit strict unsupported-shape control,
+even where its language-level length results agree. Hosted Temurin images require
+their own recorded shape/result evidence. Noncompact storage, ordinary String
+constructors, charAt/equals/hashCode helper paths, arbitrary platform access and
+VM-produced Throwable objects remain outside this binding. The wider words
+application must retain the precise next unsupported site after genuine length;
+this profile does not claim complete Java library startup or compatibility.

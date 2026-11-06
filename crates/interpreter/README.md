@@ -1176,7 +1176,7 @@ and normal method/transition provenance. Nested Java-shaped errors stay host err
 this adds no VM Throwable allocator. Strong intern roots and exact read-only units
 are runtime services. The current profile still has 197 effective opcode values;
 String support expands constant/native behavior without adding opcodes. There is no
-implementation of String.length/charAt/equals/hashCode, constructors, concatenation,
+replacement implementation of String.length/charAt/equals/hashCode, constructors, concatenation,
 reflection or general native binding by replacing genuine Java library bodies.
 
 Independent tests pin exact UTF-16 (including NUL and isolated surrogates), duplicate
@@ -1186,3 +1186,54 @@ one-less/MAX limits, atomic ConstantValue failure, pre-dependency installation,
 legacy/direct/cache boundaries, original diagnostics and pooled versus distinct
 monitor identities. Genuine Java programs and OS transport evidence are maintained
 separately by the coordinator.
+
+
+## Genuine compact String Java bodies
+
+An explicitly compact-body-bound heap admits the canonical String `length()I`,
+`isEmpty()Z` and package-private `coder()B` Code IDs through the existing shared
+selected/direct-root and cached-call paths. These are ordinary decoded Java frames,
+not length/coder/emptiness natives. The runtime binds the exact normalized compact
+initializer/body recipes and private layout before allowing these operations.
+Unbound heaps retain the earlier opaque String instance boundary. Explicit binding
+also permits these three Code roles in older registered body APIs; those APIs keep
+their existing getstatic/new/initialization gates. No engine capability flag or
+additional opcode value is needed. The profile remains 197 effective opcodes.
+
+The first successful checked own-value/coder read passively publishes one immutable
+managed byte[] for the actual String. Latin-1 units use one byte each; other values
+use low/high UTF-16 bytes, including isolated surrogates. A fresh equal String keeps
+a distinct stable backing; pooling may select another receiver without changing
+that pair. Public raw get_field stays opaque. Null, access, handle, field kind and
+ordinary receiver checks precede backing work. Bastore and raw stores enforce the
+same read-only marker after normal index/value checks. Ordinary byte[] remains
+writable. Backings become actual String children and consume the existing array
+and payload quotas, with separate heap-lifetime StringBody work.
+
+The actual length body reads value before calling coder. Coder's genuine getstatic
+requests the existing String initializer scheduler, which executes the actual
+COMPACT_STRINGS stores, zero-length serialization array allocation and private
+nestmate comparator construction through Object's Code. Comparator's applicable
+default-method interface dependency initializes normally. The array component
+ObjectStreamField stays uninitialized. isEmpty needs only the backing array and
+must not force String initialization. A later coder frame/Code/fuel/initializer
+failure retains the earlier backing and existing effects. Root preflight rejection
+has read no field and creates no backing.
+
+Checked nest access is domain opt-in before terminal member results. It uses
+streamed immutable NestHost/NestMembers metadata, actual defining-loader/package
+identities and existing Class-site resolution; it mints no Class object. Definite
+Java denials are terminal, while missing facts/layout or policy exhaustion remain
+host failures eligible for a later cold retry. Warm terminal member sites preserve
+their old one-probe LoadingWork behavior and ordinary receiver checks. Legacy fresh
+domains keep UnsupportedNestAccess. Both nest attributes on one class remain an
+existing parse error, not a test-only issuer opportunity.
+
+Independent tests use the complete normalized instruction recipes, shifted CPs,
+real Code/frame/fuel cutoffs and provenance, both encodings, passive emptiness,
+atomic/read-only backing, streaming 65,535-member/list stress, ordinary and missing
+nest relations, private constructor failure effects and loader distinctions. Other
+String Java methods (including charAt, hashCode and equals), String constructors,
+assertion/bootstrap helper libraries, native exception allocation and general
+platform layouts remain guarded. Genuine vendor images and full user-program
+observations belong to the separate coordinator replay.

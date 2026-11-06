@@ -2,7 +2,9 @@
 //! authority are distinct; private image ownership connects their exact identities.
 mod entry;
 mod invocation;
+mod string_bodies;
 pub use invocation::*;
+pub use string_bodies::*;
 mod error;
 mod image;
 mod meter;
@@ -11,7 +13,10 @@ mod source;
 use crabspot_classfile::JavaString;
 use crabspot_interpreter::ExecutionError;
 pub use crabspot_interpreter::MonitorLimits;
-pub use crabspot_runtime::{ClassMirrorLimits, StringLimits, StringUsage};
+pub use crabspot_runtime::{
+    ClassMirrorLimits, StringBodyDiscoveryLimits, StringBodyDiscoveryUsage, StringBodyLimits,
+    StringBodyUsage, StringLimits, StringUsage,
+};
 use crabspot_verifier::ClassTypeVerificationUsage;
 pub use error::*;
 pub use options::*;
@@ -78,6 +83,8 @@ pub struct ApplicationUsage {
     pub argument_arrays: u64,
     pub argument_strings: u64,
     pub strings: StringUsage,
+    pub string_body_discovery: StringBodyDiscoveryUsage,
+    pub string_bodies: StringBodyUsage,
     pub orchestration: OrchestrationUsage,
 }
 #[cfg(test)]
@@ -148,5 +155,21 @@ pub fn run_directory_application_with_arguments(
 ) -> std::result::Result<ApplicationRun, Box<ApplicationError>> {
     invocation::validate(&invocation)?;
     let prepared = image::prepare(directories, entry, observations, options)?;
+    entry::run_prepared(prepared, observations, invocation)
+}
+
+/// Probe and optionally require a supported genuine compact String layout and Code.
+/// Existing invocation/options structs keep their earlier fields and semantics.
+pub fn run_directory_application_with_string_bodies(
+    directories: ApplicationDirectories<'_>,
+    entry: &str,
+    observations: &[StaticIntObservation<'_>],
+    options: ApplicationOptions,
+    invocation: ApplicationInvocation<'_>,
+    profile: ApplicationStringBodyProfile,
+) -> std::result::Result<ApplicationRun, Box<ApplicationError>> {
+    invocation::validate(&invocation)?;
+    let prepared =
+        image::prepare_with_string_bodies(directories, entry, observations, options, profile)?;
     entry::run_prepared(prepared, observations, invocation)
 }

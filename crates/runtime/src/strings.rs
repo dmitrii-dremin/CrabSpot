@@ -138,7 +138,8 @@ fn units_count(n: usize) -> R<u64> {
 }
 #[derive(Debug)]
 pub(crate) struct StringPayload {
-    units: Vec<u16>,
+    pub(crate) units: Vec<u16>,
+    pub(crate) backing: Option<(HeapRef, u8)>,
     canonical: Option<usize>,
 }
 #[derive(Clone, Copy, Debug)]
@@ -465,9 +466,11 @@ impl ManagedHeap {
         let state = self.instances.as_mut().ok_or(InstanceError::Disabled)?;
         self.entries.push(Entry {
             generation: LIVE_GENERATION,
+            string_backing: None,
             payload: EntryPayload::String(StringPayload {
                 units: copy,
                 canonical: None,
+                backing: None,
             }),
         });
         s.usage.objects = objects;
@@ -575,9 +578,11 @@ impl ManagedHeap {
         let state = self.instances.as_mut().ok_or(InstanceError::Disabled)?;
         self.entries.push(Entry {
             generation: LIVE_GENERATION,
+            string_backing: None,
             payload: EntryPayload::String(StringPayload {
                 units: copy,
                 canonical: Some(root),
+                backing: None,
             }),
         });
         if let Some(b) = existing {
@@ -805,6 +810,13 @@ impl FieldResolutionContext<'_> {
                 ))));
             }
             None => {}
+        }
+        if self
+            .heap
+            .permits_string_method(method)
+            .map_err(|e| MethodAccessError::Context(FieldAccessError::StringBody(e)))?
+        {
+            return Ok(());
         }
         Err(InstanceError::OpaqueStringObject {
             class: method.owner(),

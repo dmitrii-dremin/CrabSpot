@@ -91,6 +91,7 @@ pub enum HeapEntryKind {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HeapError {
     NullReference,
+    ReadOnlyStringBacking,
     WrongEntryKind {
         expected: HeapEntryKind,
         actual: HeapEntryKind,
@@ -128,6 +129,7 @@ pub enum HeapError {
 impl fmt::Display for HeapError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ReadOnlyStringBacking => f.write_str("String backing arrays are immutable"),
             Self::NullReference => f.write_str("null reference does not identify a heap entry"),
             Self::WrongEntryKind { expected, actual } => {
                 write!(f, "expected {expected:?}, found {actual:?}")
@@ -332,9 +334,15 @@ impl EntryPayload {
         }
     }
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct StringBackingOwner {
+    pub(crate) owner: usize,
+    pub(crate) coder: u8,
+}
 #[derive(Debug)]
 pub(crate) struct Entry {
     pub(crate) generation: u64,
+    pub(crate) string_backing: Option<StringBackingOwner>,
     pub(crate) payload: EntryPayload,
 }
 pub(crate) fn reserve_entries(
@@ -347,7 +355,7 @@ pub(crate) fn reserve_entries(
             resource: "managed heap arena",
         })
 }
-fn increased(
+pub(crate) fn increased(
     current: usize,
     amount: usize,
     limit: usize,
@@ -384,17 +392,18 @@ fn payload_size(length: usize, kind: PrimitiveArrayKind, limit: usize) -> Result
 #[derive(Debug)]
 pub struct ManagedHeap {
     pub(crate) identity: u64,
-    options: HeapOptions,
+    pub(crate) options: HeapOptions,
     pub(crate) entries: Vec<Entry>,
     pub(crate) instances: Option<InstanceState>,
     pub(crate) reference_universe: Option<crate::ReferenceTypeUniverse>,
     pub(crate) static_state: Option<crate::static_state::StaticState>,
+    pub(crate) string_bodies: Option<crate::string_bodies::BodyState>,
     pub(crate) strings: Option<crate::strings::Strings>,
     pub(crate) mirrors: Option<crate::mirror::Mirrors>,
     pub(crate) initialization_claim: Option<crate::initialization::InitializationFingerprint>,
-    arrays: usize,
-    elements: usize,
-    bytes: usize,
+    pub(crate) arrays: usize,
+    pub(crate) elements: usize,
+    pub(crate) bytes: usize,
 }
 impl ManagedHeap {
     pub fn new(options: HeapOptions) -> Result<Self, HeapError> {
@@ -408,6 +417,7 @@ impl ManagedHeap {
             initialization_claim: None,
             mirrors: None,
             strings: None,
+            string_bodies: None,
             arrays: 0,
             elements: 0,
             bytes: 0,
@@ -467,6 +477,7 @@ impl ManagedHeap {
         let index = self.entries.len();
         self.entries.push(Entry {
             generation: LIVE_GENERATION,
+            string_backing: None,
             payload: EntryPayload::Array(payload),
         });
         self.arrays = arrays;
@@ -531,6 +542,7 @@ impl ManagedHeap {
         let index = self.entries.len();
         self.entries.push(Entry {
             generation: LIVE_GENERATION,
+            string_backing: None,
             payload: EntryPayload::ReferenceArray(payload),
         });
         self.arrays = arrays;
@@ -578,6 +590,16 @@ impl ManagedHeap {
             .ok_or(HeapError::MissingEntry { index: entry_index })?;
         let payload = entry.payload.array_mut()?;
         let index = payload.index(index)?;
+        let expected = payload.kind().value_kind();
+        if value.kind() != expected {
+            return Err(HeapError::ValueKindMismatch {
+                expected,
+                actual: value.kind(),
+            });
+        }
+        if entry.string_backing.is_some() {
+            return Err(HeapError::ReadOnlyStringBacking);
+        }
         payload.store(index, value)
     }
     /// Validate identity/bounds/generation only. This neither marks nor retains

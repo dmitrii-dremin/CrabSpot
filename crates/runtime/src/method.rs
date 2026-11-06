@@ -746,13 +746,25 @@ impl<'a> FieldResolutionContext<'a> {
             if origin != declaring {
                 // Nest membership requires the same runtime package. Checked
                 // mode can prove this denial without claiming nest support.
-                if self.is_member_checked() && !self.same_package(origin, declaring)? {
+                if self.is_member_checked()
+                    && !(if self.nest_access_enabled() {
+                        self.nest_same_package(origin, declaring)?
+                    } else {
+                        self.same_package(origin, declaring)?
+                    })
+                {
                     return Err(MethodAccessError::Java(MethodJavaError::IllegalAccess));
                 }
-                return Err(MethodAccessError::UnsupportedNestAccess {
-                    origin,
-                    owner: declaring,
-                });
+                if self.nest_access_enabled() {
+                    if !self.same_nest(origin, declaring)? {
+                        return Err(MethodAccessError::Java(MethodJavaError::IllegalAccess));
+                    }
+                } else {
+                    return Err(MethodAccessError::UnsupportedNestAccess {
+                        origin,
+                        owner: declaring,
+                    });
+                }
             }
         } else if flags & 4 != 0 {
             if !self.same_package(origin, declaring)? {

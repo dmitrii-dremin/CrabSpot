@@ -21,13 +21,20 @@ mod method;
 mod mirror;
 pub use mirror::{ClassMirrorError, ClassMirrorLimits, ClassMirrorResource, ClassSiteOutcome};
 mod method_values;
+mod nest;
 mod reference;
 mod reference_array;
 mod registry;
 mod source;
 mod static_state;
 mod storage;
+mod string_bodies;
 mod strings;
+pub use string_bodies::{
+    CompactStringBodyPlan, StringBodyDiscovery, StringBodyDiscoveryLimits,
+    StringBodyDiscoveryUsage, StringBodyError, StringBodyErrorKind, StringBodyLimits,
+    StringBodyResource, StringBodyUsage, probe_compact_string_bodies,
+};
 pub use strings::{StringError, StringLimits, StringResource, StringUsage};
 mod types;
 mod values;

@@ -1035,6 +1035,7 @@ impl ManagedHeap {
         let state = self.instances.as_mut().ok_or(InstanceError::Disabled)?;
         self.entries.push(Entry {
             generation: LIVE_GENERATION,
+            string_backing: None,
             payload: EntryPayload::Instance(InstancePayload { class, values }),
         });
         state.count = count;
@@ -1307,13 +1308,13 @@ impl ManagedHeap {
         &self,
         reference: Reference,
     ) -> Result<impl Iterator<Item = HeapRef> + '_, HeapError> {
-        let (values, references): (&[Value], &[Reference]) = match &self.entry(reference)?.payload {
-            EntryPayload::Array(_) | EntryPayload::Mirror(_) | EntryPayload::String(_) => {
-                (&[], &[])
-            }
-            EntryPayload::ReferenceArray(array) => (&[], array.values.as_slice()),
-            EntryPayload::Instance(object) => (object.values.as_slice(), &[]),
-        };
+        let (values, references, backing): (&[Value], &[Reference], Option<HeapRef>) =
+            match &self.entry(reference)?.payload {
+                EntryPayload::Array(_) | EntryPayload::Mirror(_) => (&[], &[], None),
+                EntryPayload::String(p) => (&[], &[], p.backing.map(|(h, _)| h)),
+                EntryPayload::ReferenceArray(a) => (&[], a.values.as_slice(), None),
+                EntryPayload::Instance(o) => (o.values.as_slice(), &[], None),
+            };
         Ok(values
             .iter()
             .filter_map(|value| match value {
@@ -1324,7 +1325,8 @@ impl ManagedHeap {
                 references
                     .iter()
                     .filter_map(|reference| reference.heap_ref()),
-            ))
+            )
+            .chain(backing))
     }
 }
 fn validate_acyclic(candidates: &HashMap<ClassId, &ClassLayout>) -> Result<(), InstanceError> {

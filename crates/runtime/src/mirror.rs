@@ -482,6 +482,7 @@ impl FieldResolutionContext<'_> {
         // now publishes all scalar counters and reserved containers together.
         self.heap.entries.push(Entry {
             generation: LIVE_GENERATION,
+            string_backing: None,
             payload: EntryPayload::Mirror(ty),
         });
         m.index.insert(ty, handle);
