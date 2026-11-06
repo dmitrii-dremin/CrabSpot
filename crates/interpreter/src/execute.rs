@@ -32,6 +32,9 @@ use std::collections::HashMap;
 #[path = "throwable_execution.rs"]
 mod throwable_execution;
 use throwable_execution::*;
+#[path = "operand_execution.rs"]
+mod operand_execution;
+use operand_execution::*;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExecutionOptions {
@@ -669,6 +672,7 @@ enum Action {
         kind: CallKind,
     },
     Return(Option<Value>),
+    OperandFault(OperandEvent),
     ArithmeticException,
     ClassCastException,
     ArrayStoreException,
@@ -1251,6 +1255,7 @@ pub(crate) struct SessionExecution<'a, 'registry> {
     pub class_mirrors: bool,
     pub strings: bool,
     pub throwables: Option<crate::VmExceptionLimits>,
+    pub operands: bool,
 }
 pub(crate) enum InitializationRoot<'a> {
     Application {
@@ -1287,6 +1292,7 @@ pub(crate) fn execute_initializing(
         class_mirrors,
         strings,
         throwables,
+        operands,
     } = execution;
     context
         .check_initialization_claim(claim)
@@ -1336,6 +1342,7 @@ pub(crate) fn execute_initializing(
             class_mirrors,
             strings,
             throwables,
+            operands,
         },
     )?;
     match outcome {
@@ -2211,6 +2218,7 @@ struct EngineCapabilities {
     class_mirrors: bool,
     strings: bool,
     throwables: Option<crate::VmExceptionLimits>,
+    operands: bool,
 }
 fn run_engine(
     root: EngineRoot<'_>,
@@ -2815,6 +2823,36 @@ fn run_engine(
                     }
                 }
                 Action::Continue => {}
+                Action::OperandFault(event) => {
+                    if !capabilities.operands {
+                        return Err(operand_error(pc));
+                    }
+                    let init = initialization.as_mut().ok_or_else(|| operand_error(pc))?;
+                    let state = exceptions.as_mut().ok_or_else(|| operand_error(pc))?;
+                    verify_operand_event(&event, &java, current, pc)?;
+                    if let Some(outcome) = begin_operand_fault(
+                        &mut java,
+                        &mut services,
+                        init,
+                        state,
+                        bodies,
+                        limits,
+                        current,
+                        pc,
+                        event.fault,
+                    )
+                    .map_err(|mut e| {
+                        if e.method.is_none() {
+                            e.offset.get_or_insert(pc);
+                            contextualize(bodies, e, current, origin)
+                        } else {
+                            e
+                        }
+                    })? {
+                        return Ok(outcome);
+                    }
+                    continue;
+                }
                 Action::ArithmeticException => {
                     if capabilities.throwables.is_some() {
                         let init = initialization.as_mut().ok_or_else(|| operand_error(pc))?;
@@ -4375,9 +4413,19 @@ fn step(
                 return Err(operand_error(pc));
             };
             let origin = frame.method.owner().ok_or_else(|| operand_error(pc))?;
-            let reference = match context.new_multidimensional_array(origin, *index, requested) {
-                Ok(reference) => reference,
-                Err(error) => return array_failure(error, pc),
+            let reference = if capabilities.operands {
+                match context.new_multidimensional_array_detailed(origin, *index, requested) {
+                    Ok(crabspot_runtime::OperandOutcome::Value(v)) => v,
+                    Ok(crabspot_runtime::OperandOutcome::Fault(f)) => {
+                        return array_operand(f, 0xc5, *dimensions, pc);
+                    }
+                    Err(error) => return array_failure(error, pc),
+                }
+            } else {
+                match context.new_multidimensional_array(origin, *index, requested) {
+                    Ok(reference) => reference,
+                    Err(error) => return array_failure(error, pc),
+                }
             };
             stack.push(Value::Reference(reference), pc)?;
         }
@@ -4390,9 +4438,19 @@ fn step(
                 return Err(operand_error(pc));
             };
             let origin = frame.method.owner().ok_or_else(|| operand_error(pc))?;
-            let reference = match context.new_reference_array(origin, *index, length) {
-                Ok(reference) => reference,
-                Err(error) => return array_failure(error, pc),
+            let reference = if capabilities.operands {
+                match context.new_reference_array_detailed(origin, *index, length) {
+                    Ok(crabspot_runtime::OperandOutcome::Value(v)) => v,
+                    Ok(crabspot_runtime::OperandOutcome::Fault(f)) => {
+                        return array_operand(f, 0xbd, 0, pc);
+                    }
+                    Err(error) => return array_failure(error, pc),
+                }
+            } else {
+                match context.new_reference_array(origin, *index, length) {
+                    Ok(reference) => reference,
+                    Err(error) => return array_failure(error, pc),
+                }
             };
             stack.push(Value::Reference(reference), pc)?;
         }
@@ -4402,9 +4460,19 @@ fn step(
             let Services::Fields { context, .. } = services else {
                 return Err(operand_error(pc));
             };
-            let reference = match context.read_reference_array(array, index) {
-                Ok(reference) => reference,
-                Err(error) => return array_failure(error, pc),
+            let reference = if capabilities.operands {
+                match context.read_reference_array_detailed(array, index) {
+                    Ok(crabspot_runtime::OperandOutcome::Value(v)) => v,
+                    Ok(crabspot_runtime::OperandOutcome::Fault(f)) => {
+                        return array_operand(f, 0x32, 0, pc);
+                    }
+                    Err(error) => return array_failure(error, pc),
+                }
+            } else {
+                match context.read_reference_array(array, index) {
+                    Ok(reference) => reference,
+                    Err(error) => return array_failure(error, pc),
+                }
             };
             stack.push(Value::Reference(reference), pc)?;
         }
@@ -4415,7 +4483,15 @@ fn step(
             let Services::Fields { context, .. } = services else {
                 return Err(operand_error(pc));
             };
-            if let Err(error) = context.write_reference_array(array, index, value) {
+            if capabilities.operands {
+                match context.write_reference_array_detailed(array, index, value) {
+                    Ok(crabspot_runtime::OperandOutcome::Value(())) => {}
+                    Ok(crabspot_runtime::OperandOutcome::Fault(f)) => {
+                        return array_operand(f, 0x53, 0, pc);
+                    }
+                    Err(error) => return array_failure(error, pc),
+                }
+            } else if let Err(error) = context.write_reference_array(array, index, value) {
                 return array_failure(error, pc);
             }
         }
@@ -4429,9 +4505,19 @@ fn step(
             };
             let origin = frame.method.owner().ok_or_else(|| operand_error(pc))?;
             if opcode == 0xc0 {
-                let reference = match context.check_cast(origin, *index, reference) {
-                    Ok(reference) => reference,
-                    Err(error) => return type_failure(error, pc),
+                let reference = if capabilities.operands {
+                    match context.check_cast_detailed(origin, *index, reference) {
+                        Ok(crabspot_runtime::OperandOutcome::Value(v)) => v,
+                        Ok(crabspot_runtime::OperandOutcome::Fault(f)) => {
+                            return cast_operand(f, pc);
+                        }
+                        Err(error) => return type_failure(error, pc),
+                    }
+                } else {
+                    match context.check_cast(origin, *index, reference) {
+                        Ok(reference) => reference,
+                        Err(error) => return type_failure(error, pc),
+                    }
                 };
                 stack.push(Value::Reference(reference), pc)?;
             } else {
@@ -4591,7 +4677,13 @@ fn step(
             check_array_kind(opcode, actual, pc)?;
             let value = match heap.load(reference, index) {
                 Ok(value) => value,
-                Err(error) => return heap_failure(error, pc),
+                Err(error) => {
+                    return if capabilities.operands {
+                        primitive_operand(error, opcode, pc)
+                    } else {
+                        heap_failure(error, pc)
+                    };
+                }
             };
             stack.push(value, pc)?;
         }
@@ -4648,7 +4740,11 @@ fn step(
             };
             check_array_kind(opcode, actual, pc)?;
             if let Err(error) = heap.store(reference, index, value) {
-                return heap_failure(error, pc);
+                return if capabilities.operands {
+                    primitive_operand(error, opcode, pc)
+                } else {
+                    heap_failure(error, pc)
+                };
             }
         }
         0x3b..=0x3e => locals.store(
@@ -4959,7 +5055,13 @@ fn step(
             let heap = services.heap_mut().ok_or_else(|| operand_error(pc))?;
             let reference = match heap.allocate_primitive_array(kind, length) {
                 Ok(reference) => reference,
-                Err(error) => return heap_failure(error, pc),
+                Err(error) => {
+                    return if capabilities.operands {
+                        primitive_operand(error, opcode, pc)
+                    } else {
+                        heap_failure(error, pc)
+                    };
+                }
             };
             stack.push(Value::Reference(reference), pc)?;
         }
@@ -6006,6 +6108,7 @@ mod monitor_bridge_tests {
                         class_mirrors: false,
                         strings: false,
                         throwables: None,
+                        operands: false,
                     },
                 ) {
                     Err(e) => e,

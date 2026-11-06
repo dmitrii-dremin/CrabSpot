@@ -1,0 +1,104 @@
+{
+  "status": "Frozen private public-projection input candidate, not product/public-harness acceptance",
+  "snapshot_root": "C:\\Programming\\CrabSpot\\target\\coordinator\\operand-public\\frozen-prototype-v4",
+  "contract_sha256": "607C6D5FCB95C0EDE8797D6D17B0513E2A8000ABEB38EB5660F7B47E1BBE2BE6",
+  "files": [
+    {
+      "path": "classes/app/OperandMain$Failure.class",
+      "sha256": "5255DBF417569B98A106767C9B921BA43AD0C57190355548E6CB61CA8EBE4D0A"
+    },
+    {
+      "path": "classes/app/OperandMain.class",
+      "sha256": "7BE9FEFE0026F666316ADACC97B79CA06DA19332CE91EAD87A81830F40B992FF"
+    },
+    {
+      "path": "classes/app/OperandUncaught.class",
+      "sha256": "2FE99DCBDE2B633822A62565784A123A0794FD3823BE49520DE4E041695B3EDA"
+    },
+    {
+      "path": "classes/operand/OperandGuest.class",
+      "sha256": "FBA1B417CD149CDB8B14485D70B2734733F0409AE025D520E5FDBBDFD563AAC0"
+    },
+    {
+      "path": "classes/operand/Tag.class",
+      "sha256": "EF2F93C57BAB23CB7013E4EC78BE93EC794C95CC9BB77EB9D38CE6F41DC840AC"
+    },
+    {
+      "path": "classes/operand/Tagged.class",
+      "sha256": "1D32596F3048AEFD601DDFE7B644739094F78BA0D1E3BFAFC303655873C6C0CF"
+    },
+    {
+      "path": "classes/operand/\u00c9l\u00e9ment.class",
+      "sha256": "D61635F253360585A9FD9AF4A2467D9840168D7F1A594C87250C0D632600FCC7"
+    },
+    {
+      "path": "classes/operand/\u540d.class",
+      "sha256": "7F1D38D6E5909B7E757C3AB38B52D07C8B91A7356B4F0CA5D7E49F733670EE40"
+    },
+    {
+      "path": "control/ObserveOperandMain.java",
+      "sha256": "6ED8A5C633A84C4AC7AE72DED364CFBF6F4FA337A7BA6E5EE4C87520B0AE7020"
+    },
+    {
+      "path": "controls/ObserveOperandMain.class",
+      "sha256": "93E400F79DB26209C6F5B0EDBBA4C888832EB082044A759F79026A4BE179B6F7"
+    },
+    {
+      "path": "debug-transport/result.json",
+      "sha256": "B71F73FDA8BFD1C8638F902BCE44571F42473450C607585690049F2E3E34CF8C"
+    },
+    {
+      "path": "initial-reference-v3.json",
+      "sha256": "30A380E949F4D5DDB9A07358B1DF89C17FC8B803DB6E2303F4E937B66339BBB0"
+    },
+    {
+      "path": "message-oracles.json",
+      "sha256": "F02FBD9AC69E698D4AD1B751732E4FA1849235F767B4BA4FF6729BA78BCC77A6"
+    },
+    {
+      "path": "source-projection.json",
+      "sha256": "B359754DD4376E48BA2200EE30E449B06A2A1D5B2A7D3DC21101F9F3AAD132C6"
+    },
+    {
+      "path": "source/app/OperandMain.java",
+      "sha256": "DFB7B38F574A489CCFA23519C29654CC8BECDE2EE2AF6D00C10616BAEA22A073"
+    },
+    {
+      "path": "source/app/OperandUncaught.java",
+      "sha256": "6A19AB41480D888FEE24EC973E8D4D4353B287A59C463B811EB86570969BA028"
+    },
+    {
+      "path": "source/operand/OperandGuest.java",
+      "sha256": "78EAD14DFAFAB485803A40D697CFA5FBF7D98FA87FABD0B3CDD90A5D3EC018EE"
+    },
+    {
+      "path": "source/operand/Tag.java",
+      "sha256": "430A2614AF54753DFC7C4F18604D082FE6D87A4D40CC659F6EB77DF3D3CEEC12"
+    },
+    {
+      "path": "source/operand/Tagged.java",
+      "sha256": "4367014FB3B280806C3D4053689E14646ED836932B87E322F48BBB1909E1A8E7"
+    },
+    {
+      "path": "source/operand/\u00c9l\u00e9ment.java",
+      "sha256": "66C91EAD3F03FEA333CD7937362A3B3ED0F7F12567E4AF9ADC4C1543EB053EDA"
+    },
+    {
+      "path": "source/operand/\u540d.java",
+      "sha256": "620BC940FAA85E6013C68DC40C44CD6F253CC34A138C55A34417556DC052E193"
+    },
+    {
+      "path": "transport-checks.json",
+      "sha256": "30089FD3A1A51058EC03938EA125B1405841A83306B1671E75D8571C36101E17"
+    },
+    {
+      "path": "uncaught-reference.json",
+      "sha256": "26BB7DEAA54F07702B762E8A0FD02FF56D8F8E91DC7E3DA9C84B93B1F3977E6F"
+    }
+  ],
+  "guest_classes": 8,
+  "helper_sources_and_classes_unchanged": 5,
+  "initial_reference_observations": 22,
+  "external_transport_boundary_checks": 24,
+  "limits": "Complete original/rebuilt/interpreted/portable reference matrix and hostile-input provenance tests still required. No CrabSpot product execution yet."
+}

@@ -1,4 +1,25 @@
-# Current checkpoint: real Throwable construction and VM arithmetic exceptions
+# Current checkpoint: catchable array and cast exceptions
+
+The technical director approved the bounded operand-exception increment on
+2026-11-06, including the runtime/interpreter/launcher components, CLI budget
+amendment and public fixtures and harness. It adds real catchable array bounds,
+negative-size, array-store and cast failures through the existing construction
+continuation, with bounded UTF-16 diagnostics. Component gates passed; full public
+reference component and seven earlier public replays passed. The fresh 24-command
+gate also passed: 1,758 debug tests, 1,678 optimized tests, 168 Python regressions,
+whole-platform verification and a five-minute parser campaign with zero failures.
+Both worker API/CLI matrices and the coordinator's separate final combined-build
+matrices passed (136 commands per supplied library in each gate). Canonical LF
+export checks passed. Publication is authorized; hosted verification remains pending.
+[Aggregate review](../architecture/m2-operand-vm-exceptions-review.md).
+[Current integration](../architecture/m2-operand-integration.md).
+
+General NPE production, initialization-failure wrapping and retry errors, Java
+stack-element population, threads/JMM, GC and full M2 remain open. The next
+initialization-failure investigation has reference evidence; its product contract
+is not frozen and no implementation acceptance is claimed.
+
+## Prior checkpoint: real Throwable construction and VM arithmetic exceptions
 
 The technical director approved the bounded Throwable increment on 2026-11-06.
 The interpreter now executes genuine Java constructors and initializers, captures
@@ -30,7 +51,9 @@ unchanged. Both initial hosted jobs failed on a projection JSON hash that descri
 local CRLF bytes rather than the committed LF artifact. The narrow packaging repair
 passed all eight targeted checks, including canonical-export product replay on
 both supplied platforms, and received final technical approval. Replacement hosted
-CI remains pending; see the integration report. The approved
+CI passed on Linux and Windows for `c07b5f0` in
+[run 42168555533](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42168555533);
+see the integration report for exact counts and preserved failures. The approved
 pre-publication manifest is
 `E82E03A7CAEE58273DDED99790C06277D777E06F78F5FB9248B97CF2A9607D2B`.
 
@@ -46,9 +69,10 @@ python tools/verify_throwable_entry.py
 
 Java stack-element population remains explicitly unsupported at the real native
 call; other VM-produced exceptions, non-Error initializer wrapping, general native
-bindings, threads/JMM, GC and full M2 remain open. The next proposed increment adds
+bindings, threads/JMM, GC and full M2 remain open. The next increment adds
 operand-time array bounds, negative-size, array-store and cast exceptions through
-the same construction mechanism; its contract is not yet frozen or implemented.
+the same construction mechanism. Its subsequent bounded acceptance is recorded
+at the top of this checkpoint.
 
 ## Prior checkpoint: Java String equality and bootstrap assertions
 

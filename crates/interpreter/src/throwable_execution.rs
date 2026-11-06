@@ -16,10 +16,73 @@ pub(super) struct VmPending {
     pub origin: VmFaultOrigin,
     pub owner: u64,
     pub depth: usize,
-    pub spec: VmExceptionSpec,
+    pub spec: VmSpec,
     pub snapshot: Option<TraceSnapshot>,
     pub receiver: Option<Reference>,
     pub consumed: bool,
+}
+pub(super) enum VmSpec {
+    Arithmetic(VmExceptionSpec),
+    Operand(crabspot_runtime::OperandExceptionSpec),
+}
+fn operand_error_source(e: Box<crabspot_runtime::OperandExceptionError>) -> ExecutionError {
+    ExecutionError::new(None, E::OperandExceptionAccess(e))
+}
+impl VmSpec {
+    fn class(&self) -> ClassId {
+        match self {
+            Self::Arithmetic(s) => s.class(),
+            Self::Operand(s) => s.class(),
+        }
+    }
+    fn constructor(&self) -> MethodId {
+        match self {
+            Self::Arithmetic(s) => s.constructor(),
+            Self::Operand(s) => s.constructor(),
+        }
+    }
+    fn message(
+        &self,
+        c: &mut FieldResolutionContext<'_>,
+        claim: &InitializationClaim,
+    ) -> Result<Reference, ExecutionError> {
+        match self {
+            Self::Arithmetic(s) => c
+                .fresh_string(s.message_units())
+                .map_err(|e| ExecutionError::new(None, E::String(e))),
+            Self::Operand(s) => c
+                .new_operand_exception_message(claim, s)
+                .map_err(operand_error_source),
+        }
+    }
+    fn allocate(
+        &self,
+        c: &mut FieldResolutionContext<'_>,
+        claim: &InitializationClaim,
+    ) -> Result<(Reference, ResolvedConstructor), ExecutionError> {
+        match self {
+            Self::Arithmetic(s) => c.allocate_vm_exception(claim, s).map_err(trace_error),
+            Self::Operand(s) => c
+                .allocate_operand_exception(claim, s)
+                .map_err(operand_error_source),
+        }
+    }
+    fn authenticate(
+        &self,
+        c: &mut FieldResolutionContext<'_>,
+        claim: &InitializationClaim,
+        profile: &ExceptionProfile,
+        r: Reference,
+    ) -> Result<ThrownException, ExecutionError> {
+        match self {
+            Self::Arithmetic(s) => c
+                .authenticate_vm_exception(claim, profile, s, r)
+                .map_err(trace_error),
+            Self::Operand(s) => c
+                .authenticate_operand_exception(claim, profile, s, r)
+                .map_err(operand_error_source),
+        }
+    }
 }
 impl VmExecution {
     pub fn new(limits: VmExceptionLimits) -> Self {
@@ -220,25 +283,16 @@ pub(super) fn capture_native(
     caller.stack.publish_reserved_reference(result);
     Ok(())
 }
-#[allow(clippy::too_many_arguments)]
-pub(super) fn begin_vm_fault(
+fn begin_origin(
     java: &mut JavaState,
-    services: &mut Services<'_, '_>,
-    init: &mut InitExecution<'_>,
-    exceptions: &mut ExceptionState<'_>,
-    bodies: Bodies<'_>,
-    limits: CallLimits,
     current: MethodKey,
     pc: u32,
-) -> Result<Option<EngineOutcome>, ExecutionError> {
+    kind: VmExceptionKind,
+) -> Result<VmFaultOrigin, ExecutionError> {
     let MethodKey::Registered(method) = current else {
         return Err(vm_protocol("VM fault origin is not registered"));
     };
-    let origin = VmFaultOrigin {
-        method,
-        pc,
-        kind: VmExceptionKind::ArithmeticException,
-    };
+    let origin = VmFaultOrigin { method, pc, kind };
     let vm = java
         .vm
         .as_mut()
@@ -256,12 +310,17 @@ pub(super) fn begin_vm_fault(
         origin,
         phase: PhaseVm::Preflight,
     });
-    let Services::Fields { context, .. } = services else {
-        return Err(vm_protocol("VM fault context absent"));
-    };
-    let spec = context
-        .vm_exception_spec(init.claim, origin.kind)
-        .map_err(trace_error)?;
+    Ok(origin)
+}
+fn admit_vm(
+    java: &mut JavaState,
+    init: &mut InitExecution<'_>,
+    pc: u32,
+) -> Result<(), ExecutionError> {
+    let vm = java
+        .vm
+        .as_mut()
+        .ok_or_else(|| vm_protocol("VM producer disabled"))?;
     let required = vm.admitted.checked_add(1).ok_or_else(|| {
         ExecutionError::new(
             Some(pc),
@@ -294,6 +353,87 @@ pub(super) fn begin_vm_fault(
         })?;
     vm.admitted = required;
     init.state.vm_exceptions.started = started;
+    Ok(())
+}
+#[allow(clippy::too_many_arguments)]
+pub(super) fn begin_vm_fault(
+    java: &mut JavaState,
+    services: &mut Services<'_, '_>,
+    init: &mut InitExecution<'_>,
+    exceptions: &mut ExceptionState<'_>,
+    bodies: Bodies<'_>,
+    limits: CallLimits,
+    current: MethodKey,
+    pc: u32,
+) -> Result<Option<EngineOutcome>, ExecutionError> {
+    let origin = begin_origin(java, current, pc, VmExceptionKind::ArithmeticException)?;
+    let Services::Fields { context, .. } = services else {
+        return Err(vm_protocol("VM fault context absent"));
+    };
+    // Preserve the old zero-work Arithmetic spec validation before admission.
+    let spec = context
+        .vm_exception_spec(init.claim, origin.kind)
+        .map_err(trace_error)?;
+    admit_vm(java, init, pc)?;
+    start_vm_spec(
+        java,
+        services,
+        init,
+        exceptions,
+        bodies,
+        limits,
+        origin,
+        VmSpec::Arithmetic(spec),
+    )
+}
+#[allow(clippy::too_many_arguments)]
+pub(super) fn begin_operand_fault(
+    java: &mut JavaState,
+    services: &mut Services<'_, '_>,
+    init: &mut InitExecution<'_>,
+    exceptions: &mut ExceptionState<'_>,
+    bodies: Bodies<'_>,
+    limits: CallLimits,
+    current: MethodKey,
+    pc: u32,
+    fault: crabspot_runtime::OperandExceptionFault,
+) -> Result<Option<EngineOutcome>, ExecutionError> {
+    let origin = begin_origin(java, current, pc, operand_kind(fault))?;
+    // A rejected producer ceiling must consume no new diagnostic work.
+    admit_vm(java, init, pc)?;
+    let Services::Fields { context, .. } = services else {
+        return Err(vm_protocol("VM fault context absent"));
+    };
+    let spec = context
+        .operand_exception_spec(init.claim, fault)
+        .map_err(operand_error_source)?;
+    start_vm_spec(
+        java,
+        services,
+        init,
+        exceptions,
+        bodies,
+        limits,
+        origin,
+        VmSpec::Operand(spec),
+    )
+}
+#[allow(clippy::too_many_arguments)]
+fn start_vm_spec(
+    java: &mut JavaState,
+    services: &mut Services<'_, '_>,
+    init: &mut InitExecution<'_>,
+    exceptions: &mut ExceptionState<'_>,
+    bodies: Bodies<'_>,
+    limits: CallLimits,
+    origin: VmFaultOrigin,
+    spec: VmSpec,
+) -> Result<Option<EngineOutcome>, ExecutionError> {
+    let current = MethodKey::Registered(origin.method);
+    let pc = origin.pc;
+    let Services::Fields { context, .. } = services else {
+        return Err(vm_protocol("VM fault context absent"));
+    };
     let target = MethodKey::Registered(spec.constructor());
     let class = spec.class();
     let depth = java
@@ -301,7 +441,10 @@ pub(super) fn begin_vm_fault(
         .len()
         .checked_sub(1)
         .ok_or_else(|| vm_protocol("VM caller absent"))?;
-    vm.pending = Some(VmPending {
+    java.vm
+        .as_mut()
+        .ok_or_else(|| vm_protocol("VM state absent"))?
+        .pending = Some(VmPending {
         origin,
         owner: init.owner,
         depth,
@@ -414,18 +557,14 @@ pub(super) fn resume_vm_fault(
         .as_ref()
         .and_then(|v| v.pending.as_ref())
         .ok_or_else(|| vm_protocol("VM pending absent"))?;
-    let message = context
-        .fresh_string(pending.spec.message_units())
-        .map_err(|e| ExecutionError::new(None, E::String(e)))?;
+    let message = pending.spec.message(context, init.claim)?;
     phase(java, PhaseVm::Allocation);
     let pending = java
         .vm
         .as_ref()
         .and_then(|v| v.pending.as_ref())
         .ok_or_else(|| vm_protocol("VM pending absent"))?;
-    let (receiver, access) = context
-        .allocate_vm_exception(init.claim, &pending.spec)
-        .map_err(trace_error)?;
+    let (receiver, access) = pending.spec.allocate(context, init.claim)?;
     if MethodKey::Registered(access.method()) != target {
         return Err(vm_protocol(
             "VM allocated constructor differs from preflight",
@@ -535,9 +674,9 @@ pub(super) fn complete_vm_fault(
     let Services::Fields { context, .. } = services else {
         return Err(vm_protocol("VM completion context absent"));
     };
-    let thrown = context
-        .authenticate_vm_exception(init.claim, exceptions.profile, &pending.spec, reference)
-        .map_err(trace_error)?;
+    let thrown = pending
+        .spec
+        .authenticate(context, init.claim, exceptions.profile, reference)?;
     let produced = init
         .state
         .vm_exceptions

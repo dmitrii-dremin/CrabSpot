@@ -34,6 +34,8 @@ pub(crate) struct PreparedImage {
     pub(crate) bootstrap_assertions: BootstrapAssertionPolicy,
     pub(crate) throwable_plan: Option<ThrowablePlan>,
     pub(crate) throwable_profile: crate::ApplicationThrowableProfile,
+    pub(crate) operand_plan: Option<OperandExceptionPlan>,
+    pub(crate) operand_profile: crate::ApplicationOperandExceptionProfile,
     pub(crate) roles: BootstrapRoles,
     pub(crate) named: ClassId,
     pub(crate) app_loader: LoaderId,
@@ -557,13 +559,16 @@ pub(crate) fn prepare_with_string_equality(
     options: ApplicationOptions,
     equality: crate::ApplicationStringEqualityProfile,
 ) -> Result<PreparedImage> {
-    prepare_with_throwables(
+    prepare_with_operand_exceptions(
         directories,
         entry,
         observations,
         options,
-        crate::ApplicationThrowableProfile {
-            equality,
+        crate::ApplicationOperandExceptionProfile {
+            throwables: crate::ApplicationThrowableProfile {
+                equality,
+                ..Default::default()
+            },
             ..Default::default()
         },
     )
@@ -575,6 +580,26 @@ pub(crate) fn prepare_with_throwables(
     options: ApplicationOptions,
     throwable_profile: crate::ApplicationThrowableProfile,
 ) -> Result<PreparedImage> {
+    prepare_with_operand_exceptions(
+        directories,
+        entry,
+        observations,
+        options,
+        crate::ApplicationOperandExceptionProfile {
+            throwables: throwable_profile,
+            mode: crate::OperandExceptionMode::Disabled,
+            ..Default::default()
+        },
+    )
+}
+pub(crate) fn prepare_with_operand_exceptions(
+    directories: ApplicationDirectories<'_>,
+    entry: &str,
+    observations: &[StaticIntObservation<'_>],
+    options: ApplicationOptions,
+    operand_profile: crate::ApplicationOperandExceptionProfile,
+) -> Result<PreparedImage> {
+    let throwable_profile = operand_profile.throwables;
     let equality = throwable_profile.equality;
     let profile = equality.bodies;
     let mut meter = Meter::new(options.image);
@@ -751,6 +776,34 @@ pub(crate) fn prepare_with_throwables(
             used,
         ));
     }
+    let operand_plan = if operand_profile.mode != crate::OperandExceptionMode::Disabled {
+        if let Some(throwable) = &throwable_plan {
+            let discovery =
+                probe_operand_exceptions(domain.registry(), throwable, operand_profile.discovery)
+                    .map_err(|source| {
+                    used.operand_exception_discovery = source.discovery_usage;
+                    meter.error(S::Verification, K::OperandException(source), used)
+                })?;
+            used.operand_exception_discovery = discovery.usage;
+            Some(discovery.plan)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    if operand_plan.is_none()
+        && operand_profile.mode == crate::OperandExceptionMode::RequireOperandExceptions
+    {
+        return Err(meter.error(
+            S::Verification,
+            K::OperandException(Box::new(OperandExceptionError {
+                kind: OperandExceptionErrorKind::UnsupportedShape,
+                discovery_usage: used.operand_exception_discovery,
+            })),
+            used,
+        ));
+    }
     let mut bindings = Vec::new();
     let mut imported = Vec::new();
     for import in IMPORTS {
@@ -788,6 +841,44 @@ pub(crate) fn prepare_with_throwables(
             ),
             ("java/lang/AssertionError", public.assertion_error),
             ("java/lang/StackTraceElement", public.stack_trace_element),
+        ] {
+            let name: Vec<u16> = name.encode_utf16().collect();
+            meter.retain(2, S::Imports, used)?;
+            bindings
+                .try_reserve(1)
+                .map_err(|_| meter.alloc(S::Imports, used))?;
+            imported
+                .try_reserve(1)
+                .map_err(|_| meter.alloc(S::Imports, used))?;
+            domain
+                .context(options.loading_work)
+                .record_initiation(app, &name, class)
+                .map_err(|e| meter.error(S::Imports, K::Loading(e), used))?;
+            routes.add(domain.registry(), app, class, &mut meter, used, S::Imports)?;
+            bindings.push(VerificationBinding {
+                initiating_loader: app,
+                definition: class,
+            });
+            imported.push(class);
+        }
+    }
+    if let Some(plan) = &operand_plan {
+        let public = plan.public_roles();
+        for (name, class) in [
+            (
+                "java/lang/IndexOutOfBoundsException",
+                public.index_out_of_bounds,
+            ),
+            (
+                "java/lang/ArrayIndexOutOfBoundsException",
+                public.array_index_out_of_bounds,
+            ),
+            (
+                "java/lang/NegativeArraySizeException",
+                public.negative_array_size,
+            ),
+            ("java/lang/ArrayStoreException", public.array_store),
+            ("java/lang/ClassCastException", public.class_cast),
         ] {
             let name: Vec<u16> = name.encode_utf16().collect();
             meter.retain(2, S::Imports, used)?;
@@ -1106,6 +1197,8 @@ pub(crate) fn prepare_with_throwables(
         string_equality_plan,
         throwable_plan,
         throwable_profile,
+        operand_profile,
+        operand_plan,
         bootstrap_assertions: equality.bootstrap_assertions,
         domain,
         routes,

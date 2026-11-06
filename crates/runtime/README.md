@@ -1100,6 +1100,70 @@ The runtime checks canonical MethodIds, the structural position bound and storag
 authority. The interpreter owns actual prepared instruction positions, historical
 stack selection, frame filtering, lifecycle and original VM snapshot consumption. The first producer bridge supplies the
 real ArithmeticException(String) constructor and `/ by zero` message; allocation
-and authenticated dispatch reuse existing checked services. Additional VM producers,
-Java-visible StackTraceElement population, cloning and general native bindings
-remain open.
+and authenticated dispatch reuse existing checked services. The optional operand-exception plan extends the fixed producer set as described
+below. Java-visible StackTraceElement population, cloning and general native
+bindings remain open.
+
+
+Operand fault services expose additive `OperandOutcome` results for reference-array
+bounds, reference stores, negative reference/multidimensional sizes and cast
+mismatches. Their legacy adapters execute the same service once and erase the
+fixed facts into the prior direct Java errors. Later raw stored-handle/commit
+failures and wrapped relation/resolution failures retain their host categories.
+Null/bounds precede reference-source checks; casts retain CP/null/source/target
+order. The original paid multidimensional sign loop reports the first negative
+logical position, including after a zero outer count.
+
+`probe_operand_exceptions` discovers five genuine bootstrap roles and their own
+public String constructors. The plan adds IndexOutOfBoundsException as a required
+parent, with ArrayIndexOutOfBoundsException, NegativeArraySizeException,
+ArrayStoreException and ClassCastException as the four fixed allocation targets.
+Discovery funds actual registry rows, Class/Utf8 links, equal-length name
+comparisons and declaration visits; it grants no executable proof. The launcher
+must prove, witness and admit the complete selected closure separately.
+
+`bind_operand_exceptions` follows the Throwable binding on the same pristine,
+unclaimed heap: no arena entries or paid String/Trace usage. Pure domain class-site
+cache work is allowed. Matching repeat binding preserves state after effects;
+changed policy/plan, namespace, universe or layout snapshot fails. A readonly
+checked-context profile guard mints nothing. Each opaque spec binds fixed role,
+constructor/key, heap and claim, and retains structural fault facts; the engine
+owns actual operation/site and constructor-completion history. Allocation and
+trace authentication share the Arithmetic bridge; prior Arithmetic APIs and
+counters retain their behavior.
+
+Messages use actual UTF-16 type names with slash-to-dot conversion, structural
+array rank/leaf and canonical defining loaders. Bounds and first-negative size
+messages use signed decimal facts. Store messages contain the source name. Cast
+messages use the fixed `class S cannot be cast to class T` sentence and append
+` (different defining loaders)` only for equal rendered names/different loaders.
+This is a declared diagnostic policy; vendor-private module/loader formatting is
+outside this service. Mirror, String and Backtrace values describe their actual
+Class, String and Object runtime types.
+
+Diagnostics borrow immutable name slices and use fixed eleven-cell decimal
+scratch. Work funds metadata, full equal-length comparisons, decimal generation
+and exact output length independently. Before the single temporary reservation,
+per-message units, cumulative units, twice-length temporary bytes, Work and message
+counter overflow are checked in order. Accepted Work/buffer units survive host
+allocation or managed String failure; successful-message count advances only on
+fresh String publication. The temporary drops before exception allocation. Each
+fresh String separately pays its existing work/instance/unit budgets; message
+creation does not intern or call guest methods.
+
+Independently derived controls (Diagnostic Work excludes unchanged String work):
+
+| Fault | UTF-16 units | Message Work | Spec Work | Fresh String Work |
+| --- | ---: | ---: | ---: | ---: |
+| Negative -1 | 2 | 5 | 1 | 3 |
+| Negative i32::MIN | 11 | 23 | 1 | 12 |
+| Bounds -1, length2 | 35 | 39 | 1 | 36 |
+| Store nominal name N, nominal component | N | 7+N | 1 | N+1 |
+| Cast nominal names S/T, unequal lengths | 31+S+T | 9+L | 1 | L+1 |
+
+Equal-length Cast nominal leaves additionally fund their whole comparison.
+Same-name different-loader Cast output adds 29 units. Rank/tag/loader checks use
+scalars and direct canonical identities; no dummy-name lookup, hierarchy walk or
+assignability replay is performed by diagnostics. Limits are cumulative per heap;
+private overflow/reservation guards, full-u16 method scans, rank255, long names,
+legacy parity, independent heaps and retained failure prefixes are tested.

@@ -10,6 +10,7 @@ use crate::{
     ArrayAccessError, ArrayElement, ArrayJavaError, FieldResolutionContext, Reference,
     ReferenceType, TypeAccessError, TypeJavaError,
 };
+use crate::{ArrayOperandFault, OperandOutcome};
 
 fn invalid(reason: &'static str) -> HeapError {
     HeapError::InvalidState(reason)
@@ -408,6 +409,15 @@ impl FieldResolutionContext<'_> {
         array_type: ReferenceType,
         counts: &[i32],
     ) -> Result<Reference, ArrayAccessError> {
+        crate::reference_array::project_array(
+            self.allocate_multidimensional_array_detailed(array_type, counts)?,
+        )
+    }
+    pub fn allocate_multidimensional_array_detailed(
+        &mut self,
+        array_type: ReferenceType,
+        counts: &[i32],
+    ) -> Result<OperandOutcome<Reference, ArrayOperandFault>, ArrayAccessError> {
         self.unchanged().map_err(TypeAccessError::from)?;
         let universe = self.universe()?;
         self.validate_reference_type(array_type, universe)?;
@@ -425,10 +435,15 @@ impl FieldResolutionContext<'_> {
             )
             .into());
         }
-        for &count in counts {
+        for (dimension, &count) in counts.iter().enumerate() {
             self.step().map_err(TypeAccessError::from)?;
             if count < 0 {
-                return Err(ArrayAccessError::Java(ArrayJavaError::NegativeArraySize));
+                return Ok(OperandOutcome::Fault(ArrayOperandFault::NegativeSize {
+                    length: count,
+                    dimension: u8::try_from(dimension).map_err(|_| {
+                        TypeAccessError::InvalidType("negative dimension exceeds representation")
+                    })?,
+                }));
             }
         }
         let before = Snapshot::capture(self.heap());
@@ -439,7 +454,9 @@ impl FieldResolutionContext<'_> {
         })?;
         self.charge_bulk_work(geometry.nodes, geometry.links)
             .map_err(TypeAccessError::from)?;
-        Staged::build(geometry, payload)?.publish(self.heap_mut())
+        Staged::build(geometry, payload)?
+            .publish(self.heap_mut())
+            .map(OperandOutcome::Value)
     }
     pub fn new_multidimensional_array(
         &mut self,
@@ -447,6 +464,16 @@ impl FieldResolutionContext<'_> {
         index: u16,
         counts: &[i32],
     ) -> Result<Reference, ArrayAccessError> {
+        crate::reference_array::project_array(
+            self.new_multidimensional_array_detailed(origin, index, counts)?,
+        )
+    }
+    pub fn new_multidimensional_array_detailed(
+        &mut self,
+        origin: crate::ClassId,
+        index: u16,
+        counts: &[i32],
+    ) -> Result<OperandOutcome<Reference, ArrayOperandFault>, ArrayAccessError> {
         let array_type =
             self.resolve_reference_type(origin, index)
                 .map_err(|error| match error {
@@ -455,7 +482,7 @@ impl FieldResolutionContext<'_> {
                     }
                     error => error.into(),
                 })?;
-        self.allocate_multidimensional_array(array_type, counts)
+        self.allocate_multidimensional_array_detailed(array_type, counts)
     }
 }
 

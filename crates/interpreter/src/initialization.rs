@@ -168,6 +168,7 @@ pub struct InitializationSession<'context, 'registry> {
     class_mirrors: bool,
     strings: bool,
     throwables: Option<crate::VmExceptionLimits>,
+    operands: bool,
 }
 impl<'context, 'registry> InitializationSession<'context, 'registry> {
     pub fn new(
@@ -214,6 +215,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             class_mirrors: false,
             strings: false,
             throwables: None,
+            operands: false,
             state: SessionState {
                 records,
                 indices,
@@ -310,6 +312,37 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
         session.throwables = Some(vm_exceptions);
         Ok(session)
     }
+    /// Enable the four checked operand producers alongside existing arithmetic.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_operand_exceptions(
+        context: &'context mut FieldResolutionContext<'registry>,
+        statics: &StaticStateProfile,
+        exceptions: &ExceptionProfile,
+        error_class: ClassId,
+        limits: InitializationLimits,
+        monitors: crate::MonitorLimits,
+        vm_exceptions: crate::VmExceptionLimits,
+    ) -> Result<Self, ExecutionError> {
+        context
+            .check_class_mirror_profile()
+            .map_err(|e| ExecutionError::new(None, E::ClassMirror(e)))?;
+        context
+            .check_string_profile()
+            .map_err(|e| ExecutionError::new(None, E::String(e)))?;
+        context
+            .check_throwable_profile()
+            .map_err(|e| ExecutionError::new(None, E::ThrowableAccess(e)))?;
+        context
+            .check_operand_exception_profile()
+            .map_err(|e| ExecutionError::new(None, E::OperandExceptionAccess(e)))?;
+        let mut session =
+            Self::new_with_monitors(context, statics, exceptions, error_class, limits, monitors)?;
+        session.class_mirrors = true;
+        session.strings = true;
+        session.throwables = Some(vm_exceptions);
+        session.operands = true;
+        Ok(session)
+    }
     pub fn vm_exception_usage(&self) -> crate::VmExceptionUsage {
         self.state.vm_exceptions
     }
@@ -360,6 +393,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             class_mirrors: self.class_mirrors,
             strings: self.strings,
             throwables: self.throwables,
+            operands: self.operands,
         };
         match crate::execute::execute_initializing(
             execution,
@@ -420,6 +454,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             class_mirrors: self.class_mirrors,
             strings: self.strings,
             throwables: self.throwables,
+            operands: self.operands,
         };
         match crate::execute::execute_initializing(
             execution,
@@ -471,6 +506,7 @@ impl<'context, 'registry> InitializationSession<'context, 'registry> {
             class_mirrors: self.class_mirrors,
             strings: self.strings,
             throwables: self.throwables,
+            operands: self.operands,
         };
         match crate::execute::execute_initializing(
             execution,

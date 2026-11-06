@@ -1,0 +1,13 @@
+# Operand public product harness: source review
+
+Disposition: source CLEAR for the three immutable files in product-candidate-v1-manifest.json, SHA256 793841417EC37905A30B4A5AC286B998C663F563094D04A17639820F552C3E38. This is not terminal public replay, combined product, hosted, or milestone acceptance.
+
+I read the complete Rust driver, Python verifier and negative tests, rehashed all three copied files, and independently ran all 20 Python test groups with no failures or skips. The driver uses the public directory APIs and reports actual completion, retained fields and typed usage. It does not replace Java execution or manufacture exception results. The normal field vector, four wrong-message prefixes, fault/refill heads and message/trace/admission quantities are independently fixed from the guest and contract. The supported diagnostic prefix helper is used at the fixed zero, inclusive and one-short boundaries covered by this suite; it is not a general prediction of arbitrary internal quota cutoffs.
+
+The full workload keeps the default one-million Field lookup failure and explicitly requests the finite 16,777,216 allowance for positive API and physical CLI execution. Old and disabled profiles remain explicit negatives. The exact unsupported NPE physical diagnostic distinguishes actual loadI@7 from its caller@112 and requires distinct owners. Host resource failures retain their category rather than being accepted as Java exceptions.
+
+The provenance split matches the approved policy: captured fixture bytes remain execution authority; staged platform, guest/control trees, helper sources and executable hashes are checked around every product subprocess; unused original platform and compiler-runtime inventories are checked before and after the overall replay. Reads and inventories have finite limits. Failed subprocesses are recorded as unaccepted and postchecks still run. No source or oracle change is requested.
+
+The owner's earlier 23-command smoke and subsequent diagnostic-comparator failure remain historical evidence, not a full successful replay. Final actual original/rebuilt resource and CLI runs, source posthashes, integration with the optional single-primary reference amendment, and the coordinator's complete combined gate remain required. This review makes no Linux or hosted claim.
+
+Audit: target/resolution-constraints-director/operand-component-final-audit.json. Independent test command: PYTHONDONTWRITEBYTECODE=1, PYTHONPATH set to the immutable candidate tools and main tools, CARGO_TARGET_DIR set to the director's own output; python -m unittest discover -s target/operand-public-product-worker/product-candidate-v1-source/tools -p test_operand_launch.py -v.

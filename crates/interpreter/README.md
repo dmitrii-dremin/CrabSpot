@@ -1346,3 +1346,45 @@ module/class-loader native access, cloning, general Throwable formatting, GC or
 complete JVM compatibility is claimed. Independent public and private tests cover
 fault/caller PCs, filtering, replacement, exact quotas and damaged continuations;
 genuine library/public CLI reference evidence is maintained by the coordinator.
+
+
+## Checked operand exception materialization
+
+`InitializationSession::new_with_operand_exceptions` adds four operand-time kinds
+on the same bound Throwable engine: ArrayIndexOutOfBoundsException,
+NegativeArraySizeException, ArrayStoreException and ClassCastException. Its seven
+arguments match `new_with_throwables`; the older explicit constructor remains
+Arithmetic-only even on an operand-bound heap. Prerequisite checks precede the
+permanent initialization claim. Opcode coverage remains 197.
+
+Each primitive/reference array operation and checkcast extracts its operands once.
+The selected checked service returns either its ordinary value, a fixed typed fault
+or the original host error. Faults carry index/length, first-negative logical
+position or actual source/component/target types, without retaining operand roots.
+The engine authenticates the decoded opcode and requested c5 dimensions before
+admitting production. Null, typed extraction, primitive kind, CP/access and
+protected String-backing precedence remain intact; instanceof is unchanged.
+
+The four kinds and Arithmetic share one per-evaluation admission ceiling and
+cumulative Started/Produced counts. Arithmetic retains its old zero-work spec
+prelude; new operands admit before their charged spec, so a zero producer ceiling
+consumes no diagnostic work. All then reuse the existing selected-constructor
+preflight, original-PC snapshot, active class initialization, genuine exception (String)
+constructor chain, authentication and ordered handler dispatcher. No fake b7,
+second evaluation or additional opcode fuel debit is introduced.
+
+Messages are bounded UTF-16: bounds includes the original signed index and length;
+negative size includes the first negative value; store names the actual source;
+cast names actual source and target, adding a different-defining-loaders qualifier
+only for identical rendered names with different loader identities. Internal
+slashes render as dots, including nominal array leaves. These are the declared
+CrabSpot diagnostic policy, not fabricated vendor module labels. Diagnostic work,
+per-message/total units and temporary bytes have independent inclusive ceilings;
+managed String publication and successful-message counts remain separate.
+
+Tests exercise all array load/store families, subword/raw category-two values,
+original fault/caller PCs, exact and RuntimeException catches, identity/refill,
+shared five-kind admission, constructor/initializer replacement, nested failures,
+private event guards, exact resource cutoffs and retained initialization writes on
+message failure. NPE, monitor-close, handler-resolution and other VM producers
+remain unsupported; broader Throwable formatting/library/JVM support is unchanged.

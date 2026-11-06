@@ -47,6 +47,7 @@ pub enum ApplicationResource {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SetupKind {
+    OperandException,
     Throwable,
     StringBody,
     ClassMirror,
@@ -64,6 +65,7 @@ pub enum SetupKind {
 }
 #[derive(Debug)]
 pub enum ApplicationErrorKind {
+    OperandException(Box<crabspot_runtime::OperandExceptionError>),
     Throwable(Box<crabspot_runtime::ThrowableAccessError>),
     StringBody(Box<crabspot_runtime::StringBodyError>),
     Arguments(crate::ArgumentError),
@@ -152,6 +154,7 @@ impl ApplicationError {
 impl fmt::Display for ApplicationErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::OperandException(e) => e.fmt(f),
             Self::Throwable(e) => e.fmt(f),
             Self::StringBody(e) => e.fmt(f),
             Self::Arguments(e) => e.fmt(f),
@@ -180,6 +183,7 @@ impl fmt::Display for ApplicationError {
 impl Error for ApplicationErrorKind {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::OperandException(e) => Some(e.as_ref()),
             Self::Throwable(e) => Some(e.as_ref()),
             Self::StringBody(e) => Some(e.as_ref()),
             Self::Arguments(e) => Some(e),

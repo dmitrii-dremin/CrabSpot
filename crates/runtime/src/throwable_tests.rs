@@ -55,7 +55,7 @@ fn throwable_extra(flags: u16, fields: bool, ctors: bool, extra: u8) -> Class {
     t.method("fillInStackTrace", "(J)V", 9, &[0xb1], 0, 2);
     t
 }
-fn graph(damage: u8) -> (Graph, ClassId, CompactStringBodyPlan, ThrowablePlan) {
+pub(crate) fn graph(damage: u8) -> (Graph, ClassId, CompactStringBodyPlan, ThrowablePlan) {
     let (mut g, _, body) = image(false, 0);
     let b = g.boot;
     let t = g.add(b, throwable_extra(0x102, true, true, damage));

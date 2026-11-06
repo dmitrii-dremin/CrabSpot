@@ -2,14 +2,20 @@
 //! authority are distinct; private image ownership connects their exact identities.
 mod entry;
 mod invocation;
+mod operand_exceptions;
 mod string_bodies;
 mod throwable_export;
 mod throwables;
 pub use crabspot_interpreter::{VmExceptionLimits, VmExceptionUsage};
 pub use crabspot_runtime::{
+    OperandDiagnosticLimits, OperandDiagnosticUsage, OperandExceptionDiscoveryLimits,
+    OperandExceptionDiscoveryUsage,
+};
+pub use crabspot_runtime::{
     ThrowableDiscoveryLimits, ThrowableDiscoveryUsage, TraceLimits, TraceUsage,
 };
 pub use invocation::*;
+pub use operand_exceptions::*;
 pub use string_bodies::*;
 pub use throwables::*;
 mod error;
@@ -108,6 +114,8 @@ pub struct ApplicationUsage {
     pub string_equality_discovery: StringBodyDiscoveryUsage,
     pub string_equality: StringEqualityUsage,
     pub throwable_discovery: ThrowableDiscoveryUsage,
+    pub operand_exception_discovery: OperandExceptionDiscoveryUsage,
+    pub operand_diagnostics: OperandDiagnosticUsage,
     pub traces: TraceUsage,
     pub vm_exceptions: VmExceptionUsage,
     pub orchestration: OrchestrationUsage,
@@ -226,5 +234,20 @@ pub fn run_directory_application_with_throwables(
     invocation::validate(&invocation)?;
     let prepared =
         image::prepare_with_throwables(directories, entry, observations, options, profile)?;
+    entry::run_prepared(prepared, observations, invocation)
+}
+
+/// Execute the sealed operand exception profile with independent message budgets.
+pub fn run_directory_application_with_operand_exceptions(
+    directories: ApplicationDirectories<'_>,
+    entry: &str,
+    observations: &[StaticIntObservation<'_>],
+    options: ApplicationOptions,
+    invocation: ApplicationInvocation<'_>,
+    profile: ApplicationOperandExceptionProfile,
+) -> std::result::Result<ApplicationRun, Box<ApplicationError>> {
+    invocation::validate(&invocation)?;
+    let prepared =
+        image::prepare_with_operand_exceptions(directories, entry, observations, options, profile)?;
     entry::run_prepared(prepared, observations, invocation)
 }

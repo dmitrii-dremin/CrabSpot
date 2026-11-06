@@ -41,6 +41,8 @@ pub(crate) fn run_prepared(
         bootstrap_assertions,
         throwable_plan,
         throwable_profile,
+        operand_plan,
+        operand_profile,
         roles,
         named,
         app_loader,
@@ -140,6 +142,10 @@ pub(crate) fn run_prepared(
         if let Some(plan) = &throwable_plan {
             heap.bind_throwable_support(domain.registry(), plan, throwable_profile.traces)
                 .map_err(|source| meter.error(S::Layout, K::Throwable(source), usage))?;
+        }
+        if let Some(plan) = &operand_plan {
+            heap.bind_operand_exceptions(domain.registry(), plan, operand_profile.diagnostics)
+                .map_err(|source| meter.error(S::Layout, K::OperandException(source), usage))?;
         }
         let mut context = domain
             .member_context_unnamed_modules(&mut heap, options.field, options.loading_work)
@@ -244,7 +250,17 @@ pub(crate) fn run_prepared(
                     )
                 })?;
         }
-        let mut session = if throwable_plan.is_some() {
+        let mut session = if operand_plan.is_some() {
+            InitializationSession::new_with_operand_exceptions(
+                &mut context,
+                &statics,
+                &exceptions,
+                roles.error,
+                options.initialization,
+                monitors,
+                throwable_profile.vm_exceptions,
+            )
+        } else if throwable_plan.is_some() {
             InitializationSession::new_with_throwables(
                 &mut context,
                 &statics,
@@ -268,7 +284,9 @@ pub(crate) fn run_prepared(
             meter.error(
                 S::Setup,
                 K::Setup {
-                    kind: if throwable_plan.is_some() {
+                    kind: if operand_plan.is_some() {
+                        SetupKind::OperandException
+                    } else if throwable_plan.is_some() {
                         SetupKind::Throwable
                     } else {
                         SetupKind::Initialization
@@ -410,17 +428,20 @@ pub(crate) fn run_prepared(
             usage: meter.snapshot(usage),
         })
     })();
+    let diagnostic_usage = heap.operand_diagnostic_usage();
     let trace_usage = heap.throwable_trace_usage();
     let string_usage = heap.string_usage();
     let string_body_usage = heap.string_body_usage();
     match result {
         Ok(mut run) => {
+            run.usage.operand_diagnostics = diagnostic_usage;
             run.usage.traces = trace_usage;
             run.usage.strings = string_usage;
             run.usage.string_bodies = string_body_usage;
             Ok(run)
         }
         Err(mut error) => {
+            error.usage.operand_diagnostics = diagnostic_usage;
             error.usage.traces = trace_usage;
             error.usage.strings = string_usage;
             error.usage.string_bodies = string_body_usage;

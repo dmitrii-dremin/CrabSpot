@@ -1,5 +1,6 @@
 //! Checked reference identities and bounded assignment, separate from protected
 //! class-only access checks and from allocation/initialization protocols.
+use crate::{CastOperandFault, OperandOutcome};
 use crate::{
     ClassId, DefinitionRegistry, FieldAccessError, FieldId, FieldResolutionContext, HeapError,
     InstanceError, LoaderId, ManagedHeap, PrimitiveArrayKind, Reference, RegistryError,
@@ -502,9 +503,22 @@ impl<'a> FieldResolutionContext<'a> {
         index: u16,
         reference: Reference,
     ) -> Result<Reference, TypeAccessError> {
+        match self.check_cast_detailed(origin, index, reference)? {
+            OperandOutcome::Value(value) => Ok(value),
+            OperandOutcome::Fault(CastOperandFault::Mismatch { .. }) => {
+                Err(TypeAccessError::Java(TypeJavaError::ClassCast))
+            }
+        }
+    }
+    pub fn check_cast_detailed(
+        &mut self,
+        origin: ClassId,
+        index: u16,
+        reference: Reference,
+    ) -> Result<OperandOutcome<Reference, CastOperandFault>, TypeAccessError> {
         let name = self.type_name(origin, index)?;
         if reference.is_null() {
-            return Ok(reference);
+            return Ok(OperandOutcome::Value(reference));
         }
         let source = self
             .reference_type(reference)?
@@ -513,9 +527,12 @@ impl<'a> FieldResolutionContext<'a> {
             ))?;
         let target = self.resolve_type_name_value(origin, name)?;
         if self.is_assignable(source, target)? {
-            Ok(reference)
+            Ok(OperandOutcome::Value(reference))
         } else {
-            Err(TypeAccessError::Java(TypeJavaError::ClassCast))
+            Ok(OperandOutcome::Fault(CastOperandFault::Mismatch {
+                source,
+                target,
+            }))
         }
     }
     pub fn instance_of(

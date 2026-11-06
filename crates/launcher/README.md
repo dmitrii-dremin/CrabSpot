@@ -363,3 +363,53 @@ initializer wrapping and wider Java library behavior remain explicit boundaries.
 Independent emitted image tests cover profile choices, exact resource failures,
 retained effects and bounded export; separately recorded original/rebuilt dual-VM
 fixtures and physical CLI runs cover genuine supplied platform bytes.
+
+
+## Bounded array and cast exceptions
+
+Ordinary directory wrappers and the CLI now adopt Auto operand exceptions after a
+matched Throwable plan. The six-argument
+`run_directory_application_with_operand_exceptions` accepts
+`ApplicationOperandExceptionProfile { throwables, mode, discovery, diagnostics }`.
+`OperandExceptionMode` is Auto, RequireOperandExceptions or Disabled. Existing
+input struct layouts and lower-profile choices remain unchanged. The explicit
+`run_directory_application_with_throwables` keeps its Arithmetic-only contract.
+
+Auto without a Throwable plan uses the earlier session with zero operand discovery.
+RequireOperandExceptions rejects that absence at Verification. With a valid
+Throwable plan, absent or invalid operand roles fail even in Auto. Only the five
+exact bootstrap IndexOutOfBoundsException, ArrayIndexOutOfBoundsException,
+NegativeArraySizeException, ArrayStoreException and ClassCastException classes gain
+public imports; all executable bodies still require the same class proofs and
+preparation witnesses. Binding occurs on the pristine heap before arguments or
+literals and reports Layout errors. New-session failures retain the boxed original
+ExecutionError under SetupKind::OperandException.
+
+The same single evaluation constructs real objects for array bounds, negative
+allocation, incompatible reference stores and failed casts. The bounded messages
+use the declared CrabSpot policy; external vendor message comparisons remain
+separate inputs. `ApplicationUsage.operand_exception_discovery` records probe work;
+`operand_diagnostics { work_units, message_units, messages }` records the retained
+heap prefix on every post-binding exit. Admission, trace, String and diagnostic
+counts are separate. Earlier guest writes and accepted work survive later failures.
+Existing Uncaught class/current-head export and physical CLI formatting are reused.
+
+Independent tests cover Auto/strict/Disabled, absent/malformed roles, legacy wrapper
+separation, exact discovery/message/producer and export ceilings, effect retention
+and original fault phases. The profile adds no NPE refill/extended-message support,
+monitor-close or catch-resolution materialization, general exception formatting or
+broader platform import authority.
+
+
+The physical `run` command accepts optional `--field-lookup-steps N` before the
+entry name, in any order with the required platform/classes pairs. N is at most
+20 ASCII decimal digits and must fit usize; zero is valid. The unchanged default
+is 1,000,000. This changes only the existing cumulative Field lookup/service
+ceiling, not fuel, library defaults or another resource. Duplicate, malformed,
+missing and overflowing options exit 2 before image I/O. Tokens after the entry's
+`--` remain literal native guest arguments. `inspect` is unchanged.
+
+The full 248-fault operand application uses an explicit 16,777,216 allowance in
+both its API and CLI replay. This is a tested finite allowance, not a claimed
+exact minimum. The unchanged default ceiling remains a negative quota control;
+there is no hidden retry, reduced guest matrix or silently raised default.

@@ -1,0 +1,973 @@
+{
+  "schema": 1,
+  "kind": "independent required observation matrix; actual fresh command evidence emitted separately",
+  "runs": [
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [],
+      "case": "normal",
+      "exit_code": 0,
+      "stdout": "returned/184/42/6/8/8/248/29/1"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [],
+      "case": "wrong-bounds",
+      "exit_code": 0,
+      "stdout": "oracle-failed/0/0/0/0/0/0/0/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [],
+      "case": "wrong-store",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/0/0/0/226/18/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [],
+      "case": "wrong-cast",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/6/0/0/232/18/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [],
+      "case": "wrong-arithmetic",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/6/8/0/240/29/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [],
+      "case": "bounds",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayIndexOutOfBoundsException/operand.OperandGuest.loadI/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [],
+      "case": "negative",
+      "exit_code": 0,
+      "stdout": "java.lang.NegativeArraySizeException/operand.OperandGuest.multiI/7/0/31/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [],
+      "case": "store",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayStoreException/operand.OperandGuest.storeA/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [],
+      "case": "cast",
+      "exit_code": 0,
+      "stdout": "java.lang.ClassCastException/operand.OperandGuest.castInt/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [],
+      "case": "null",
+      "exit_code": 0,
+      "stdout": "java.lang.NullPointerException/operand.OperandGuest.loadI/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [],
+      "case": "refilled",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayIndexOutOfBoundsException/app.OperandUncaught.main/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "normal",
+      "exit_code": 0,
+      "stdout": "returned/184/42/6/8/8/248/29/1"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong-bounds",
+      "exit_code": 0,
+      "stdout": "oracle-failed/0/0/0/0/0/0/0/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong-store",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/0/0/0/226/18/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong-cast",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/6/0/0/232/18/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong-arithmetic",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/6/8/0/240/29/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "bounds",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayIndexOutOfBoundsException/operand.OperandGuest.loadI/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "negative",
+      "exit_code": 0,
+      "stdout": "java.lang.NegativeArraySizeException/operand.OperandGuest.multiI/7/0/31/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "store",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayStoreException/operand.OperandGuest.storeA/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "cast",
+      "exit_code": 0,
+      "stdout": "java.lang.ClassCastException/operand.OperandGuest.castInt/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "null",
+      "exit_code": 0,
+      "stdout": "java.lang.NullPointerException/operand.OperandGuest.loadI/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "refilled",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayIndexOutOfBoundsException/app.OperandUncaught.main/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "normal",
+      "exit_code": 0,
+      "stdout": "returned/184/42/6/8/8/248/29/1"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "wrong-bounds",
+      "exit_code": 0,
+      "stdout": "oracle-failed/0/0/0/0/0/0/0/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "wrong-store",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/0/0/0/226/18/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "wrong-cast",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/6/0/0/232/18/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "wrong-arithmetic",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/6/8/0/240/29/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "bounds",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayIndexOutOfBoundsException/operand.OperandGuest.loadI/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "negative",
+      "exit_code": 0,
+      "stdout": "java.lang.NegativeArraySizeException/operand.OperandGuest.multiI/7/0/31/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "store",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayStoreException/operand.OperandGuest.storeA/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "cast",
+      "exit_code": 0,
+      "stdout": "java.lang.ClassCastException/operand.OperandGuest.castInt/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "null",
+      "exit_code": 0,
+      "stdout": "java.lang.NullPointerException/operand.OperandGuest.loadI/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "refilled",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayIndexOutOfBoundsException/app.OperandUncaught.main/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "normal",
+      "exit_code": 0,
+      "stdout": "returned/184/42/6/8/8/248/29/1"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong-bounds",
+      "exit_code": 0,
+      "stdout": "oracle-failed/0/0/0/0/0/0/0/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong-store",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/0/0/0/226/18/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong-cast",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/6/0/0/232/18/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong-arithmetic",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/6/8/0/240/29/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "bounds",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayIndexOutOfBoundsException/operand.OperandGuest.loadI/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "negative",
+      "exit_code": 0,
+      "stdout": "java.lang.NegativeArraySizeException/operand.OperandGuest.multiI/7/0/31/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "store",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayStoreException/operand.OperandGuest.storeA/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "cast",
+      "exit_code": 0,
+      "stdout": "java.lang.ClassCastException/operand.OperandGuest.castInt/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "null",
+      "exit_code": 0,
+      "stdout": "java.lang.NullPointerException/operand.OperandGuest.loadI/7/0/11/0"
+    },
+    {
+      "vm": "zulu",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "refilled",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayIndexOutOfBoundsException/app.OperandUncaught.main/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [],
+      "case": "normal",
+      "exit_code": 0,
+      "stdout": "returned/184/42/6/8/8/248/29/1"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [],
+      "case": "wrong-bounds",
+      "exit_code": 0,
+      "stdout": "oracle-failed/0/0/0/0/0/0/0/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [],
+      "case": "wrong-store",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/0/0/0/226/18/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [],
+      "case": "wrong-cast",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/6/0/0/232/18/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [],
+      "case": "wrong-arithmetic",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/6/8/0/240/29/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [],
+      "case": "bounds",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayIndexOutOfBoundsException/operand.OperandGuest.loadI/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [],
+      "case": "negative",
+      "exit_code": 0,
+      "stdout": "java.lang.NegativeArraySizeException/operand.OperandGuest.multiI/7/0/31/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [],
+      "case": "store",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayStoreException/operand.OperandGuest.storeA/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [],
+      "case": "cast",
+      "exit_code": 0,
+      "stdout": "java.lang.ClassCastException/operand.OperandGuest.castInt/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [],
+      "case": "null",
+      "exit_code": 0,
+      "stdout": "java.lang.NullPointerException/operand.OperandGuest.loadI/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [],
+      "case": "refilled",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayIndexOutOfBoundsException/app.OperandUncaught.main/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "normal",
+      "exit_code": 0,
+      "stdout": "returned/184/42/6/8/8/248/29/1"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong-bounds",
+      "exit_code": 0,
+      "stdout": "oracle-failed/0/0/0/0/0/0/0/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong-store",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/0/0/0/226/18/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong-cast",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/6/0/0/232/18/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong-arithmetic",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/6/8/0/240/29/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "bounds",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayIndexOutOfBoundsException/operand.OperandGuest.loadI/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "negative",
+      "exit_code": 0,
+      "stdout": "java.lang.NegativeArraySizeException/operand.OperandGuest.multiI/7/0/31/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "store",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayStoreException/operand.OperandGuest.storeA/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "cast",
+      "exit_code": 0,
+      "stdout": "java.lang.ClassCastException/operand.OperandGuest.castInt/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "null",
+      "exit_code": 0,
+      "stdout": "java.lang.NullPointerException/operand.OperandGuest.loadI/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "archived",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "refilled",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayIndexOutOfBoundsException/app.OperandUncaught.main/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "normal",
+      "exit_code": 0,
+      "stdout": "returned/184/42/6/8/8/248/29/1"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "wrong-bounds",
+      "exit_code": 0,
+      "stdout": "oracle-failed/0/0/0/0/0/0/0/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "wrong-store",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/0/0/0/226/18/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "wrong-cast",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/6/0/0/232/18/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "wrong-arithmetic",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/6/8/0/240/29/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "bounds",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayIndexOutOfBoundsException/operand.OperandGuest.loadI/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "negative",
+      "exit_code": 0,
+      "stdout": "java.lang.NegativeArraySizeException/operand.OperandGuest.multiI/7/0/31/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "store",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayStoreException/operand.OperandGuest.storeA/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "cast",
+      "exit_code": 0,
+      "stdout": "java.lang.ClassCastException/operand.OperandGuest.castInt/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "null",
+      "exit_code": 0,
+      "stdout": "java.lang.NullPointerException/operand.OperandGuest.loadI/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [],
+      "case": "refilled",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayIndexOutOfBoundsException/app.OperandUncaught.main/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "normal",
+      "exit_code": 0,
+      "stdout": "returned/184/42/6/8/8/248/29/1"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong-bounds",
+      "exit_code": 0,
+      "stdout": "oracle-failed/0/0/0/0/0/0/0/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong-store",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/0/0/0/226/18/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong-cast",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/6/0/0/232/18/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "wrong-arithmetic",
+      "exit_code": 0,
+      "stdout": "oracle-failed/184/42/6/8/0/240/29/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "bounds",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayIndexOutOfBoundsException/operand.OperandGuest.loadI/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "negative",
+      "exit_code": 0,
+      "stdout": "java.lang.NegativeArraySizeException/operand.OperandGuest.multiI/7/0/31/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "store",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayStoreException/operand.OperandGuest.storeA/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "cast",
+      "exit_code": 0,
+      "stdout": "java.lang.ClassCastException/operand.OperandGuest.castInt/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "null",
+      "exit_code": 0,
+      "stdout": "java.lang.NullPointerException/operand.OperandGuest.loadI/7/0/11/0"
+    },
+    {
+      "vm": "openj9",
+      "input": "rebuilt",
+      "mode": [
+        "-Xint"
+      ],
+      "case": "refilled",
+      "exit_code": 0,
+      "stdout": "java.lang.ArrayIndexOutOfBoundsException/app.OperandUncaught.main/7/0/11/0"
+    }
+  ],
+  "codecs": [
+    {
+      "vm": "zulu",
+      "token": "N",
+      "exit_code": 0,
+      "stdout": "null",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "token": "T",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "token": "T0000dfff20ac",
+      "exit_code": 0,
+      "stdout": "0000dfff20ac",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "token": "Tffffd800dc00",
+      "exit_code": 0,
+      "stdout": "ffffd800dc00",
+      "stderr": ""
+    },
+    {
+      "vm": "zulu",
+      "token": "",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "java.lang.IllegalArgumentException: invalid expected UTF16 argument\n at ObserveOperandMain.decode"
+    },
+    {
+      "vm": "zulu",
+      "token": "Xabcd",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "java.lang.IllegalArgumentException: invalid expected UTF16 argument\n at ObserveOperandMain.decode"
+    },
+    {
+      "vm": "zulu",
+      "token": "T0",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "java.lang.IllegalArgumentException: invalid expected UTF16 argument\n at ObserveOperandMain.decode"
+    },
+    {
+      "vm": "zulu",
+      "token": "Tgggg",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "java.lang.IllegalArgumentException: invalid expected UTF16 argument\n at ObserveOperandMain.decode"
+    },
+    {
+      "vm": "zulu",
+      "token": "T+001",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "java.lang.IllegalArgumentException: invalid expected UTF16 argument\n at ObserveOperandMain.decode"
+    },
+    {
+      "vm": "zulu",
+      "token": "T-001",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "java.lang.IllegalArgumentException: invalid expected UTF16 argument\n at ObserveOperandMain.decode"
+    },
+    {
+      "vm": "zulu",
+      "token": "T000g",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "java.lang.IllegalArgumentException: invalid expected UTF16 argument\n at ObserveOperandMain.decode"
+    },
+    {
+      "vm": "zulu",
+      "token": "Nextra",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "java.lang.IllegalArgumentException: invalid expected UTF16 argument\n at ObserveOperandMain.decode"
+    },
+    {
+      "vm": "openj9",
+      "token": "N",
+      "exit_code": 0,
+      "stdout": "null",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "token": "T",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "token": "T0000dfff20ac",
+      "exit_code": 0,
+      "stdout": "0000dfff20ac",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "token": "Tffffd800dc00",
+      "exit_code": 0,
+      "stdout": "ffffd800dc00",
+      "stderr": ""
+    },
+    {
+      "vm": "openj9",
+      "token": "",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "java.lang.IllegalArgumentException: invalid expected UTF16 argument\n at ObserveOperandMain.decode"
+    },
+    {
+      "vm": "openj9",
+      "token": "Xabcd",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "java.lang.IllegalArgumentException: invalid expected UTF16 argument\n at ObserveOperandMain.decode"
+    },
+    {
+      "vm": "openj9",
+      "token": "T0",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "java.lang.IllegalArgumentException: invalid expected UTF16 argument\n at ObserveOperandMain.decode"
+    },
+    {
+      "vm": "openj9",
+      "token": "Tgggg",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "java.lang.IllegalArgumentException: invalid expected UTF16 argument\n at ObserveOperandMain.decode"
+    },
+    {
+      "vm": "openj9",
+      "token": "T+001",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "java.lang.IllegalArgumentException: invalid expected UTF16 argument\n at ObserveOperandMain.decode"
+    },
+    {
+      "vm": "openj9",
+      "token": "T-001",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "java.lang.IllegalArgumentException: invalid expected UTF16 argument\n at ObserveOperandMain.decode"
+    },
+    {
+      "vm": "openj9",
+      "token": "T000g",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "java.lang.IllegalArgumentException: invalid expected UTF16 argument\n at ObserveOperandMain.decode"
+    },
+    {
+      "vm": "openj9",
+      "token": "Nextra",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "java.lang.IllegalArgumentException: invalid expected UTF16 argument\n at ObserveOperandMain.decode"
+    }
+  ],
+  "locale_flags": [
+    "-Duser.language=ru",
+    "-Duser.country=RU",
+    "-Dfile.encoding=UTF-8"
+  ]
+}

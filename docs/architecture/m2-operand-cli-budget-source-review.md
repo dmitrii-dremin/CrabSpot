@@ -1,0 +1,9 @@
+# CLI Field work amendment source review
+
+Disposition: source CLEAR for integration under frozen amendment B9CF77111ADFA6F0F764FBB57698D8FA1069563F6D1B958A61A5F2448AD64A45; final validation/genuine public acceptance pending.
+
+Independently verified manifest46A6A044ED819C372236F3C5FDC8B238C73FDE9504452838DAA12BDDCF8F4AA6 and all four copied files. Read full run_arguments.rs, exact main.rs replacement, two process regression additions and README append. The native encoded-byte length check precedes the bounded20-byte ASCII decimal parse; checked usize arithmetic admits zero/MAX and rejects signs/nondecimal/overflow. At most three recognized option pairs are consumed; required pairs are unique, unknown --switches fail, ordinary single-hyphen entry tokens preserve downstream name handling, and post-separator arguments remain native unmodified values. The adapter changes only options.field.max_lookup_steps when explicitly supplied. No runtime/library default, input struct or instruction-fuel change was found.
+
+Source tests cover all six pair orders, old two-pair orders, numeric bounds/Unicode/malformed grammar, invalid native values, exact guest iterator preservation, actual zero-limit typed failure and usage2 before missing-directory errors. The README states unchanged1,000,000 default and explicit16,777,216 full-matrix allowance without an exact-minimum or default-success claim. No mandatory source correction identified. Owner-reported eight CLI units and37 application-entry tests are not independently rerun in this source review. Final lint/launcher validation, actual full original/rebuilt API/physical CLI sweep and unchanged-core checks remain acceptance conditions.
+
+Independently rehashed all30 declared unchanged core files in the actual operand-public-product worktree; zero mismatches. Only the earlier frozen launcher README is superseded by this append among the31 reviewed core inputs.

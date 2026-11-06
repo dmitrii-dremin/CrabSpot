@@ -214,11 +214,11 @@ mod probe;
 pub use probe::probe_throwable_support;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Fingerprint {
-    registry: u64,
-    heap: u64,
-    classes: usize,
-    universe: ReferenceTypeUniverse,
-    throwable: ClassId,
+    pub(crate) registry: u64,
+    pub(crate) heap: u64,
+    pub(crate) classes: usize,
+    pub(crate) universe: ReferenceTypeUniverse,
+    pub(crate) throwable: ClassId,
 }
 #[derive(Debug)]
 pub(crate) struct ThrowableState {
@@ -510,7 +510,7 @@ impl FieldResolutionContext<'_> {
         }
         Ok(())
     }
-    fn trace_claim(&mut self, claim: &InitializationClaim) -> R<Fingerprint> {
+    pub(crate) fn trace_claim(&mut self, claim: &InitializationClaim) -> R<Fingerprint> {
         self.check_initialization_claim(claim)?;
         self.check_throwable_profile()?;
         Ok(self.heap.throwable_state()?.fingerprint)
@@ -795,9 +795,7 @@ impl FieldResolutionContext<'_> {
         spec: &VmExceptionSpec,
     ) -> R<(Reference, ResolvedConstructor)> {
         self.check_vm_spec(claim, spec)?;
-        let receiver = self.allocate_construction_class(spec.class)?;
-        let constructor = self.vm_constructor_authority(claim, spec.constructor, receiver)?;
-        Ok((receiver, constructor))
+        self.allocate_fixed_vm_exception(claim, spec.class, spec.constructor)
     }
     pub fn authenticate_vm_exception(
         &mut self,
@@ -807,12 +805,30 @@ impl FieldResolutionContext<'_> {
         receiver: Reference,
     ) -> R<ThrownException> {
         self.check_vm_spec(claim, spec)?;
+        self.authenticate_fixed_vm_exception(exceptions, spec.class, receiver)
+    }
+    pub(crate) fn allocate_fixed_vm_exception(
+        &mut self,
+        claim: &InitializationClaim,
+        class: ClassId,
+        constructor: MethodId,
+    ) -> R<(Reference, ResolvedConstructor)> {
+        let receiver = self.allocate_construction_class(class)?;
+        let constructor = self.vm_constructor_authority(claim, constructor, receiver)?;
+        Ok((receiver, constructor))
+    }
+    pub(crate) fn authenticate_fixed_vm_exception(
+        &mut self,
+        exceptions: &ExceptionProfile,
+        class: ClassId,
+        receiver: Reference,
+    ) -> R<ThrownException> {
         if exceptions.throwable() != self.heap.throwable_state()?.plan.throwable {
             return Err(error(ThrowableErrorKind::InvalidBinding(
                 "VM exception Throwable profile differs",
             )));
         }
-        if self.heap.instance_class(receiver)? != spec.class {
+        if self.heap.instance_class(receiver)? != class {
             return Err(error(ThrowableErrorKind::InvalidReceiver));
         }
         if self.throwable_trace(receiver)?.is_none() {
@@ -826,4 +842,4 @@ impl FieldResolutionContext<'_> {
 
 #[cfg(test)]
 #[path = "throwable_tests.rs"]
-mod tests;
+pub(crate) mod tests;

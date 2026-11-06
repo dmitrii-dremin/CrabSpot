@@ -100,3 +100,6 @@ pub use throwable::{
     ThrowableResource, TraceFrame, TraceLimits, TraceMethodKind, TraceSnapshot,
     TraceSnapshotBuilder, TraceUsage, VmExceptionSpec, probe_throwable_support,
 };
+
+mod operand;
+pub use operand::*;

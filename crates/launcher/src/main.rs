@@ -1,4 +1,5 @@
 mod native_arguments;
+mod run_arguments;
 use crabspot_classfile::{Attribute, AttributeBody, ClassFile, ParseOptions, parse_with_options};
 use crabspot_launcher::{
     ApplicationCompletion, ApplicationDirectories, ApplicationInvocation, ApplicationOptions,
@@ -31,7 +32,7 @@ fn main() -> ExitCode {
 }
 fn full_usage() -> String {
     format!(
-        "{}\n       crabspot run --platform DIR --classes DIR BINARY.MAIN [-- ARG ...]",
+        "{}\n       crabspot run --platform DIR --classes DIR [--field-lookup-steps N] BINARY.MAIN [-- ARG ...]",
         usage()
     )
 }
@@ -46,32 +47,14 @@ fn run() -> Result<(), CliError> {
 fn application_run(
     mut arguments: impl ExactSizeIterator<Item = std::ffi::OsString>,
 ) -> Result<(), CliError> {
-    let mut platform = None;
-    let mut classes = None;
-    for _ in 0..2 {
-        let switch = arguments
-            .next()
-            .ok_or_else(|| CliError::Usage(full_usage()))?;
-        let path = arguments
-            .next()
-            .ok_or_else(|| CliError::Usage(full_usage()))?;
-        if switch == "--platform" && platform.is_none() {
-            platform = Some(PathBuf::from(path));
-        } else if switch == "--classes" && classes.is_none() {
-            classes = Some(PathBuf::from(path));
-        } else {
-            return Err(CliError::Usage(full_usage()));
-        }
-    }
-    let entry = arguments
-        .next()
-        .ok_or_else(|| CliError::Usage(full_usage()))?
+    let parsed = run_arguments::parse(&mut arguments).map_err(|_| CliError::Usage(full_usage()))?;
+    let entry = parsed
+        .entry
         .into_string()
         .map_err(|_| CliError::Failure("Input: binary entry name is not valid UTF-8".into()))?;
-    if let Some(separator) = arguments.next() {
-        if separator != "--" {
-            return Err(CliError::Usage(full_usage()));
-        }
+    let mut options = ApplicationOptions::default();
+    if let Some(limit) = parsed.field_lookup_steps {
+        options.field.max_lookup_steps = limit;
     }
     let limits = ApplicationStringLimits::default();
     let values = native_arguments::decode(arguments, limits)
@@ -81,8 +64,8 @@ fn application_run(
         .try_reserve_exact(values.len())
         .map_err(|_| CliError::Failure("Input: argument references allocation failed".into()))?;
     borrowed.extend(values.iter().map(Vec::as_slice));
-    let platform = platform.ok_or_else(|| CliError::Usage(full_usage()))?;
-    let classes = classes.ok_or_else(|| CliError::Usage(full_usage()))?;
+    let platform = parsed.platform;
+    let classes = parsed.classes;
     let run = run_directory_application_with_arguments(
         ApplicationDirectories {
             platform: &platform,
@@ -90,7 +73,7 @@ fn application_run(
         },
         &entry,
         &[],
-        ApplicationOptions::default(),
+        options,
         ApplicationInvocation {
             arguments: &borrowed,
             strings: limits,

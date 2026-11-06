@@ -62,6 +62,27 @@ impl Image {
             ] {
                 put(&boot, &world::exception(name, parent));
             }
+            for (name, parent) in [
+                (
+                    "java/lang/IndexOutOfBoundsException",
+                    "java/lang/RuntimeException",
+                ),
+                (
+                    "java/lang/ArrayIndexOutOfBoundsException",
+                    "java/lang/IndexOutOfBoundsException",
+                ),
+                (
+                    "java/lang/NegativeArraySizeException",
+                    "java/lang/RuntimeException",
+                ),
+                (
+                    "java/lang/ArrayStoreException",
+                    "java/lang/RuntimeException",
+                ),
+                ("java/lang/ClassCastException", "java/lang/RuntimeException"),
+            ] {
+                put(&boot, &world::exception(name, parent));
+            }
             for name in [
                 "java/lang/NullPointerException",
                 "java/lang/AssertionError",

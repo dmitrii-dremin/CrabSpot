@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "files": {
+    "manifest.json": "e7898f694e858d9900d1a7a273ed81e38e87d9ee9b68cc655b1c3d394fbc4cde",
+    "reference.json": "d439b9c28c0d3b617f06570e3b99f67114d75c81c4e18966f4d132861e8929ef",
+    "README.md": "6b9bcb52ba7e7a016654fda08a3189414d7eb67e537bdd1c93c040ee7f8dd046"
+  },
+  "tools": {
+    "fixture_source.py": "56898e5e6d252fcf41521aad42a2aaa0163c2f9a03ad500ef25e6e72905ca201",
+    "operand_entry_reference.py": "0c9ccb06b55d942b220f67fe78fc2088a527e08b68dffadfab1cf4299bc79dbe",
+    "test_operand_entry_reference.py": "2a0b6ca711f62ec4f5c42360c923a732703e5efbbd3580d1376a4ea95782eba8"
+  }
+}

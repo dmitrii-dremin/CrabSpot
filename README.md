@@ -55,6 +55,11 @@ result, helper initialization count and argument count. The launcher checks all
 classes supplied in the application directory before running main. Its current
 platform imports and runtime limits are listed in the [directory entry contract](docs/architecture/m2-verified-application-entry.md).
 
+The optional `--field-lookup-steps N` option sets the existing field-resolution
+work budget for one run. Place it before the main class, alongside `--platform`
+and `--classes`. The default remains 1,000,000; exceeding it reports a resource
+failure. Other execution limits are unchanged.
+
 ### Run synchronized Java code
 
 Using the same extracted platform and a fresh `target/monitor-classes` directory, compile and launch the monitor example:
@@ -107,9 +112,28 @@ python -m unittest discover -s tools -p test_throwable_launch.py
 The replay checks both archived and freshly compiled Java applications, retained
 message/cause state, rethrow identity, refill, uncaught diagnostics and exact
 resource boundaries. It also runs independent reference observations; CrabSpot
-executes the product cases itself. Java-visible stack-trace population and other
-VM exception producers remain unsupported. Combined acceptance status and
+executes the product cases itself. Java-visible stack-trace population remains
+unsupported. Combined acceptance status and
 reproduction evidence appear in the [integration report](docs/architecture/m2-throwable-integration.md).
+
+### Array and cast exceptions
+
+The approved operand increment constructs catchable array-bounds, negative-array-size,
+array-store and cast exceptions through genuine Java constructors. The public replay exercises archived and
+rebuilt Java classes, retained effects, messages, rethrow/refill and resource limits:
+
+```text
+python tools/verify_operand_entry.py
+python tools/operand_entry_reference.py --check --single-primary
+```
+
+Set `JAVA_HOME` to a Java 21 HotSpot JDK. The reference-only command explicitly
+checks the supplied primary JVM; use `--compare-openj9 PATH_TO_JAVA` instead for
+the dual-VM reference matrix. CrabSpot executes its own product cases. The full
+248-exception guest uses an explicit field-work allowance of 16,777,216; its
+unchanged-default failure is also checked. General null-pointer production and
+initialization-failure wrapping remain open. See the
+[operand integration report](docs/architecture/m2-operand-integration.md).
 
 ## Build and inspect
 

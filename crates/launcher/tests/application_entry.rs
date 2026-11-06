@@ -1418,3 +1418,81 @@ fn physical_cli_separator_empty_optionlike_and_whitespace_arguments() {
         .unwrap();
     assert_eq!(output.status.code(), Some(2));
 }
+
+#[test]
+fn cli_explicit_field_quota_keeps_real_failure_and_literal_guest_transport() {
+    let input = Inputs::new(vec![plain_main()]);
+    let exe = env!("CARGO_BIN_EXE_crabspot");
+    for quota in [None, Some("16777216"), Some("0")] {
+        let mut command = std::process::Command::new(exe);
+        command
+            .arg("run")
+            .arg("--platform")
+            .arg(&input.platform)
+            .arg("--classes")
+            .arg(&input.application);
+        if let Some(q) = quota {
+            command.args(["--field-lookup-steps", q]);
+        }
+        command.args(["app.Main", "--", "--field-lookup-steps", "not-a-number"]);
+        let out = command.output().unwrap();
+        let stderr = String::from_utf8(out.stderr).unwrap();
+        if quota == Some("0") {
+            assert_eq!(out.status.code(), Some(1));
+            assert!(
+                stderr.contains("field LookupSteps limit 0 exceeded (required 1)"),
+                "{stderr}"
+            );
+        } else {
+            assert!(out.status.success(), "{stderr}");
+        }
+    }
+}
+#[test]
+fn cli_bad_quota_grammar_is_usage_two_before_missing_directory_io() {
+    let exe = env!("CARGO_BIN_EXE_crabspot");
+    for quota in [
+        "",
+        "-1",
+        "+1",
+        " 1",
+        "1 ",
+        "\u{ff11}",
+        "18446744073709551616",
+        "000000000000000000000",
+    ] {
+        let out = std::process::Command::new(exe)
+            .args([
+                "run",
+                "--platform",
+                "missing-platform",
+                "--classes",
+                "missing-app",
+                "--field-lookup-steps",
+                quota,
+                "app.Main",
+            ])
+            .output()
+            .unwrap();
+        assert_eq!(out.status.code(), Some(2), "{quota:?}");
+        let text = String::from_utf8(out.stderr).unwrap();
+        assert!(text.contains("--field-lookup-steps"));
+        assert!(!text.contains("Input:"));
+    }
+    for quota in ["0", &usize::MAX.to_string()] {
+        let out = std::process::Command::new(exe)
+            .args([
+                "run",
+                "--field-lookup-steps",
+                quota,
+                "--classes",
+                "missing-app",
+                "--platform",
+                "missing-platform",
+                "app.Main",
+            ])
+            .output()
+            .unwrap();
+        assert_eq!(out.status.code(), Some(1));
+    }
+}

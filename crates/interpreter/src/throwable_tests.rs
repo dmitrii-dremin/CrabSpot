@@ -192,7 +192,7 @@ fn incomplete_and_corrupted_production_counts_cannot_dispatch_or_partially_incre
             },
             owner: 1,
             depth: 0,
-            spec,
+            spec: VmSpec::Arithmetic(spec),
             snapshot: None,
             receiver: Some(receiver),
             consumed: case != 0,
@@ -319,7 +319,7 @@ fn damaged_vm_constructor_boundary_cannot_pop_or_publish_any_caller_change() {
             },
             owner: 1,
             depth: 0,
-            spec,
+            spec: VmSpec::Arithmetic(spec),
             snapshot: None,
             receiver: Some(receiver),
             consumed: true,
@@ -332,9 +332,7 @@ fn damaged_vm_constructor_boundary_cannot_pop_or_publish_any_caller_change() {
             4 => java.vm.as_mut().unwrap().pending.as_mut().unwrap().consumed = false,
             _ => {
                 let pending = java.vm.as_ref().unwrap().pending.as_ref().unwrap();
-                let (other, access) = context
-                    .allocate_vm_exception(&claim, &pending.spec)
-                    .unwrap();
+                let (other, access) = pending.spec.allocate(&mut context, &claim).unwrap();
                 java.frames[1].constructor.push(ConstructorActivation {
                     access,
                     this: Uninitialized {
@@ -433,7 +431,7 @@ fn pure_service_error_uses_the_pending_recursive_activation_not_oldest_method_ma
         origin: vm.context.unwrap().origin,
         owner: 1,
         depth: 1,
-        spec,
+        spec: VmSpec::Arithmetic(spec),
         snapshot: None,
         receiver: None,
         consumed: true,

@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "contract_sha256": "607c6d5fcb95c0ede8797d6d17b0513e2a8000abeb38eb5660f7b47e1bbe2be6",
+  "flags": [
+    "--release",
+    "21",
+    "-g",
+    "-encoding",
+    "UTF-8"
+  ],
+  "compiler": "javac 21.0.7",
+  "compiler_sha256": "494786cb950aca4a0bfb3e69dbc75ce049d6965cdadb6bc486d4c20a07b0eb1a",
+  "files": {
+    "classes/app/OperandMain$Failure.class": "5255dbf417569b98a106767c9b921ba43ad0c57190355548e6cb61ca8ebe4d0a",
+    "classes/app/OperandMain.class": "7be9fefe0026f666316adacc97b79ca06da19332ce91ead87a81830f40b992ff",
+    "classes/app/OperandUncaught.class": "2fe99dcbde2b633822a62565784a123a0794fd3823be49520de4e041695b3eda",
+    "classes/operand/OperandGuest.class": "fba1b417cd149cdb8b14485d70b2734733f0409ae025d520e5fdbbdfd563aac0",
+    "classes/operand/Tag.class": "ef2f93c57bab23cb7013e4ec78be93ec794c95cc9bb77eb9d38ce6f41dc840ac",
+    "classes/operand/Tagged.class": "1d32596f3048aefd601ddfe7b644739094f78ba0d1e3bfafc303655873c6c0cf",
+    "classes/operand/\u00c9l\u00e9ment.class": "d61635f253360585a9fd9af4a2467d9840168d7f1a594c87250c0d632600fcc7",
+    "classes/operand/\u540d.class": "7f1d38d6e5909b7e757c3ab38b52d07c8b91a7356b4f0ca5d7e49f733670ee40",
+    "control/ObserveOperandMain.java": "6ed8a5c633a84c4ac7ae72ded364cfbf6f4fa337a7ba6e5ee4c87520b0ae7020",
+    "controls/ObserveOperandMain.class": "93e400f79db26209c6f5b0edbba4c888832eb082044a759f79026a4be179b6f7",
+    "message-oracles.json": "f02fbd9ac69e698d4ad1b751732e4fa1849235f767b4ba4ff6729ba78bcc77a6",
+    "provenance/debug-transport/result.json": "b71f73fda8bfd1c8638f902bce44571f42473450c607585690049f2e3e34cf8c",
+    "provenance/prototype-v4-manifest.json": "b7d59173da48edde649235beca345bfc7fb48a262890c3565bfe98fe2d22b7ee",
+    "provenance/transport-checks.json": "30089fd3a1a51058ec03938ea125b1405841a83306b1671e75d8571c36101e17",
+    "source-projection.json": "b359754dd4376e48ba2200ee30e449b06a2a1d5b2a7d3dc21101f9f3aad132c6",
+    "source/app/OperandMain.java": "dfb7b38f574a489ccfa23519c29654cc8becde2ee2af6d00c10616baea22a073",
+    "source/app/OperandUncaught.java": "6a19ab41480d888fee24ec973e8d4d4353b287a59c463b811eb86570969ba028",
+    "source/operand/OperandGuest.java": "78ead14dfafab485803a40d697cfa5fbf7d98fa87fabd0b3cdd90a5d3ec018ee",
+    "source/operand/Tag.java": "430a2614af54753dfc7c4f18604d082fe6d87a4d40cc659f6eb77df3d3ceec12",
+    "source/operand/Tagged.java": "4367014fb3b280806c3d4053689e14646ed836932b87e322f48bbb1909e1a8e7",
+    "source/operand/\u00c9l\u00e9ment.java": "66c91ead3f03fea333cd7937362a3b3ed0f7f12567e4af9adc4c1543eb053eda",
+    "source/operand/\u540d.java": "620bc940faa85e6013c68dc40c44cd6f253cc34a138c55a34417556dc052e193"
+  }
+}

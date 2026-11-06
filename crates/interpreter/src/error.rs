@@ -34,6 +34,7 @@ pub struct CallSite {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExecutionErrorKind {
+    OperandExceptionAccess(Box<crabspot_runtime::OperandExceptionError>),
     ThrowableAccess(Box<crabspot_runtime::ThrowableAccessError>),
     VmExceptionLimit {
         limit: u64,
@@ -235,6 +236,9 @@ impl fmt::Display for ExecutionError {
             write!(formatter, "bytecode offset {offset}: ")?;
         }
         match &self.kind {
+            ExecutionErrorKind::OperandExceptionAccess(error) => {
+                write!(formatter, "operand exception service: {error}")
+            }
             ExecutionErrorKind::ThrowableAccess(error) => {
                 write!(formatter, "Throwable service: {error}")
             }
@@ -459,6 +463,7 @@ impl fmt::Display for ExecutionError {
 impl std::error::Error for ExecutionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.kind {
+            ExecutionErrorKind::OperandExceptionAccess(error) => Some(error.as_ref()),
             ExecutionErrorKind::ThrowableAccess(error) => Some(error.as_ref()),
             ExecutionErrorKind::StringBody(error) => Some(error.as_ref()),
             ExecutionErrorKind::String(error) => Some(error.as_ref()),

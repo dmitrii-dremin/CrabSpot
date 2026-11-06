@@ -1,0 +1,173 @@
+{
+  "scope": "external observer only; no CrabSpot/native OS transport claim",
+  "checks": [
+    {
+      "vendor": "zulu",
+      "token": "N",
+      "exit_code": 0,
+      "stdout": "null",
+      "expected": "null"
+    },
+    {
+      "vendor": "zulu",
+      "token": "T",
+      "exit_code": 0,
+      "stdout": "",
+      "expected": ""
+    },
+    {
+      "vendor": "zulu",
+      "token": "T0000dfff20ac",
+      "exit_code": 0,
+      "stdout": "0000dfff20ac",
+      "expected": "0000dfff20ac"
+    },
+    {
+      "vendor": "zulu",
+      "token": "Tffffd800dc00",
+      "exit_code": 0,
+      "stdout": "ffffd800dc00",
+      "expected": "ffffd800dc00"
+    },
+    {
+      "vendor": "zulu",
+      "token": "",
+      "exit_code": 1,
+      "stdout": "",
+      "expected": "reject"
+    },
+    {
+      "vendor": "zulu",
+      "token": "Xabcd",
+      "exit_code": 1,
+      "stdout": "",
+      "expected": "reject"
+    },
+    {
+      "vendor": "zulu",
+      "token": "T0",
+      "exit_code": 1,
+      "stdout": "",
+      "expected": "reject"
+    },
+    {
+      "vendor": "zulu",
+      "token": "Tgggg",
+      "exit_code": 1,
+      "stdout": "",
+      "expected": "reject"
+    },
+    {
+      "vendor": "zulu",
+      "token": "T+001",
+      "exit_code": 1,
+      "stdout": "",
+      "expected": "reject"
+    },
+    {
+      "vendor": "zulu",
+      "token": "T-001",
+      "exit_code": 1,
+      "stdout": "",
+      "expected": "reject"
+    },
+    {
+      "vendor": "zulu",
+      "token": "T000g",
+      "exit_code": 1,
+      "stdout": "",
+      "expected": "reject"
+    },
+    {
+      "vendor": "zulu",
+      "token": "Nextra",
+      "exit_code": 1,
+      "stdout": "",
+      "expected": "reject"
+    },
+    {
+      "vendor": "openj9",
+      "token": "N",
+      "exit_code": 0,
+      "stdout": "null",
+      "expected": "null"
+    },
+    {
+      "vendor": "openj9",
+      "token": "T",
+      "exit_code": 0,
+      "stdout": "",
+      "expected": ""
+    },
+    {
+      "vendor": "openj9",
+      "token": "T0000dfff20ac",
+      "exit_code": 0,
+      "stdout": "0000dfff20ac",
+      "expected": "0000dfff20ac"
+    },
+    {
+      "vendor": "openj9",
+      "token": "Tffffd800dc00",
+      "exit_code": 0,
+      "stdout": "ffffd800dc00",
+      "expected": "ffffd800dc00"
+    },
+    {
+      "vendor": "openj9",
+      "token": "",
+      "exit_code": 1,
+      "stdout": "",
+      "expected": "reject"
+    },
+    {
+      "vendor": "openj9",
+      "token": "Xabcd",
+      "exit_code": 1,
+      "stdout": "",
+      "expected": "reject"
+    },
+    {
+      "vendor": "openj9",
+      "token": "T0",
+      "exit_code": 1,
+      "stdout": "",
+      "expected": "reject"
+    },
+    {
+      "vendor": "openj9",
+      "token": "Tgggg",
+      "exit_code": 1,
+      "stdout": "",
+      "expected": "reject"
+    },
+    {
+      "vendor": "openj9",
+      "token": "T+001",
+      "exit_code": 1,
+      "stdout": "",
+      "expected": "reject"
+    },
+    {
+      "vendor": "openj9",
+      "token": "T-001",
+      "exit_code": 1,
+      "stdout": "",
+      "expected": "reject"
+    },
+    {
+      "vendor": "openj9",
+      "token": "T000g",
+      "exit_code": 1,
+      "stdout": "",
+      "expected": "reject"
+    },
+    {
+      "vendor": "openj9",
+      "token": "Nextra",
+      "exit_code": 1,
+      "stdout": "",
+      "expected": "reject"
+    }
+  ]
+}

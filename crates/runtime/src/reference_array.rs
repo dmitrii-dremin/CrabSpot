@@ -4,6 +4,7 @@ use crate::{
     ArrayElement, FieldResolutionContext, HeapEntryKind, HeapError, ManagedHeap, Reference,
     ReferenceType, TypeAccessError, TypeJavaError,
 };
+use crate::{ArrayOperandFault, OperandOutcome};
 use std::fmt;
 
 /// Actual shallow Vec element representation; excludes headers/capacity/arena metadata.
@@ -50,13 +51,25 @@ impl From<HeapError> for ArrayAccessError {
         Self::Heap(error)
     }
 }
-fn destination_error(error: HeapError) -> ArrayAccessError {
+pub(crate) fn project_array<T>(
+    result: OperandOutcome<T, ArrayOperandFault>,
+) -> Result<T, ArrayAccessError> {
+    match result {
+        OperandOutcome::Value(value) => Ok(value),
+        OperandOutcome::Fault(fault) => Err(ArrayAccessError::Java(match fault {
+            ArrayOperandFault::Bounds { .. } => ArrayJavaError::IndexOutOfBounds,
+            ArrayOperandFault::NegativeSize { .. } => ArrayJavaError::NegativeArraySize,
+            ArrayOperandFault::Store { .. } => ArrayJavaError::ArrayStore,
+        })),
+    }
+}
+fn destination_error(error: HeapError) -> Result<ArrayOperandFault, ArrayAccessError> {
     match error {
-        HeapError::NullReference => ArrayAccessError::Java(ArrayJavaError::NullPointer),
-        HeapError::IndexOutOfBounds { .. } => {
-            ArrayAccessError::Java(ArrayJavaError::IndexOutOfBounds)
+        HeapError::NullReference => Err(ArrayAccessError::Java(ArrayJavaError::NullPointer)),
+        HeapError::IndexOutOfBounds { index, length } => {
+            Ok(ArrayOperandFault::Bounds { index, length })
         }
-        error => ArrayAccessError::Heap(error),
+        error => Err(ArrayAccessError::Heap(error)),
     }
 }
 fn reserve_values(values: &mut Vec<Reference>, amount: usize) -> Result<(), HeapError> {
@@ -208,6 +221,13 @@ impl FieldResolutionContext<'_> {
         component: ReferenceType,
         length: i32,
     ) -> Result<Reference, ArrayAccessError> {
+        project_array(self.allocate_reference_array_detailed(component, length)?)
+    }
+    pub fn allocate_reference_array_detailed(
+        &mut self,
+        component: ReferenceType,
+        length: i32,
+    ) -> Result<OperandOutcome<Reference, ArrayOperandFault>, ArrayAccessError> {
         self.unchanged().map_err(TypeAccessError::from)?;
         let universe = self.universe()?;
         self.validate_reference_type(component, universe)?;
@@ -234,21 +254,35 @@ impl FieldResolutionContext<'_> {
                 defining_loader,
             },
         };
-        self.heap_mut()
+        match self
+            .heap_mut()
             .allocate_reference_array_payload(array_type, length)
-            .map_err(|error| match error {
-                HeapError::NegativeLength { .. } => {
-                    ArrayAccessError::Java(ArrayJavaError::NegativeArraySize)
-                }
-                error => ArrayAccessError::Heap(error),
-            })
+        {
+            Ok(value) => Ok(OperandOutcome::Value(value)),
+            Err(HeapError::NegativeLength { length }) => {
+                Ok(OperandOutcome::Fault(ArrayOperandFault::NegativeSize {
+                    length,
+                    dimension: 0,
+                }))
+            }
+            Err(error) => Err(ArrayAccessError::Heap(error)),
+        }
     }
+
     pub fn new_reference_array(
         &mut self,
         origin: crate::ClassId,
         index: u16,
         length: i32,
     ) -> Result<Reference, ArrayAccessError> {
+        project_array(self.new_reference_array_detailed(origin, index, length)?)
+    }
+    pub fn new_reference_array_detailed(
+        &mut self,
+        origin: crate::ClassId,
+        index: u16,
+        length: i32,
+    ) -> Result<OperandOutcome<Reference, ArrayOperandFault>, ArrayAccessError> {
         let component =
             self.resolve_reference_type(origin, index)
                 .map_err(|error| match error {
@@ -257,20 +291,29 @@ impl FieldResolutionContext<'_> {
                     }
                     error => error.into(),
                 })?;
-        self.allocate_reference_array(component, length)
+        self.allocate_reference_array_detailed(component, length)
     }
     pub fn read_reference_array(
         &mut self,
         array: Reference,
         index: i32,
     ) -> Result<Reference, ArrayAccessError> {
+        project_array(self.read_reference_array_detailed(array, index)?)
+    }
+    pub fn read_reference_array_detailed(
+        &mut self,
+        array: Reference,
+        index: i32,
+    ) -> Result<OperandOutcome<Reference, ArrayOperandFault>, ArrayAccessError> {
         self.unchanged().map_err(TypeAccessError::from)?;
-        self.heap()
-            .reference_array_index(array, index)
-            .map_err(destination_error)?;
+        if let Err(error) = self.heap().reference_array_index(array, index) {
+            return Ok(OperandOutcome::Fault(destination_error(error)?));
+        }
         // Only the preceding destination check maps null/bounds. A corrupt stored
         // handle discovered by the load remains an opaque host failure.
-        Ok(self.heap().load_reference(array, index)?)
+        Ok(OperandOutcome::Value(
+            self.heap().load_reference(array, index)?,
+        ))
     }
     pub fn write_reference_array(
         &mut self,
@@ -278,10 +321,18 @@ impl FieldResolutionContext<'_> {
         index: i32,
         value: Reference,
     ) -> Result<(), ArrayAccessError> {
+        project_array(self.write_reference_array_detailed(array, index, value)?)
+    }
+    pub fn write_reference_array_detailed(
+        &mut self,
+        array: Reference,
+        index: i32,
+        value: Reference,
+    ) -> Result<OperandOutcome<(), ArrayOperandFault>, ArrayAccessError> {
         self.unchanged().map_err(TypeAccessError::from)?;
-        self.heap()
-            .reference_array_index(array, index)
-            .map_err(destination_error)?;
+        if let Err(error) = self.heap().reference_array_index(array, index) {
+            return Ok(OperandOutcome::Fault(destination_error(error)?));
+        }
         if !value.is_null() {
             let source = self
                 .reference_type(value)?
@@ -306,12 +357,15 @@ impl FieldResolutionContext<'_> {
             };
             let component = crate::types::component(dimensions, element, defining_loader)?;
             if !self.is_assignable(source, component)? {
-                return Err(ArrayAccessError::Java(ArrayJavaError::ArrayStore));
+                return Ok(OperandOutcome::Fault(ArrayOperandFault::Store {
+                    source,
+                    component,
+                }));
             }
         }
-        Ok(self
-            .heap_mut()
-            .commit_reference_array(array, index, value)?)
+        self.heap_mut()
+            .commit_reference_array(array, index, value)?;
+        Ok(OperandOutcome::Value(()))
     }
 }
 

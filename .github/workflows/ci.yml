@@ -99,6 +99,10 @@ jobs:
         run: python -m unittest discover -s tools -p test_throwable_entry_reference.py
       - name: Replay the public Throwable application on JDK 21
         run: python tools/throwable_entry_reference.py --check
+      - name: Check public operand reference tooling
+        run: python -m unittest discover -s tools -p test_operand_entry_reference.py
+      - name: Replay operand failures on the supplied primary JDK
+        run: python tools/operand_entry_reference.py --check --single-primary
       - name: Build independent JDK metadata inspector
         run: cargo build -p crabspot-launcher --locked
       - name: Capture this JDK's verifier metadata
@@ -194,3 +198,9 @@ jobs:
         run: python -m unittest discover -s tools -p test_throwable_launch.py
       - name: Execute Throwable construction and catchable arithmetic failures on CrabSpot
         run: python tools/verify_throwable_entry.py
+      - name: Check operand launcher regression tooling
+        run: python -m unittest discover -s tools -p test_operand_launch.py
+      - name: Check operand example diagnostic formatting
+        run: cargo test -p crabspot-launcher --example replay_operand_entry --locked
+      - name: Execute catchable array and cast failures on CrabSpot
+        run: python tools/verify_operand_entry.py

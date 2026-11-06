@@ -163,7 +163,7 @@ pub(crate) struct Strings {
     roots: Vec<HeapRef>,
     sites: HashMap<(ClassId, u16), LiteralSite>,
     #[cfg(test)]
-    fail_reserve_after: Option<usize>,
+    pub(crate) fail_reserve_after: Option<usize>,
     #[cfg(test)]
     force_fingerprint: Option<u64>,
 }
@@ -828,3 +828,18 @@ impl FieldResolutionContext<'_> {
 #[cfg(test)]
 #[path = "string_tests.rs"]
 pub(crate) mod tests;
+
+#[cfg(test)]
+impl Strings {
+    pub(crate) fn corrupt_profile_for_operand_test(&mut self, field: u8) {
+        match field {
+            0 => self.registry = self.registry.wrapping_add(1),
+            1 => {
+                self.universe.bootstrap_loader.registry =
+                    self.universe.bootstrap_loader.registry.wrapping_add(1)
+            }
+            2 => self.classes = self.classes.saturating_add(1),
+            _ => self.usage.interned = 1,
+        }
+    }
+}

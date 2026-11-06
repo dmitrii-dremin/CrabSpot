@@ -222,5 +222,14 @@ Continuation evidence SHA-256 is
 The director approved publication of the exact repair after independently checking
 the full evidence chain, source inventories and unchanged Rust binaries.
 [Canonical fixture amendment review](m2-throwable-canonical-fixture-review.md).
-Replacement hosted CI remains pending. Original local and hosted failures remain
-recorded; no hosted success is claimed for this revision.
+Replacement [run 42168555533](https://github.com/dmitrii-dremin/CrabSpot/actions/runs/42168555533)
+passed on both Linux and Windows for repair revision
+`c07b5f0bc2581242b3effaa54b0df09e67a4d71a`. The coordinator inspected both complete
+job logs: 4,966 Rust test executions on Linux and 4,960 on Windows, with six
+existing ignored-test reports per platform across the repeated suites. All steps
+passed, including formatting, strict lint and the public Throwable replay with
+20 reference observations, 48 API cases, 14 physical CLI cases and five profile
+controls per platform. The supplied Temurin 21.0.13 java.base verification covered
+7,615 ordinary definitions on Linux and 7,589 on Windows. Rust/Cargo was 1.99.1.
+The original failures and local timeout remain recorded; this success applies to
+the repaired revision, not the earlier failed publication.
