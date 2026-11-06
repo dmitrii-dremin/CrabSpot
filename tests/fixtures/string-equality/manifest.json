@@ -1,0 +1,93 @@
+{
+  "compiled": {
+    "app/BootstrapStatus.class": "06f256f22c1b7aa4f6d41e3bb806d1f7ed52d7e32aff1b036046dff217b9e4bc",
+    "app/Policy.class": "3f767d390092e2e00e167e1cbbc9b834dbbc5d794fc98f4b368791c1cd8200af",
+    "app/TextEquality.class": "4d298359c301de121e3cffe694bd28217c01778f2f7ef54d6508b06f9a3d7e64"
+  },
+  "compiler": "javac 21.0.7",
+  "controls": {
+    "PlatformIdentity.class": "1344a081d3b0004367fe41b9a976489b6a4c693153031860be80174c98ba2e28",
+    "ReadEquality.class": "6a6f53d1f140a633dff4acce72743e48c7b18240c521cdfe3baf939ec746f565",
+    "ReadPolicy.class": "7cc90449f7940fa7fead5ee32271f0e4c1d23a83b212908dc7f8773f90b6ddbb"
+  },
+  "flags": [
+    "--release",
+    "21",
+    "-g:none",
+    "-encoding",
+    "UTF-8"
+  ],
+  "modes": {
+    "all": [
+      "-ea",
+      "-esa"
+    ],
+    "all-except-app-class": [
+      "-ea",
+      "-esa",
+      "-da:app.Policy"
+    ],
+    "app-class-on": [
+      "-ea:app.Policy"
+    ],
+    "app-on": [
+      "-ea"
+    ],
+    "default": [],
+    "helper-on": [
+      "-ea:java.lang.StringLatin1"
+    ],
+    "system-except-helper": [
+      "-esa",
+      "-da:java.lang.StringLatin1"
+    ],
+    "system-off": [
+      "-dsa"
+    ],
+    "system-on": [
+      "-esa"
+    ],
+    "system-reset": [
+      "-esa",
+      "-dsa"
+    ]
+  },
+  "original": {
+    "app/BootstrapStatus.class": "06f256f22c1b7aa4f6d41e3bb806d1f7ed52d7e32aff1b036046dff217b9e4bc",
+    "app/Policy.class": "3f767d390092e2e00e167e1cbbc9b834dbbc5d794fc98f4b368791c1cd8200af",
+    "app/TextEquality.class": "4d298359c301de121e3cffe694bd28217c01778f2f7ef54d6508b06f9a3d7e64"
+  },
+  "platform_classes": {
+    "hotspot": [
+      "String=d4f87fcde6a7a0f4fea37f7c56e29279e94a9da55ccb41a6155d68cb44fe25d0",
+      "StringLatin1=b7f75b72c7bfb958feacb047e10cb4ee783fb4d6d922b6fc996a023bf3ecd174",
+      "Class=d7863bb214e55cfc222f915b409124f47807f267748ec7aa06b95e0a265c8584",
+      "ClassLoader=1a3959527c8a805391bb21d0bccf9a0bb738383b444a24e87ed4ba130b4e788d"
+    ],
+    "openj9": [
+      "String=25bc3e38a28f35a537715c22ea57abe9c78db5c630535cc603345b92f39278ce",
+      "StringLatin1=7f808debbd47e3025205f01396101b9209bf267f65c516fbba3d7c401583072e",
+      "Class=923adc5c2982071fdad67474627604aa08f70bbb3c8ccff4353987ea2168676c",
+      "ClassLoader=08c0c677811d2a16b361d650dfc1aac5d070ab9f9bb85ace731531d945579c62"
+    ]
+  },
+  "primary": "openjdk version \"21.0.7\" 2025-04-15 LTS\nOpenJDK Runtime Environment Zulu21.42+19-CA (build 21.0.7+6-LTS)\nOpenJDK 64-Bit Server VM Zulu21.42+19-CA (build 21.0.7+6-LTS, mixed mode, sharing)",
+  "secondary": "openjdk version \"21.0.13.0.3\" 2026-10-24 LTS\nIBM Semeru Runtime Open Edition 21.0.13.0 (build 21.0.13.0.3+1-LTS)\nEclipse OpenJ9 VM 21.0.13.0 (build 21.0.13.0.3+1-openj9-0.63.0, JRE 21 Windows 11 amd64-64-Bit Compressed References 20261024_885 (JIT enabled, AOT enabled)\nOpenJ9   - dcc7ee16aa\nOMR      - c2a3a9ae0\nJCL      - 62d1b70e191 based on jdk-21.0.13.0.3+1)",
+  "secondary_archive_sha256": "b296dc9f53cc933ebbf75d64b6bb5a17f30cd365f8ce8ab93df5a71a925a9c37",
+  "sources": {
+    "controls/PlatformIdentity.java": "03295e8964024044dd6efea77763b04e045f8f314fdecde78c4534120c044eee",
+    "controls/ReadEquality.java": "ef69132b3123552790bb4c5c52c991b56b842aecea557da4103c4799c8bedf70",
+    "controls/ReadPolicy.java": "f120813018d31d563411afc411291c13ff8979bf4b5a884acc7c0d96f2dc995e",
+    "src/app/BootstrapStatus.java": "3da4ab61d1f04e32fbf27cc590e436cf2024f6a36151c5b622b94b57c85dc243",
+    "src/app/Policy.java": "8cb1173fbcb8f09e185f446466725e707d4b68c15cf30a42b5ae32154bb1e728",
+    "src/app/TextEquality.java": "8505c4c10bb20b58583bc4ebcd7b343329c667c721cc191a165ff1b9e0ccc7cf"
+  },
+  "tools": {
+    "application_entry_reference.py": "77a3dfbb47bf77a841f7e4e7c67949da15cd78c46fdc93355ee620e8f15876a2",
+    "fixture_source.py": "56898e5e6d252fcf41521aad42a2aaa0163c2f9a03ad500ef25e6e72905ca201",
+    "loading_constraint_reference.py": "32c9909fdffc66c358dedc15b03f996729b7eb2e74ab40e82eb3ea0509a06910",
+    "string_body_reference.py": "5679adcf8e4a9b61277342f72bb5aaa411d6db17bcbbf91bb83d37c6d4585fe4",
+    "string_equality_reference.py": "2796fbed0b742b0c23c7fc541a2a850286666b05b6aa0cc24451e1db4ea79ef8",
+    "type_state_reference.py": "7ae96317309b7a27064d068502879e92feed2416613d0eb79e07b3edd9480eaf"
+  }
+}

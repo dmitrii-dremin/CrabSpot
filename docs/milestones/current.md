@@ -10,6 +10,8 @@ Reproduce the launcher cases with `python tools/verify_string_body_entry.py --op
 
 The next proposal follows `Object.equals` dispatch to the real String override and the byte-array comparison helper. That helper's initializer requires the bootstrap Class assertion query. [Equality proposal](../architecture/m2-string-equality-next.md)
 
+The equality reference suite captures results from 42 pinned JVM runs and exercises 22 public-only observations on the primary VM. The application made ten calls through one virtual call site and returned `511/10` on both reference VMs. The published CrabSpot build stops at that call in `equal@10`. [Equality fixtures and reproduction](../architecture/m2-string-equality-reference.md)
+
 ## Previous checkpoint: String literals, interning and arguments
 
 The technical director approved this increment on 2026-11-05. [Technical review](../architecture/m2-string-constants-review.md).

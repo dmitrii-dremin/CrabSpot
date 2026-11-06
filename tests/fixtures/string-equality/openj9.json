@@ -1,0 +1,182 @@
+{
+  "original/all": [
+    "511/10",
+    "policy=3/2/1/1/1/1",
+    "loaders=1/1/1/1",
+    "arrays=1/1/1",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "original/all-except-app-class": [
+    "511/10",
+    "policy=3/2/0/0/1/1",
+    "loaders=1/1/1/1",
+    "arrays=1/1/1",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "original/app-class-on": [
+    "511/10",
+    "policy=0/2/1/1/0/1",
+    "loaders=1/1/1/1",
+    "arrays=0/0/0",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "original/app-on": [
+    "511/10",
+    "policy=0/2/1/1/0/1",
+    "loaders=1/1/1/1",
+    "arrays=0/1/0",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "original/default": [
+    "511/10",
+    "policy=0/2/0/0/0/1",
+    "loaders=1/1/1/1",
+    "arrays=0/0/0",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "original/helper-on": [
+    "511/10",
+    "policy=0/2/0/0/1/1",
+    "loaders=1/1/1/1",
+    "arrays=0/0/0",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "original/system-except-helper": [
+    "511/10",
+    "policy=3/2/0/0/0/1",
+    "loaders=1/1/1/1",
+    "arrays=1/0/1",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "original/system-off": [
+    "511/10",
+    "policy=0/2/0/0/0/1",
+    "loaders=1/1/1/1",
+    "arrays=0/0/0",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "original/system-on": [
+    "511/10",
+    "policy=3/2/0/0/1/1",
+    "loaders=1/1/1/1",
+    "arrays=1/0/1",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "original/system-reset": [
+    "511/10",
+    "policy=0/2/0/0/0/1",
+    "loaders=1/1/1/1",
+    "arrays=0/0/0",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "rebuilt/all": [
+    "511/10",
+    "policy=3/2/1/1/1/1",
+    "loaders=1/1/1/1",
+    "arrays=1/1/1",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "rebuilt/all-except-app-class": [
+    "511/10",
+    "policy=3/2/0/0/1/1",
+    "loaders=1/1/1/1",
+    "arrays=1/1/1",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "rebuilt/app-class-on": [
+    "511/10",
+    "policy=0/2/1/1/0/1",
+    "loaders=1/1/1/1",
+    "arrays=0/0/0",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "rebuilt/app-on": [
+    "511/10",
+    "policy=0/2/1/1/0/1",
+    "loaders=1/1/1/1",
+    "arrays=0/1/0",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "rebuilt/default": [
+    "511/10",
+    "policy=0/2/0/0/0/1",
+    "loaders=1/1/1/1",
+    "arrays=0/0/0",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "rebuilt/helper-on": [
+    "511/10",
+    "policy=0/2/0/0/1/1",
+    "loaders=1/1/1/1",
+    "arrays=0/0/0",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "rebuilt/system-except-helper": [
+    "511/10",
+    "policy=3/2/0/0/0/1",
+    "loaders=1/1/1/1",
+    "arrays=1/0/1",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "rebuilt/system-off": [
+    "511/10",
+    "policy=0/2/0/0/0/1",
+    "loaders=1/1/1/1",
+    "arrays=0/0/0",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "rebuilt/system-on": [
+    "511/10",
+    "policy=3/2/0/0/1/1",
+    "loaders=1/1/1/1",
+    "arrays=1/0/1",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ],
+  "rebuilt/system-reset": [
+    "511/10",
+    "policy=0/2/0/0/0/1",
+    "loaders=1/1/1/1",
+    "arrays=0/0/0",
+    "class-fields=not-reflectively-present,not-reflectively-present",
+    "child=1/1/1/0/2",
+    "child=1/0/0/1/0"
+  ]
+}
